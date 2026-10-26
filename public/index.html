@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CARINA Style Lifecycle Monitor & Strategic Discount Planner</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top Navigation Header -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="logo-badge">CARINA</div>
+      <div class="brand-text">
+        <h1>Style Lifecycle Monitor & Strategic Discount Planner</h1>
+        <span class="sub-text">KSA Physical Retail Network &bull; Cloudflare D1 + Workers AI</span>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="mode-select-wrap">
+        <label for="agentModeSelect">Copilot Persona:</label>
+        <select id="agentModeSelect">
+          <option value="DISCOUNT_STRATEGIST" selected>Commercial Strategist (Margin Defense)</option>
+          <option value="STORE_AUDITOR">Store Space Auditor (Decongestion)</option>
+          <option value="RULE_COMPILER">Policy Compiler (D1 Governance)</option>
+        </select>
+      </div>
+      <button id="rulesBtn" class="btn btn-secondary">
+        <span class="icon">⚖️</span> Governance Rules
+      </button>
+      <button id="exportCsvBtn" class="btn btn-primary">
+        <span class="icon">📥</span> Export Odoo POS CSV
+      </button>
+      <button id="toggleCopilotBtn" class="btn btn-accent">
+        <span class="icon">💬</span> Ask Copilot
+      </button>
+    </div>
+  </header>
+
+  <main class="dashboard-container">
+    <!-- Executive KPI Ribbon -->
+    <section class="kpi-ribbon">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Physical Stock</div>
+        <div class="kpi-value" id="kpiTotalStock">Loading...</div>
+        <div class="kpi-sub">Across 4 Physical Nodes (excl. Shopify)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cost Capital at Risk</div>
+        <div class="kpi-value" id="kpiTotalCost">Loading...</div>
+        <div class="kpi-sub">Inventory Asset Valuation</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Retail Ticket Value</div>
+        <div class="kpi-value" id="kpiRetailValue">Loading...</div>
+        <div class="kpi-sub">Full Catalog List Value</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Blended Initial Markup</div>
+        <div class="kpi-value" id="kpiBlendedIMU">Loading...</div>
+        <div class="kpi-sub">Target: &ge; 75.0%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Size Curve Health</div>
+        <div class="kpi-value" id="kpiCurveHealth">Loading...</div>
+        <div class="kpi-sub">Styles with &ge; 3 Core Sizes</div>
+      </div>
+    </section>
+
+    <!-- Physical Store Density Health Cards -->
+    <section class="section-block">
+      <div class="section-header">
+        <h2>Physical Store Space Physics (621 m² Sales Floor Network)</h2>
+        <span class="tag-live">Live D1 Tracking</span>
+      </div>
+      <div class="density-grid">
+        <div class="store-card" id="cardAndalus">
+          <div class="store-head">
+            <h3>Al-Andalus Mall Flagship</h3>
+            <span class="city-pill">Jeddah &bull; 260 m²</span>
+          </div>
+          <div class="store-body">
+            <div class="metric-row">
+              <span>On-Hand Floor Stock:</span>
+              <strong id="stockAndalus">12,010 units</strong>
+            </div>
+            <div class="metric-row">
+              <span>Current Floor Density:</span>
+              <strong id="densityAndalus" class="density-val">46.2 u/m²</strong>
+            </div>
+            <div class="metric-row">
+              <span>Target Decongestion:</span>
+              <span>&le; 25.0 u/m² (Commercial Volume Hub)</span>
+            </div>
+          </div>
+          <div class="store-status status-healthy" id="statusAndalus">Balanced Hub</div>
+        </div>
+
+        <div class="store-card" id="cardYasmeen">
+          <div class="store-head">
+            <h3>Al-Yasmeen Mall</h3>
+            <span class="city-pill">Jeddah &bull; 193 m²</span>
+          </div>
+          <div class="store-body">
+            <div class="metric-row">
+              <span>On-Hand Floor Stock:</span>
+              <strong id="stockYasmeen">12,064 units</strong>
+            </div>
+            <div class="metric-row">
+              <span>Current Floor Density:</span>
+              <strong id="densityYasmeen" class="density-val choke">62.5 u/m²</strong>
+            </div>
+            <div class="metric-row">
+              <span>Target Decongestion:</span>
+              <span>&le; 34.0 u/m² (Severe Rack Choke)</span>
+            </div>
+          </div>
+          <div class="store-status status-warning" id="statusYasmeen">Requires Liquidation</div>
+        </div>
+
+        <div class="store-card" id="cardJouri">
+          <div class="store-head">
+            <h3>Jouri Mall</h3>
+            <span class="city-pill">Taif &bull; 168 m²</span>
+          </div>
+          <div class="store-body">
+            <div class="metric-row">
+              <span>On-Hand Floor Stock:</span>
+              <strong id="stockJouri">11,145 units</strong>
+            </div>
+            <div class="metric-row">
+              <span>Current Floor Density:</span>
+              <strong id="densityJouri" class="density-val choke">66.3 u/m²</strong>
+            </div>
+            <div class="metric-row">
+              <span>Target Decongestion:</span>
+              <span>&le; 35.4 u/m² (Critically Congested)</span>
+            </div>
+          </div>
+          <div class="store-status status-danger" id="statusJouri">Critical Bottleneck</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive What-If Scenario Simulator -->
+    <section class="simulator-panel">
+      <div class="sim-header">
+        <div>
+          <h2>⚡ Dynamic What-If Scenario Simulator</h2>
+          <p>Model financial yield, cash profits, and store rack density in real time.</p>
+        </div>
+        <button id="resetSimBtn" class="btn btn-sm btn-outline">Reset to Baseline</button>
+      </div>
+      <div class="sim-controls">
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="sliderLiquidation">Target Liquidation Volume:</label>
+            <span class="slider-display" id="valLiquidation">22,550 Units (42.8%)</span>
+          </div>
+          <input type="range" id="sliderLiquidation" min="5000" max="40000" step="500" value="22550">
+        </div>
+        <div class="slider-group">
+          <div class="slider-label-row">
+            <label for="sliderMarginFloor">Minimum Realized Net Margin Floor:</label>
+            <span class="slider-display" id="valMarginFloor">48.0%</span>
+          </div>
+          <input type="range" id="sliderMarginFloor" min="30" max="65" step="1" value="48">
+        </div>
+      </div>
+      <div class="sim-results-ribbon">
+        <div class="sim-result-box">
+          <span class="label">Projected Cash Register Gross:</span>
+          <strong id="simGrossRev">1,103,077 SAR</strong>
+        </div>
+        <div class="sim-result-box">
+          <span class="label">Projected Cash Net Profit:</span>
+          <strong id="simNetProfit" class="text-success">471,919 SAR</strong>
+        </div>
+        <div class="sim-result-box">
+          <span class="label">Realized Net Margin:</span>
+          <strong id="simRealizedMargin">49.2%</strong>
+        </div>
+        <div class="sim-result-box">
+          <span class="label">Retained Winter Stock:</span>
+          <strong id="simRetainedStock">30,182 Units (57.2%)</strong>
+        </div>
+        <div class="sim-result-box">
+          <span class="label">Post-Event Jouri Density:</span>
+          <strong id="simJouriPostDensity" class="text-info">35.4 u/m² (Clean)</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- Master Style Table Controls -->
+    <section class="section-block">
+      <div class="table-controls-bar">
+        <div class="search-input-wrap">
+          <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 50003) or Product Name...">
+        </div>
+        <div class="filter-group">
+          <select id="filterCategory">
+            <option value="ALL">All Categories</option>
+            <option value="Bra">Bras</option>
+            <option value="Leggings">Leggings & Pants</option>
+            <option value="Short">Shorts</option>
+            <option value="Pyjama">Pyjama & Sleepwear</option>
+            <option value="Tops">Tops & Tees</option>
+            <option value="Beauty">Fragrance & Splashes</option>
+          </select>
+
+          <select id="filterTier">
+            <option value="ALL">All Lifecycle Tiers</option>
+            <option value="HERO_CORE">Hero Core (0% Off)</option>
+            <option value="STEADY_ACTIVE">Steady Active (Spend & Save)</option>
+            <option value="MATURE_SUMMER_EXIT">Mature Summer (40% Off)</option>
+            <option value="CLEARANCE_50_PCT">Clearance (50% Off Rail)</option>
+            <option value="CLEARANCE_3_FOR_99">Clearance (3 for 99 SAR)</option>
+            <option value="FRESH_WINTER">Fresh Winter (Protected)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 18-Column Interactive Style Table -->
+      <div class="table-wrapper">
+        <table class="style-table" id="stylesTable">
+          <thead>
+            <tr>
+              <th>Style Code</th>
+              <th>Product Name</th>
+              <th>Category</th>
+              <th>Season</th>
+              <th>Physical Stock</th>
+              <th>Store Breakdown</th>
+              <th>STR %</th>
+              <th>ROS (8-wk)</th>
+              <th>Curve Health</th>
+              <th>Unit Cost</th>
+              <th>Cost + 15% VAT</th>
+              <th>Ticket Price</th>
+              <th>Recommended Offer</th>
+              <th>Discount</th>
+              <th>Promo Price</th>
+              <th>Zero-Loss</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody id="stylesTableBody">
+            <tr>
+              <td colspan="17" class="loading-cell">Loading style master records from Cloudflare D1...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pagination">
+        <span id="pageInfo">Showing styles...</span>
+        <div class="page-btns">
+          <button id="prevPageBtn" class="btn btn-sm btn-outline">Previous</button>
+          <button id="nextPageBtn" class="btn btn-sm btn-outline">Next</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- AI Copilot Side Drawer -->
+  <aside class="copilot-drawer" id="copilotDrawer">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <span class="icon">🤖</span>
+        <h3>CARINA Merchandising Copilot</h3>
+      </div>
+      <button id="closeCopilotBtn" class="btn-close">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="quick-prompts">
+        <span class="quick-title">Quick Prompts:</span>
+        <button class="pill-btn" data-prompt="Why is style ' Round Neck SS' recommended for 50% Off Clearance?">Why Round Neck SS 50% Off?</button>
+        <button class="pill-btn" data-prompt="How do we decongest Jouri Mall in Taif before December cold weather?">Decongest Jouri Mall</button>
+        <button class="pill-btn" data-prompt="Exclude all fresh Winter AW26 styles from any promotion">Exclude AW26</button>
+        <button class="pill-btn" data-prompt="Cap discount on bras at 25%">Cap Bra Discount at 25%</button>
+      </div>
+      <div class="chat-history" id="chatHistory">
+        <div class="chat-bubble ai">
+          <strong>CARINA AI Copilot:</strong>
+          <p>Hello! I am your autonomous Merchandising Copilot running on Cloudflare Workers AI. Ask me about style elasticity, floor density in Jeddah/Taif, or submit new governance rules in plain language.</p>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <form id="chatForm">
+        <input type="text" id="chatInput" placeholder="Ask about styles, floor density, or add new rules..." autocomplete="off">
+        <button type="submit" class="btn btn-primary">Send</button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Governance Rules Modal -->
+  <div class="modal-overlay" id="rulesModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>⚖️ Cloudflare D1 Governance Policies & Rules</h3>
+        <button id="closeRulesBtn" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">These active policies in <code>odoo-report-db-ksa</code> govern all automated price and offer calculations deterministically.</p>
+        <div class="rules-list" id="activeRulesList">
+          <!-- Populated dynamically -->
+        </div>
+
+        <hr>
+        <h4>Add New Dynamic Business Requirement</h4>
+        <form id="newRuleForm" class="new-rule-form">
+          <div class="form-row">
+            <input type="text" id="ruleName" placeholder="Rule Name (e.g. Max Pajama Discount)" required>
+            <select id="ruleCategory" required>
+              <option value="DISCOUNT_CAP">Discount Cap (%)</option>
+              <option value="EXCLUSION">Assortment Exclusion</option>
+              <option value="MARGIN">Minimum Margin Floor (%)</option>
+              <option value="STOCK_TARGET">Store Density Target</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <input type="text" id="ruleScope" placeholder="Target Scope (e.g. CATEGORY:Bra or SEASON:AW26)" required>
+            <select id="ruleOperator" required>
+              <option value="MAX">Maximum (&le;)</option>
+              <option value="MIN">Minimum (&ge;)</option>
+              <option value="EXCLUDE">Strictly Exclude (0% Off)</option>
+            </select>
+            <input type="text" id="ruleValue" placeholder="Value (e.g. 20.0)" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Activate Rule in D1</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

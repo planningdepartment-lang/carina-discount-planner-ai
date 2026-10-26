@@ -1,0 +1,27 @@
+{
+  "name": "carina-discount-planner-ai",
+  "version": "1.0.0",
+  "description": "CARINA Autonomous Style Lifecycle Monitor & Strategic Discount Planner",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "build": "tsc --noEmit",
+    "check": "tsc --noEmit",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "retail",
+    "merchandising",
+    "d1",
+    "workers-ai"
+  ],
+  "author": "CARINA Planning Department",
+  "license": "PROPRIETARY",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261023.1",
+    "typescript": "^5.6.3",
+    "wrangler": "^4.153.0"
+  }
+}

@@ -1,0 +1,19 @@
+name = "carina-discount-planner-ai"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "odoo-report-db-ksa"
+database_id = "7cf6d49e-e9cc-421b-8a80-b63af95bb063"
+
+# Cloudflare Workers AI Binding
+[ai]
+binding = "AI"
+
+# Static Assets for Pages Dashboard
+[assets]
+directory = "./public"
+binding = "ASSETS"

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+*.log
+*.pkl
+*.pickle
+.DS_Store
+Thumbs.db
