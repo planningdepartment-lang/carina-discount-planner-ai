@@ -166,6 +166,76 @@ async function searchStylesInD1(
 }
 
 /**
+ * Formatters for targeted style property requests (Stock, Pricing, Velocity, Offer).
+ * Guarantees zero data overexposure and zero token waste when answering specific questions.
+ */
+function formatStockCard(row: D1StyleSnapshotRow): string {
+  const total = row.total_physical_stock || 1;
+  const andalusPct = ((row.stock_andalus / total) * 100).toFixed(1);
+  const yasmeenPct = ((row.stock_yasmeen / total) * 100).toFixed(1);
+  const jouriPct = ((row.stock_jouri / total) * 100).toFixed(1);
+  const whPct = ((row.stock_wh / total) * 100).toFixed(1);
+
+  return (
+    `### Stock & Store Distribution — Style **${row.style_code}** (*${row.product_name}*)\n` +
+    `• **Category / Season:** \`${row.category || 'General'}\` | \`${row.season || 'Continuity'}\`\n` +
+    `• **Total Physical Inventory:** **${row.total_physical_stock.toLocaleString()} units** on-hand\n` +
+    `• **Store Network Allocation:**\n` +
+    `  - **Al-Andalus Mall Flagship (Jeddah):** ${row.stock_andalus} units (${andalusPct}%)\n` +
+    `  - **Al-Yasmeen Mall (Jeddah):** ${row.stock_yasmeen} units (${yasmeenPct}%)\n` +
+    `  - **Jouri Mall (Taif):** ${row.stock_jouri} units (${jouriPct}%)\n` +
+    `  - **Central Warehouse (WH):** ${row.stock_wh} units (${whPct}%)\n` +
+    `• **Active Size Curve Status:** ${row.sar_curve_health}`
+  );
+}
+
+function formatPricingCard(row: D1StyleSnapshotRow): string {
+  const imuVal = row.ticket_price > 0 ? (((row.ticket_price - row.unit_cost) / row.ticket_price) * 100).toFixed(1) : '0';
+  const promoRev = row.promotional_price / 1.15;
+  const promoNetMargin = (promoRev - row.unit_cost).toFixed(2);
+  const promoMarginPct = promoRev > 0 ? (((promoRev - row.unit_cost) / promoRev) * 100).toFixed(1) : '0';
+
+  return (
+    `### Pricing & Margin Economics — Style **${row.style_code}** (*${row.product_name}*)\n` +
+    `• **Original List Ticket Price:** **${row.ticket_price.toFixed(2)} SAR**\n` +
+    `• **Landed Unit Cost (COGS):** **${row.unit_cost.toFixed(2)} SAR**\n` +
+    `• **Saudi 15% VAT Legal Floor:** **${row.cost_plus_vat.toFixed(2)} SAR** (Formula: Landed Cost x 1.15)\n` +
+    `• **Initial Sales Markup (IMU):** **${imuVal}%** (Formula: (Ticket - Cost) / Ticket)\n` +
+    `• **Recommended Promo Price:** **${row.promotional_price.toFixed(2)} SAR** (${row.discount_pct}% discount)\n` +
+    `• **Unit Net Margin Contribution:** **+${promoNetMargin} SAR/unit** (${promoMarginPct}% net margin)\n` +
+    `• **Zero-Loss Compliance:** **${row.zero_loss_status}** (Promo Price >= Legal Floor)`
+  );
+}
+
+function formatVelocityCard(row: D1StyleSnapshotRow): string {
+  const wosVal = row.weekly_ros > 0 ? (row.total_physical_stock / row.weekly_ros).toFixed(1) : '999';
+  const monthsVal = (Number(wosVal) / 4.33).toFixed(1);
+
+  return (
+    `### Sales Performance & Runway — Style **${row.style_code}** (*${row.product_name}*)\n` +
+    `• **Cumulative Sell-Through (STR):** **${row.cumulative_str_pct}%**\n` +
+    `• **8-Week Rolling Sales Velocity (ROS):** **${row.weekly_ros} units/week**\n` +
+    `• **Store Runway (Weeks of Supply / WOS):** **${wosVal} weeks** (~${monthsVal} months)\n` +
+    `• **Runway Arithmetic:** ${row.total_physical_stock} units / ${row.weekly_ros} u/wk = ${wosVal} WOS\n` +
+    `• **Size Curve Health:** ${row.sar_curve_health}`
+  );
+}
+
+function formatOfferCard(row: D1StyleSnapshotRow): string {
+  const clearanceRate = Math.round((row.forecast_sold / (row.total_physical_stock || 1)) * 100);
+
+  return (
+    `### Promotional Strategy & Recommendations — Style **${row.style_code}** (*${row.product_name}*)\n` +
+    `• **Primary Offer (Velocity Driver):** **${row.recommended_offer}** at **${row.promotional_price.toFixed(2)} SAR** (${row.discount_pct}% off list)\n` +
+    `• **Alternative (Margin Defense):** **Spend 250 Save 50 (Multi-Buy Basket Pack)**\n` +
+    `• **Zero-Loss Compliance:** **${row.zero_loss_status}** (Promo ${row.promotional_price.toFixed(2)} SAR >= Floor ${row.cost_plus_vat.toFixed(2)} SAR)\n` +
+    `• **Forecast Event Clearance:** **${row.forecast_sold} units** (${clearanceRate}% liquidation rate)\n` +
+    `• **Projected Net Cash Margin:** **+${row.forecast_profit.toLocaleString()} SAR**\n` +
+    `• **Commercial Rationale:** ${row.commercial_rationale}`
+  );
+}
+
+/**
  * Formats full breakdown card only when explicitly requested.
  */
 function formatFullStyleCard(row: D1StyleSnapshotRow): string {
@@ -311,9 +381,85 @@ export async function handleCopilotChat(
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
 
-    // Case A: Pure Bare Style Code or Product Name Lookup (no question asked)
-    const isQuestionOrAnalysis = /\b(what|why|how|which|can|could|will|performance|selling|calculate|calculation|formula|margin|cogs|vat|floor|imu|wos|runway|velocity|decongest|simulate|project|evaluate|analyze|review)\b/i.test(lowerMsg);
-    if (!isQuestionOrAnalysis) {
+    // Intent classification for targeted queries
+    const isComplexAnalysis = /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|evaluate|analyze|review|compare)\b/i.test(lowerMsg);
+    const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
+    const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
+    const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
+    const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast|performance|selling)\b/i.test(lowerMsg);
+    const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance)\b/i.test(lowerMsg);
+
+    // Case A: Specific property queries without analytical reasoning (Zero LLM Tokens, Instant Deterministic Accuracy)
+    if (!isComplexAnalysis && !isFullOverview) {
+      if (isStockQuery && !isPricingQuery && !isVelocityQuery && !isOfferQuery) {
+        return {
+          reply: formatStockCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isPricingQuery && !isStockQuery && !isVelocityQuery && !isOfferQuery) {
+        return {
+          reply: formatPricingCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isVelocityQuery && !isStockQuery && !isPricingQuery && !isOfferQuery) {
+        return {
+          reply: formatVelocityCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isOfferQuery && !isStockQuery && !isPricingQuery && !isVelocityQuery) {
+        return {
+          reply: formatOfferCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isStockQuery && !isPricingQuery && !isOfferQuery) {
+        return {
+          reply: formatStockCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isPricingQuery && !isStockQuery) {
+        return {
+          reply: formatPricingCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isVelocityQuery) {
+        return {
+          reply: formatVelocityCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+      if (isOfferQuery) {
+        return {
+          reply: formatOfferCard(style),
+          mode,
+          activeStyleCode: style.style_code,
+          activeStyleName: style.product_name
+        };
+      }
+    }
+
+    // Case B: Pure bare lookup or explicit full breakdown
+    const hasAnyPropertyKeyword = isStockQuery || isPricingQuery || isVelocityQuery || isOfferQuery || isComplexAnalysis;
+    if (!hasAnyPropertyKeyword || isFullOverview) {
       return {
         reply: formatFullStyleCard(style),
         mode,
@@ -322,8 +468,7 @@ export async function handleCopilotChat(
       };
     }
 
-    // Case B: The user is asking a specific question, calculation, explanation, or scenario.
-    // SEND DIRECTLY TO WORKERS AI with complete mathematical telemetry and governance rules!
+    // Case C: Analytical, reasoning, or calculation questions routed to Workers AI
     let userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
     if (env?.AI) {
@@ -359,23 +504,19 @@ export async function handleCopilotChat(
 
         const systemPrompt = `You are CARINA's Senior Commercial Merchandising Strategist and Retail Pricing Analyst in Saudi Arabia.\n` +
           `Stores: Al-Andalus Mall Flagship (Jeddah, 260 m²), Al-Yasmeen Mall (Jeddah, 193 m²), Jouri Mall (Taif, 168 m²), Central Warehouse (WH).\n\n` +
-          `CORE CAPABILITIES & RULES:\n` +
-          `1. COMPREHENSIVE COMMERCIAL PLANNING & CAPABILITIES:\n` +
-          `   - You ARE CARINA's automated White Friday, promotional, and markdown discount planning intelligence in Saudi Arabia (KSA).\n` +
-          `   - NEVER answer with a bare monosyllable like "Yes" or "No". Even if the user asks "confirm yes or no", state the confirmation clearly and summarize the strategic commercial parameters, store allocations, and governance guardrails.\n` +
-          `2. ANSWER ANY QUESTION OR CALCULATION DIRECTLY:\n` +
-          `   - Answer the specific analytical, mathematical, operational, or strategic question asked by the user.\n` +
-          `   - When the user asks "how did you calculate...", "why...", or asks for any formula/derivation (such as Store Runway / Weeks of Supply, Velocity / ROS, Sell-Through Rate, IMU, Unit Margins, or Legal Floor), explain the exact formula and show the step-by-step arithmetic using the numbers from the provided telemetry.\n` +
-          `   - Do NOT deflect or output an unasked generic inventory breakdown or list of stores when a calculation or analytical question is asked.\n` +
-          `3. PROHIBITED ACTIONS & COMMERCIAL GOVERNANCE:\n` +
+          `CRITICAL INSTRUCTIONS — ANSWER ONLY WHAT IS ASKED & OPTIMIZE TOKEN USAGE:\n` +
+          `1. STRICT TOPIC RELEVANCE: Answer ONLY the specific analytical, mathematical, operational, or strategic question asked by the user.\n` +
+          `2. DO NOT OVER-EXPOSE UNREQUESTED DATA: Do not dump unasked metrics or telemetry. If asked about margins, do NOT list store inventory; if asked about stock, do NOT expose unit cost or promotional offers; if asked about a formula, do not recite warehouse distribution. Keep your answer focused strictly on the question.\n` +
+          `3. STEP-BY-STEP CALCULATION: When the user asks "how did you calculate...", "why...", or asks for a formula, explain the exact formula and show the arithmetic using the style telemetry.\n` +
+          `4. PROHIBITED ACTIONS & COMMERCIAL GOVERNANCE:\n` +
           `   - If the user proposes, asks for, or calculates a price or action that violates Saudi commercial law or commercial governance rules, clearly inform them that it is PROHIBITED:\n` +
           `     * Below-Cost Selling: Under Saudi retail pricing regulations, selling below landed cost plus 15% VAT (Price < Cost x 1.15) is strictly prohibited. State: "Prohibited Action: Selling below landed unit cost plus 15% VAT (${style.unit_cost.toFixed(2)} SAR x 1.15 = ${style.cost_plus_vat.toFixed(2)} SAR) is legally prohibited under Saudi retail pricing regulations."\n` +
           `     * Assortment Degradation: Deep discounting on fresh Winter AW26 collection or protected core styles is prohibited by active governance policies.\n` +
           `     * Inventory Contamination: Moving virtual online stock or damaged goods into physical store sales floors is prohibited.\n` +
-          `   - Always state the prohibition clearly, explain the reason, and provide the compliant alternative.\n` +
-          `4. STRICT EXECUTIVE FORMATTING:\n` +
-          `   - Provide ONLY your final, professional commercial answer directly.\n` +
-          `   - Do NOT output internal monologues, scratchpad thoughts, or reasoning steps (e.g., do not start with "Okay, so the user is asking...").\n` +
+          `   - State the prohibition clearly, explain the reason, and provide the compliant alternative.\n` +
+          `5. CONCISE EXECUTIVE FORMATTING:\n` +
+          `   - Provide ONLY your final, professional commercial answer directly (under 180 words).\n` +
+          `   - Do NOT output internal monologues, scratchpad thoughts, or reasoning steps.\n` +
           `   - Strictly NO emojis or unicode icons in your output. Format with clean section headers and bullet points.`;
 
         const aiPromise = env.AI.run(userModel, {
@@ -384,7 +525,7 @@ export async function handleCopilotChat(
             { role: 'user', content: `${styleContext}\n\nUser Question: "${userMessage}"` }
           ],
           temperature: 0.15,
-          max_tokens: 450
+          max_tokens: 220
         });
 
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));
@@ -501,7 +642,7 @@ export async function handleCopilotChat(
         `2. ANSWER ANY QUESTION OR CALCULATION DIRECTLY: Answer the user's analytical, mathematical, operational, or retail question directly and intelligently using the provided telemetry and formulas.\n` +
         `3. FOR GENERAL SALES PERFORMANCE QUESTIONS: Provide an executive summary of catalog performance, sell-through rate (46.9%), store floor densities (Andalus vs Yasmeen vs Jouri Mall), and campaign clearance forecasts.\n` +
         `4. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
-        `5. STRICT EXECUTIVE FORMATTING: Provide ONLY your final, professional commercial answer directly without internal monologues or thinking tags. Strictly NO emojis or unicode icons in your output.`;
+        `5. STRICT EXECUTIVE FORMATTING & TOKEN OPTIMIZATION: Provide ONLY your final, professional commercial answer directly without internal monologues, thinking tags, or filler phrases (under 180 words). Strictly NO emojis or unicode icons in your output.`;
 
       const aiPromise = env.AI.run(genModel, {
         messages: [
@@ -509,7 +650,7 @@ export async function handleCopilotChat(
           { role: 'user', content: `${generalContext}\n\nUser Question: "${userMessage}"` }
         ],
         temperature: 0.15,
-        max_tokens: 400
+        max_tokens: 220
       });
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));

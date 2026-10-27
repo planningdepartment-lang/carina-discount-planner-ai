@@ -77,13 +77,15 @@ async function searchStylesInD1(db, userMessage, contextStyleCode) {
     'analyze', 'analyzing', 'analysis', 'performance', 'overall', 'summary', 'metrics',
     'talking', 'talk', 'mean', 'me', 'my', 'one', 'ones', 'here', 'look', 'looking',
     'check', 'review', 'trend', 'trends', 'report', 'numbers', 'velocity', 'runway',
-    'hello', 'hi', 'hey', 'thanks', 'thank'
+    'hello', 'hi', 'hey', 'thanks', 'thank',
+    'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'do', 'did', 'has', 'had',
+    'in', 'on', 'at', 'to', 'of', 'by', 'as', 'into', 'like', 'through', 'over', 'out'
   ]);
 
   const words = lowerMsg
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length >= 2 && !stopWords.has(w));
+    .filter(w => w.length >= 3 && !stopWords.has(w));
 
   if (words.length > 0) {
     if (words.length > 1) {
@@ -150,4 +152,60 @@ test('Copilot Search: "what is the performance for this style?" without context 
   const lowerMsg = 'what is the performance for this style?'.toLowerCase();
   const asksForUnspecifiedStyle = /\b(performance.*(this|the) (style|item)|(this|the) (style|item).*performance|what is the price of this|how many.*this item|tell me about this (product|style|item)|what is this style|how is this selling|evaluate this (style|item)|analyze this (style|item)|about this style|for this style)\b/i.test(lowerMsg);
   assert.equal(asksForUnspecifiedStyle, true);
+});
+
+// Intent classification and targeted property card tests
+function routeStyleQueryIntent(lowerMsg) {
+  const isComplexAnalysis = /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|evaluate|analyze|review|compare)\b/i.test(lowerMsg);
+  const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
+  const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
+  const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
+  const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast|performance|selling)\b/i.test(lowerMsg);
+  const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance)\b/i.test(lowerMsg);
+
+  if (!isComplexAnalysis && !isFullOverview) {
+    if (isStockQuery && !isPricingQuery && !isVelocityQuery && !isOfferQuery) return 'STOCK_CARD';
+    if (isPricingQuery && !isStockQuery && !isVelocityQuery && !isOfferQuery) return 'PRICING_CARD';
+    if (isVelocityQuery && !isStockQuery && !isPricingQuery && !isOfferQuery) return 'VELOCITY_CARD';
+    if (isOfferQuery && !isStockQuery && !isPricingQuery && !isVelocityQuery) return 'OFFER_CARD';
+    if (isStockQuery && !isPricingQuery && !isOfferQuery) return 'STOCK_CARD';
+    if (isPricingQuery && !isStockQuery) return 'PRICING_CARD';
+    if (isVelocityQuery) return 'VELOCITY_CARD';
+    if (isOfferQuery) return 'OFFER_CARD';
+  }
+
+  const hasAnyPropertyKeyword = isStockQuery || isPricingQuery || isVelocityQuery || isOfferQuery || isComplexAnalysis;
+  if (!hasAnyPropertyKeyword || isFullOverview) return 'FULL_CARD';
+
+  return 'COMPLEX_AI';
+}
+
+test('Copilot Intent: "Pyjama Set AW25-PJ-5017 stock" routes strictly to STOCK_CARD without exposing price/offer', () => {
+  const intent = routeStyleQueryIntent('pyjama set aw25-pj-5017 stock');
+  assert.equal(intent, 'STOCK_CARD');
+});
+
+test('Copilot Intent: "what is the price of 57805" routes strictly to PRICING_CARD without store distribution', () => {
+  const intent = routeStyleQueryIntent('what is the price of 57805');
+  assert.equal(intent, 'PRICING_CARD');
+});
+
+test('Copilot Intent: "what is the runway for 50177" routes strictly to VELOCITY_CARD', () => {
+  const intent = routeStyleQueryIntent('what is the runway for 50177');
+  assert.equal(intent, 'VELOCITY_CARD');
+});
+
+test('Copilot Intent: "what offer is recommended for 50177" routes strictly to OFFER_CARD', () => {
+  const intent = routeStyleQueryIntent('what offer is recommended for 50177');
+  assert.equal(intent, 'OFFER_CARD');
+});
+
+test('Copilot Intent: bare style code "50177" routes to FULL_CARD for complete overview', () => {
+  const intent = routeStyleQueryIntent('50177');
+  assert.equal(intent, 'FULL_CARD');
+});
+
+test('Copilot Intent: "why did you recommend Take 3 for 50177" routes to COMPLEX_AI', () => {
+  const intent = routeStyleQueryIntent('why did you recommend take 3 for 50177');
+  assert.equal(intent, 'COMPLEX_AI');
 });
