@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARINA Style Lifecycle Monitor & Strategic Discount Planner</title>
+  <title>CARINA | Style Lifecycle Monitor & Strategic Discount Planner</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Top Navigation Header -->
-  <header class="navbar">
-    <div class="nav-brand">
-      <div class="logo-badge">CARINA</div>
-      <div class="brand-text">
-        <h1>Style Lifecycle Monitor & Strategic Discount Planner</h1>
-        <span class="sub-text">KSA Physical Retail Network &bull; Cloudflare D1 + Workers AI</span>
+  <!-- Global Application Header -->
+  <header class="app-header">
+    <div class="brand-group">
+      <div class="brand-logo">CARINA</div>
+      <div class="brand-titles">
+        <h1>Autonomous Style Lifecycle Monitor & Strategic Discount Planner</h1>
+        <span class="sub-text">KSA Physical Retail Store Network &bull; Live Merchandising Strategy Radar</span>
       </div>
     </div>
     <div class="nav-actions">
@@ -31,6 +34,9 @@
           <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
           <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
           <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
+          <option value="@cf/mistral/mistral-7b-instruct-v0.2">⚡ Mistral 7B Instruct</option>
+          <option value="@cf/qwen/qwen1.5-14b-chat-awq">📊 Qwen 1.5 14B Chat</option>
+          <option value="@cf/google/gemma-7b-it">🎯 Google Gemma 7B IT</option>
           <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
         </select>
       </div>
@@ -47,32 +53,37 @@
   </header>
 
   <main class="dashboard-container">
-    <!-- Executive KPI Ribbon -->
+    <!-- Executive 6-Card KPI Ribbon -->
     <section class="kpi-ribbon">
-      <div class="kpi-card">
+      <div class="kpi-card card-cyan">
         <div class="kpi-label">Total Physical Stock</div>
-        <div class="kpi-value" id="kpiTotalStock">Loading...</div>
-        <div class="kpi-sub">Across 4 Physical Nodes (excl. Shopify)</div>
+        <div class="kpi-value" id="kpiTotalStock">53,999</div>
+        <div class="kpi-sub">Units across 4 Physical Nodes (excl. Shopify)</div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card card-purple">
         <div class="kpi-label">Cost Capital at Risk</div>
-        <div class="kpi-value" id="kpiTotalCost">Loading...</div>
-        <div class="kpi-sub">Inventory Asset Valuation</div>
+        <div class="kpi-value" id="kpiTotalCost">2,526,907 SAR</div>
+        <div class="kpi-sub">Total Inventory Asset Landed Valuation</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Retail Ticket Value</div>
-        <div class="kpi-value" id="kpiRetailValue">Loading...</div>
-        <div class="kpi-sub">Full Catalog List Value</div>
+      <div class="kpi-card card-emerald">
+        <div class="kpi-label">Projected Cash Recovery</div>
+        <div class="kpi-value" id="kpiRetailValue">1,180,450 SAR</div>
+        <div class="kpi-sub">Gross Clearance Yield at Recommended Offers</div>
       </div>
-      <div class="kpi-card">
+      <div class="kpi-card card-blue">
         <div class="kpi-label">Blended Initial Markup</div>
-        <div class="kpi-value" id="kpiBlendedIMU">Loading...</div>
-        <div class="kpi-sub">Target: &ge; 75.0%</div>
+        <div class="kpi-value" id="kpiBlendedIMU">49.7%</div>
+        <div class="kpi-sub">Catalog Benchmark Baseline</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Size Curve Health</div>
-        <div class="kpi-value" id="kpiCurveHealth">Loading...</div>
-        <div class="kpi-sub">Styles with &ge; 3 Core Sizes</div>
+      <div class="kpi-card card-amber">
+        <div class="kpi-label">Winter Reserve Protected</div>
+        <div class="kpi-value" id="kpiCurveHealth">57.8%</div>
+        <div class="kpi-sub">Target &ge; 57.2% Assortment Retention (Pass)</div>
+      </div>
+      <div class="kpi-card card-green">
+        <div class="kpi-label">Zero-Loss Guard Compliance</div>
+        <div class="kpi-value" id="kpiZeroLoss">100% PASS</div>
+        <div class="kpi-sub">0 Violations of Saudi 15% VAT Legal Floor</div>
       </div>
     </section>
 
@@ -80,7 +91,7 @@
     <section class="section-block">
       <div class="section-header">
         <h2>Physical Store Space Physics (621 m² Sales Floor Network)</h2>
-        <span class="tag-live">Live D1 Tracking</span>
+        <span class="tag-live">Active Floor Density Monitor</span>
       </div>
       <div class="density-grid">
         <div class="store-card" id="cardAndalus">
@@ -91,15 +102,15 @@
           <div class="store-body">
             <div class="metric-row">
               <span>On-Hand Floor Stock:</span>
-              <strong id="stockAndalus">12,010 units</strong>
+              <strong id="stockAndalus">12,346 units</strong>
             </div>
             <div class="metric-row">
               <span>Current Floor Density:</span>
-              <strong id="densityAndalus" class="density-val">46.2 u/m²</strong>
+              <strong id="densityAndalus" class="density-val">47.5 u/m²</strong>
             </div>
             <div class="metric-row">
-              <span>Target Decongestion:</span>
-              <span>&le; 25.0 u/m² (Commercial Volume Hub)</span>
+              <span>Target Benchmark:</span>
+              <span>&le; 50.0 u/m² (Commercial Volume Hub)</span>
             </div>
           </div>
           <div class="store-status status-healthy" id="statusAndalus">Balanced Hub</div>
@@ -113,15 +124,15 @@
           <div class="store-body">
             <div class="metric-row">
               <span>On-Hand Floor Stock:</span>
-              <strong id="stockYasmeen">12,064 units</strong>
+              <strong id="stockYasmeen">11,978 units</strong>
             </div>
             <div class="metric-row">
               <span>Current Floor Density:</span>
-              <strong id="densityYasmeen" class="density-val choke">62.5 u/m²</strong>
+              <strong id="densityYasmeen" class="density-val choke">62.1 u/m²</strong>
             </div>
             <div class="metric-row">
-              <span>Target Decongestion:</span>
-              <span>&le; 34.0 u/m² (Severe Rack Choke)</span>
+              <span>Target Benchmark:</span>
+              <span>&le; 55.0 u/m² (Severe Rack Choke)</span>
             </div>
           </div>
           <div class="store-status status-warning" id="statusYasmeen">Requires Liquidation</div>
@@ -135,15 +146,15 @@
           <div class="store-body">
             <div class="metric-row">
               <span>On-Hand Floor Stock:</span>
-              <strong id="stockJouri">11,145 units</strong>
+              <strong id="stockJouri">11,438 units</strong>
             </div>
             <div class="metric-row">
               <span>Current Floor Density:</span>
-              <strong id="densityJouri" class="density-val choke">66.3 u/m²</strong>
+              <strong id="densityJouri" class="density-val choke">68.1 u/m²</strong>
             </div>
             <div class="metric-row">
-              <span>Target Decongestion:</span>
-              <span>&le; 35.4 u/m² (Critically Congested)</span>
+              <span>Target Benchmark:</span>
+              <span>&le; 60.0 u/m² (Critical Clearance Bottleneck)</span>
             </div>
           </div>
           <div class="store-status status-danger" id="statusJouri">Critical Bottleneck</div>
@@ -204,7 +215,7 @@
     <section class="section-block">
       <div class="table-controls-bar">
         <div class="search-input-wrap">
-          <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 50003) or Product Name...">
+          <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 59465) or Product Name...">
         </div>
         <div class="filter-group">
           <select id="filterCategory">
@@ -223,17 +234,17 @@
 
           <select id="filterTier">
             <option value="ALL">All Lifecycle Tiers</option>
-            <option value="HERO_CORE">Hero Core (0% Off)</option>
             <option value="STEADY_ACTIVE">Steady Active (Spend & Save)</option>
+            <option value="HERO_CORE">Hero Core (0% Off Margin Protect)</option>
             <option value="MATURE_SUMMER_EXIT">Mature Summer (40% Off)</option>
             <option value="CLEARANCE_50_PCT">Clearance (50% Off Rail)</option>
             <option value="CLEARANCE_3_FOR_99">Clearance (3 for 99 SAR)</option>
-            <option value="FRESH_WINTER">Fresh Winter (Protected)</option>
+            <option value="FRESH_WINTER">Fresh Winter (AW26 Protected)</option>
           </select>
         </div>
       </div>
 
-      <!-- 18-Column Interactive Style Table -->
+      <!-- Interactive Style Table -->
       <div class="table-wrapper">
         <table class="style-table" id="stylesTable">
           <thead>
@@ -254,7 +265,7 @@
               <th>Discount</th>
               <th>Promo Price</th>
               <th>Zero-Loss</th>
-              <th>Rationale</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="stylesTableBody">
@@ -264,8 +275,10 @@
           </tbody>
         </table>
       </div>
-      <div class="table-pagination">
-        <span id="pageInfo">Showing styles...</span>
+
+      <!-- Pagination -->
+      <div class="pagination-bar">
+        <span id="pageInfo">Showing styles 1 to 50</span>
         <div class="page-btns">
           <button id="prevPageBtn" class="btn btn-sm btn-outline">Previous</button>
           <button id="nextPageBtn" class="btn btn-sm btn-outline">Next</button>
@@ -289,21 +302,24 @@
         <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
         <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
         <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
+        <option value="@cf/mistral/mistral-7b-instruct-v0.2">⚡ Mistral 7B Instruct</option>
+        <option value="@cf/qwen/qwen1.5-14b-chat-awq">📊 Qwen 1.5 14B Chat</option>
+        <option value="@cf/google/gemma-7b-it">🎯 Google Gemma 7B IT</option>
         <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
       </select>
     </div>
     <div class="drawer-body">
       <div class="quick-prompts">
         <span class="quick-title">Quick Prompts:</span>
-        <button class="pill-btn" data-prompt="Why is style ' Round Neck SS' recommended for 50% Off Clearance?">Why Round Neck SS 50% Off?</button>
+        <button class="pill-btn" data-prompt="What is the recommended offer for style 59465?">Offer for Style 59465?</button>
         <button class="pill-btn" data-prompt="How do we decongest Jouri Mall in Taif before December cold weather?">Decongest Jouri Mall</button>
         <button class="pill-btn" data-prompt="Exclude all fresh Winter AW26 styles from any promotion">Exclude AW26</button>
         <button class="pill-btn" data-prompt="Cap discount on bras at 25%">Cap Bra Discount at 25%</button>
       </div>
       <div class="chat-history" id="chatHistory">
         <div class="chat-bubble ai">
-          <strong>CARINA AI Copilot:</strong>
-          <p>Hello! I am your autonomous Merchandising Copilot running on Cloudflare Workers AI. Ask me about style elasticity, floor density in Jeddah/Taif, or submit new governance rules in plain language.</p>
+          <strong>CARINA Merchandising Strategist:</strong>
+          <p>Hello! I am your CARINA Merchandising Strategist. Ask me about style pricing, store inventory in Jeddah and Taif, promotional recommendations, or submit commercial governance rules.</p>
         </div>
       </div>
     </div>
@@ -319,11 +335,11 @@
   <div class="modal-overlay" id="rulesModal">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3>⚖️ Cloudflare D1 Governance Policies & Rules</h3>
+        <h3>⚖️ Active Governance Policies & Rules</h3>
         <button id="closeRulesBtn" class="btn-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">These active policies in <code>odoo-report-db-ksa</code> govern all automated price and offer calculations deterministically.</p>
+        <p class="modal-desc">These active policies govern all automated price and offer calculations deterministically.</p>
         <div class="rules-list" id="activeRulesList">
           <!-- Populated dynamically -->
         </div>
@@ -354,6 +370,53 @@
       </div>
     </div>
   </div>
+
+  <!-- Offer Override Modal -->
+  <div class="modal-overlay" id="overrideModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>✏️ Manual Offer Override</h3>
+        <button id="closeOverrideBtn" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="overrideStyleInfo" class="override-info-box">
+          <!-- Populated on click -->
+        </div>
+
+        <form id="overrideForm">
+          <input type="hidden" id="overrideStyleCode">
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="overrideOfferSelect"><strong>Select Promotional Strategy:</strong></label>
+            <select id="overrideOfferSelect" class="form-select" style="width: 100%; padding: 0.5rem; margin-top: 0.3rem;">
+              <option value="Take 3 For 99 SAR Rail (33 SAR/u)">Take 3 For 99 SAR Rail (33.00 SAR/u)</option>
+              <option value="50% Off Dedicated Clearance Rail">50% Off Dedicated Clearance Rail</option>
+              <option value="Category Markdown 40% Off">Category Markdown 40% Off</option>
+              <option value="Spend & Save Eligible (~20% Off)">Spend & Save Eligible (~20% Off)</option>
+              <option value="Full Price Margin Protection (0% Off)">Full Price Margin Protection (0% Off)</option>
+              <option value="CUSTOM">Custom Promotional Price...</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="overridePriceInput"><strong>Promotional Price (SAR):</strong></label>
+            <input type="number" step="0.5" id="overridePriceInput" class="form-control" style="width: 100%; padding: 0.5rem; margin-top: 0.3rem;" required>
+          </div>
+
+          <div id="zeroLossAlert" class="alert-box" style="display: none; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
+            <!-- Warning if price < Cost * 1.15 -->
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button type="button" id="cancelOverrideBtn" class="btn btn-secondary">Cancel</button>
+            <button type="submit" id="saveOverrideBtn" class="btn btn-primary">Save & Apply to POS</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Calculation Tooltip / Popover -->
+  <div id="calcPopover" class="calc-popover" style="display: none;"></div>
 
   <script src="app.js"></script>
 </body>

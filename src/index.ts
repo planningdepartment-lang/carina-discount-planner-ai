@@ -18,7 +18,7 @@ export default {
     const url = new URL(request.url);
     const { pathname } = url;
 
-    // CORS headers for local testing / cross-origin
+    // CORS headers for cross-origin and local testing
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -138,7 +138,6 @@ export default {
           });
         }
 
-        // Limit results to 100 for fast UI rendering
         const page = parseInt(url.searchParams.get('page') || '1');
         const limit = parseInt(url.searchParams.get('limit') || '50');
         const paginated = filtered.slice((page - 1) * limit, page * limit);
@@ -149,6 +148,53 @@ export default {
           limit,
           data: paginated
         }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // 2b. POST /api/styles/override (Manual Offer Override with Zero-Loss Lock)
+      if (pathname === '/api/styles/override' && request.method === 'POST') {
+        const body = (await request.json()) as {
+          styleCode: string;
+          promotionalPrice: number;
+          recommendedOffer: string;
+        };
+
+        const { results } = await env.DB
+          .prepare('SELECT unit_cost, ticket_price FROM style_plan_snapshots WHERE style_code = ?')
+          .bind(body.styleCode)
+          .all<any>();
+
+        if (!results || results.length === 0) {
+          return new Response(JSON.stringify({ error: 'Style not found' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const cost = Number(results[0].unit_cost) || 0;
+        const ticket = Number(results[0].ticket_price) || 0;
+        const floor = cost * 1.15;
+
+        if (body.promotionalPrice < floor) {
+          return new Response(JSON.stringify({
+            error: `Promotional price (${body.promotionalPrice} SAR) violates legal zero-loss floor (${floor.toFixed(2)} SAR).`
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        const discountPct = ticket > 0 ? Math.round((1 - (body.promotionalPrice / ticket)) * 100) : 0;
+
+        await env.DB.prepare(`
+          UPDATE style_plan_snapshots 
+          SET promotional_price = ?, recommended_offer = ?, discount_pct = ?,
+              commercial_rationale = 'Manual user override applied in live planner.'
+          WHERE style_code = ?
+        `).bind(body.promotionalPrice, body.recommendedOffer, discountPct, body.styleCode).run();
+
+        return new Response(JSON.stringify({ success: true, discountPct }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
@@ -206,7 +252,7 @@ export default {
         });
       }
 
-      // 7. Serve Static Assets (Cloudflare Pages Dashboard)
+      // 7. Serve Static Assets (Pages Dashboard)
       if (env.ASSETS) {
         return await env.ASSETS.fetch(request);
       }
@@ -228,13 +274,11 @@ export default {
  * Helper to fetch cached plan or aggregate dynamically from D1 moves.
  */
 async function getOrComputeStylePlan(db: D1Database): Promise<StylePlanRecord[]> {
-  // 1. Try reading fast cached snapshots first
   const cached = await fetchStylePlanSnapshots(db);
   if (cached && cached.length > 0) {
     return cached;
   }
 
-  // 2. Direct aggregation from moves
   const metricsList = await aggregateStylesDirectFromD1(db);
   const activeRules = await fetchBusinessRules(db);
 
@@ -247,7 +291,6 @@ async function getOrComputeStylePlan(db: D1Database): Promise<StylePlanRecord[]>
     };
   });
 
-  // 3. Cache snapshots asynchronously in background
   if (records.length > 0) {
     saveStylePlanSnapshots(db, records).catch(err => console.error('Snapshot background save error:', err));
   }
