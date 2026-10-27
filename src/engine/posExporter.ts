@@ -96,7 +96,9 @@ export function generateOdooPOSPricelistCSV(records: StylePlanRecord[]): string 
     const netMargin = netRev > 0 ? ((netRev - metrics.unitCost) / netRev) * 100 : 0;
 
     let posRuleTag = 'RULE_SPEND_SAVE_20';
-    if (recommendation.tier === 'CLEARANCE_50_PCT') posRuleTag = 'RULE_CLEAR_50_PCT';
+    if (recommendation.zeroLossStatus === 'FLAGGED' || (recommendation.tier || '').includes('FLAGGED') || metrics.ticketPrice < costPlusVat) {
+      posRuleTag = 'RULE_FLAGGED_PRICE_ERROR_LOCKED';
+    } else if (recommendation.tier === 'CLEARANCE_50_PCT') posRuleTag = 'RULE_CLEAR_50_PCT';
     else if (recommendation.tier === 'CLEARANCE_3_FOR_99') posRuleTag = 'RULE_CLEAR_3_FOR_99';
     else if (recommendation.tier === 'MATURE_SUMMER_EXIT') posRuleTag = 'RULE_SUMMER_40_PCT';
     else if (recommendation.tier === 'HERO_CORE' || recommendation.tier === 'FRESH_WINTER') posRuleTag = 'RULE_FULL_PRICE_PROTECTED';

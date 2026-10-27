@@ -125,6 +125,12 @@ export default {
             const recTier = (r.recommendation.tier || '').toUpperCase();
             const season = (r.metrics.season || '').toUpperCase();
 
+            if (t === 'FLAGGED' || t === 'FLAGGED_PRICE_ERROR') {
+              return r.recommendation.zeroLossStatus === 'FLAGGED' || 
+                     offer.includes('FLAGGED') || 
+                     recTier.includes('FLAGGED') || 
+                     r.metrics.ticketPrice < (r.metrics.unitCost * 1.15);
+            }
             if (t === 'STEADY_ACTIVE') return offer.includes('SPEND & SAVE');
             if (t === 'HERO_CORE') return offer.includes('MARGIN PROTECTION') || offer.includes('0% OFF');
             if (t === 'MATURE_SUMMER_EXIT') return offer.includes('40%');
