@@ -287,9 +287,10 @@ function getDataSourceResponse(): string {
  */
 
 /**
- * Strips raw thinking tokens, scratchpad monologues, <think>...</think> blocks, and all emojis/icons.
+ * Strips raw thinking tokens, scratchpad monologues, <think>...</think> blocks, all emojis/icons,
+ * and guarantees clean, organized bulleted markdown formatting.
  */
-function sanitizeAiResponse(raw: string): string {
+function sanitizeAiResponse(raw: string, style?: D1StyleSnapshotRow): string {
   if (!raw) return '';
   let text = raw.trim();
 
@@ -314,6 +315,26 @@ function sanitizeAiResponse(raw: string): string {
   // 3. Strictly strip all emojis and icons
   text = text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1FA00}-\u{1FAFF}\u{200D}\u{FE0F}\u{FE0E}]/gu, '')
              .replace(/[⚡✨🧠➤✅❌⚖🛡💡🏬🏭🚫💰🏷📦🎯📈⏳🔮💫🌟🌐💻📱🌪🌙🗑✏]/g, '');
+
+  text = text.trim();
+
+  // 4. Structural organization check: If response is a single dense paragraph without bullets or headers, format into organized bullets
+  const hasBullets = /^[•\*\-]|\n[•\*\-]|\d+\.\s/m.test(text);
+  const hasHeader = /^#{2,4}\s/m.test(text);
+
+  if (!hasBullets && text.length > 60) {
+    const sentences = text
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    if (sentences.length >= 2) {
+      const header = (!hasHeader && style) ? `### Commercial Assessment — Style **${style.style_code}** (*${style.product_name}*)\n\n` : '';
+      text = `${header}` + sentences.map(s => `• ${s}`).join('\n');
+    }
+  } else if (hasBullets && !hasHeader && style) {
+    text = `### Commercial Assessment — Style **${style.style_code}** (*${style.product_name}*)\n\n${text}`;
+  }
 
   return text.trim();
 }
@@ -498,13 +519,22 @@ export async function handleCopilotChat(
 
         const systemPrompt = `You are CARINA's Senior Commercial Merchandising Strategist and Retail Pricing Analyst in Saudi Arabia.\n` +
           `Stores: Al-Andalus Mall Flagship (Jeddah, 260 m²), Al-Yasmeen Mall (Jeddah, 193 m²), Jouri Mall (Taif, 168 m²), Central Warehouse (WH).\n\n` +
-          `CRITICAL RULES — SMART MERCHANDISING ASSESSMENT & STRICT RELEVANCE:\n` +
-          `1. SMART ASSESSMENT: When the user asks a conversational or open-ended question about a style (e.g. "what about this style", "how is this doing", "tell me about this item", "status"), provide a SMART, executive commercial assessment synthesizing its lifecycle/season, sales velocity, sell-through rate, inventory health, store distribution balance, and runway coverage.\n` +
-          `2. NEVER VOLUNTEER PROMOTIONAL OFFERS UNLESS EXPLICITLY ASKED: If the user did NOT explicitly ask for offers, promotions, markdowns, or discounts, DO NOT mention, volunteer, or pitch promotional offers, clearance rails (e.g. Take 3 For 99), multi-buys, discount percentages, or clearance forecasts. Only discuss promotional offers if the user specifically asked for offers or discounts.\n` +
-          `3. STRICT TOPIC RELEVANCE: Answer ONLY what is asked. If asked about margins, do not dump inventory per store; if asked about stock, do not expose unit cost or margins; if asked about a formula, do not recite warehouse distribution.\n` +
-          `4. STEP-BY-STEP CALCULATION: When the user asks "how did you calculate...", "why...", or asks for a formula, explain the exact formula and show the arithmetic using the style telemetry.\n` +
-          `5. PROHIBITED ACTIONS & COMMERCIAL GOVERNANCE: If the user proposes a price or action that violates Saudi regulations (Price < Cost x 1.15) or commercial governance, state that it is PROHIBITED, explain why with exact numbers, and give the compliant alternative.\n` +
-          `6. CONCISE EXECUTIVE FORMATTING: Under 180 words. NO internal monologues, scratchpad thoughts, or reasoning steps. Strictly NO emojis or unicode icons.`;
+          `MANDATORY ORGANIZATION & FORMATTING STRUCTURE:\n` +
+          `- NEVER output a single continuous wall of text, dense paragraph, or unformatted prose.\n` +
+          `- ALWAYS structure your response with a Markdown title header:\n` +
+          `  ### Commercial Assessment — Style **${style.style_code}** (*${style.product_name}*)\n` +
+          `- Immediately follow with organized bullet points using bold metric titles:\n` +
+          `  • **Category & Lifecycle:** [Assortment category, season collection, mature or fresh collection status]\n` +
+          `  • **Sales Velocity & STR:** [Cumulative STR %, 8-week weekly ROS, size curve health]\n` +
+          `  • **Inventory & Runway:** [Total on-hand stock, weeks of supply (WOS) runway in weeks/months]\n` +
+          `  • **Store Network Allocation:** [Store breakdown: Andalus, Yasmeen, Jouri, Warehouse reserve balance]\n` +
+          `  • **Pricing Economics:** [Ticket price, landed unit cost, IMU %, Saudi 15% VAT legal floor]\n` +
+          `- For mathematical calculations, always use clean numbered steps (1., 2.) or bullets showing the formula and arithmetic.\n` +
+          `- Keep your tone executive, objective, and sharp (under 180 words). Strictly NO emojis or unicode icons.\n\n` +
+          `CRITICAL GOVERNANCE RULES:\n` +
+          `1. NEVER VOLUNTEER PROMOTIONAL OFFERS UNLESS EXPLICITLY ASKED: If the user did NOT explicitly ask for offers, promotions, markdowns, or discounts, DO NOT mention, volunteer, or pitch promotional offers, clearance rails (e.g. Take 3 For 99), multi-buys, discount percentages, or clearance forecasts. Only discuss promotional offers if the user specifically asked for offers or discounts.\n` +
+          `2. STRICT TOPIC RELEVANCE: Answer ONLY what is asked. Do not over-expose unrequested telemetry.\n` +
+          `3. PROHIBITED ACTIONS: If the user proposes a price or action that violates Saudi regulations (Price < Cost x 1.15) or commercial governance, explicitly state that it is PROHIBITED, explain why with exact numbers, and give the compliant alternative.`;
 
         const aiPromise = env.AI.run(userModel, {
           messages: [
@@ -523,7 +553,7 @@ export async function handleCopilotChat(
                           (typeof aiResponse === 'string' ? aiResponse : null);
 
         if (textReply && textReply.trim().length > 0) {
-          const cleanReply = sanitizeAiResponse(textReply);
+          const cleanReply = sanitizeAiResponse(textReply, style);
           return {
             reply: cleanReply,
             mode,
@@ -646,7 +676,7 @@ export async function handleCopilotChat(
         `2. ANSWER ANY QUESTION OR CALCULATION DIRECTLY: Answer the user's analytical, mathematical, operational, or retail question directly and intelligently using the provided telemetry and formulas.\n` +
         `3. FOR GENERAL SALES PERFORMANCE QUESTIONS: Provide an executive summary of catalog performance, sell-through rate (46.9%), store floor densities (Andalus vs Yasmeen vs Jouri Mall), and campaign clearance forecasts.\n` +
         `4. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
-        `5. STRICT EXECUTIVE FORMATTING & TOKEN OPTIMIZATION: Provide ONLY your final, professional commercial answer directly without internal monologues, thinking tags, or filler phrases (under 180 words). Strictly NO emojis or unicode icons in your output.`;
+        `5. STRICT EXECUTIVE ORGANIZATION: Always structure your response with a clean Markdown title header and organized bullet points (•) with bold category labels. NEVER output a continuous unformatted block of text. Under 180 words. Strictly NO emojis or unicode icons in your output.`;
 
       const aiPromise = env.AI.run(genModel, {
         messages: [
