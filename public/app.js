@@ -338,9 +338,11 @@ function attachTableActionListeners() {
       const offer = btn.getAttribute('data-offer') || 'Regular';
       let rationale = btn.getAttribute('data-rationale') || '';
 
-      // Cleanse any legacy technical strings
-      if (!rationale || rationale.includes('Extracted directly')) {
-        if (discount === 0 || offer.includes('0% Off')) {
+      // Cleanse any legacy technical strings or provide contextual rationale
+      if (!rationale || rationale.includes('Extracted directly') || rationale.includes('Best offer is Category Markdown') || (cost * 1.15 > ticket)) {
+        if (cost * 1.15 > ticket) {
+          rationale = `Zero-Loss Guard Intervention: Catalog ticket price (${ticket.toFixed(2)} SAR) is below Landed Unit Cost (${cost.toFixed(2)} SAR). Promotional price is strictly clamped to the legal break-even floor of ${floor.toFixed(2)} SAR (15% VAT) to eliminate below-cost retail losses.`;
+        } else if (discount === 0 || offer.includes('0% Off')) {
           rationale = `Best offer is Full Price Protection (0% Off) since STR is ${str.toFixed(1)}% with an unbroken healthy size curve (${sizes} active sizes). Strong self-sustaining consumer demand requires zero promotional discount.`;
         } else if (offer.includes('3 For 99') || offer.includes('99 SAR')) {
           rationale = `Best offer is Take 3 For 99 SAR Rail since size curve is broken with fragmented oddments (${sizes} sizes remaining) and STR is ${str.toFixed(1)}%. Liquidates stock rapidly into 3-unit baskets at 33.00 SAR/u while safely maintaining +${((33 / 1.15) - cost).toFixed(2)} SAR/u margin above legal floor.`;
@@ -365,12 +367,71 @@ function attachTableActionListeners() {
       const promoMargin = promoNetRev - cost;
       const promoMarginPct = promoNetRev > 0 ? ((promoMargin / promoNetRev) * 100) : 0;
 
+      // Formatting helpers to eliminate +- signs and negative zeros
+      const formatSAR = (num, withSign = true) => {
+        const val = Math.abs(num) < 0.005 ? 0 : num;
+        const formatted = Math.abs(val).toFixed(2) + ' SAR';
+        if (!withSign) return formatted;
+        return (val > 0 ? '+' : (val < 0 ? '-' : '')) + formatted;
+      };
+
+      const formatPct = (num, withSign = true) => {
+        const val = Math.abs(num) < 0.05 ? 0 : num;
+        const formatted = Math.abs(val).toFixed(1) + '%';
+        if (!withSign) return formatted;
+        return (val > 0 ? '+' : (val < 0 ? '-' : '')) + formatted;
+      };
+
       // Discount Impact on Profit Margin %
       const profitContractionPct = origMargin > 0 ? (((origMargin - promoMargin) / origMargin) * 100) : 0;
       const breakEvenLiftPct = promoMargin > 0 ? (((origMargin / promoMargin) - 1) * 100) : 0;
 
       const forecastSold = Math.round(stock * 0.40);
       const forecastProfit = Math.round(forecastSold * promoMargin);
+
+      // Render Section 4: Standard Operating Leverage vs. Zero-Loss Guard Correction
+      const isUnderwater = origMargin < 0 || ticket < floor;
+      const section4Html = isUnderwater ? `
+          <div class="popover-section leverage-section" style="border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.06);">
+            <strong class="text-amber">🛡️ Zero-Loss Guard Intervention (Underwater Catalog Cost):</strong>
+            <div class="pop-row">
+              <span>Catalog Ticket vs. Landed Cost:</span>
+              <span class="text-danger">Ticket: <b>${ticket.toFixed(2)} SAR</b> &lt; Cost: <b>${cost.toFixed(2)} SAR</b></span>
+            </div>
+            <div class="pop-row">
+              <span>Original List Net Margin (Ex-VAT):</span>
+              <span class="text-danger"><b>${formatSAR(origMargin)}</b> (${formatPct(origMarginPct)})</span>
+            </div>
+            <div class="pop-row highlight">
+              <span>Clamped Break-Even Floor (15% VAT):</span>
+              <strong class="text-gold">${floor.toFixed(2)} SAR (${formatSAR(promoMargin)} Net Margin)</strong>
+            </div>
+            <div class="pop-row">
+              <span>Loss Mitigation (Margin Rescued):</span>
+              <strong class="text-success">+${Math.abs(origMargin - promoMargin).toFixed(2)} SAR / unit saved</strong>
+            </div>
+            <div class="pop-note" style="margin-top: 8px; font-size: 0.78rem; line-height: 1.45; color: #cbd5e1;">
+              ⚠️ <strong>ERP Pricing Anomaly:</strong> The listed catalog ticket (${ticket.toFixed(2)} SAR) is below Landed Unit Cost (${cost.toFixed(2)} SAR). Selling at full list ticket generated an operational loss of ${formatSAR(origMargin)}/unit. The Zero-Loss Guard intervened to clamp the promo price to the Saudi break-even floor of <strong>${floor.toFixed(2)} SAR</strong>, saving SAR ${(Math.abs(origMargin - promoMargin) * forecastSold).toFixed(0)} across ${forecastSold} clearance units.
+            </div>
+          </div>
+      ` : `
+          <div class="popover-section leverage-section">
+            <strong>⚖️ Discount Impact on Profit Margin %:</strong>
+            <div class="pop-row"><span>Original Unit Net Margin:</span><span>${formatSAR(origMargin)} (${formatPct(origMarginPct)})</span></div>
+            <div class="pop-row"><span>Promo Unit Net Margin:</span><span class="${promoMargin >= 0 ? 'text-success' : 'text-danger'}">${formatSAR(promoMargin)} (${formatPct(promoMarginPct)})</span></div>
+            <div class="pop-row highlight-warn">
+              <span>Profit Margin Contraction:</span>
+              <strong class="text-amber">-${profitContractionPct.toFixed(1)}% Unit Profit</strong>
+            </div>
+            <div class="pop-row">
+              <span>Required Volume Lift to Break Even:</span>
+              <strong>+${breakEvenLiftPct > 0 ? breakEvenLiftPct.toFixed(1) : 0}% Sales Units</strong>
+            </div>
+            <div class="pop-note">
+              <small><em>Note: A ${discount}% price discount causes a <strong>-${profitContractionPct.toFixed(1)}%</strong> reduction in unit profit margin.</em></small>
+            </div>
+          </div>
+      `;
 
       popover.innerHTML = `
         <div class="popover-header">
@@ -406,28 +467,13 @@ function attachTableActionListeners() {
             <div class="pop-row highlight"><span>Recommended Promo Price:</span><strong class="text-gold">${promo.toFixed(2)} SAR (${discount}% off)</strong></div>
           </div>
 
-          <!-- Section 4: Discount Impact on Profit Margin % (Operating Leverage) -->
-          <div class="popover-section leverage-section">
-            <strong>⚖️ Discount Impact on Profit Margin %:</strong>
-            <div class="pop-row"><span>Original Unit Net Margin:</span><span>+${origMargin.toFixed(2)} SAR (${origMarginPct.toFixed(1)}%)</span></div>
-            <div class="pop-row"><span>Promo Unit Net Margin:</span><span class="${promoMargin >= 0 ? 'text-success' : 'text-danger'}">+${promoMargin.toFixed(2)} SAR (${promoMarginPct.toFixed(1)}%)</span></div>
-            <div class="pop-row highlight-warn">
-              <span>Profit Margin Contraction:</span>
-              <strong class="text-amber">-${profitContractionPct.toFixed(1)}% Unit Profit</strong>
-            </div>
-            <div class="pop-row">
-              <span>Required Volume Lift to Break Even:</span>
-              <strong>+${breakEvenLiftPct > 0 ? breakEvenLiftPct.toFixed(1) : 0}% Sales Units</strong>
-            </div>
-            <div class="pop-note">
-              <small><em>Note: A ${discount}% price discount causes a <strong>-${profitContractionPct.toFixed(1)}%</strong> reduction in unit profit margin.</em></small>
-            </div>
-          </div>
+          <!-- Section 4: Discount Impact on Profit Margin % (Operating Leverage or Zero-Loss Protection) -->
+          ${section4Html}
 
           <!-- Section 5: Audit Summary -->
           <div class="popover-table">
             <div class="pop-row"><span>Forecast Sold (40% clearance):</span><strong>${forecastSold} units</strong></div>
-            <div class="pop-row highlight"><span>Projected Net Cash Margin:</span><strong class="text-success">+${forecastProfit.toLocaleString()} SAR</strong></div>
+            <div class="pop-row highlight"><span>Projected Net Cash Margin:</span><strong class="${forecastProfit >= 0 ? 'text-success' : 'text-danger'}">${forecastProfit >= 0 ? '+' : ''}${forecastProfit.toLocaleString()} SAR</strong></div>
             <div class="pop-row"><span>Zero-Loss Compliance:</span><span class="badge badge-yes">PASS (${promo.toFixed(2)} ≥ ${floor.toFixed(2)} SAR)</span></div>
           </div>
         </div>
