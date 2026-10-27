@@ -344,17 +344,6 @@ export async function handleCopilotChat(
     // For open-ended questions about this style, run Workers AI with complete context
     let userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
-    // Handle Gateway integrations for external models (GLM, Argon)
-    if (userModel.includes('glm') || userModel.includes('argon') || userModel.includes('gateway')) {
-      return {
-        reply: `### 🌐 Cloudflare AI Gateway Upstream Route: \`${userModel}\`\n\n` +
-          `• **Model Series:** ${userModel.includes('glm') ? 'Zhipu AI GLM-4 / GLM-4.7 Multilingual' : 'Google Gemini 4 Argon Enterprise'}\n` +
-          `• **Gateway Routing:** Proxying through Cloudflare AI Gateway with unified caching, rate limiting, and DLP security.\n` +
-          `• **Activation Notice:** To execute inference with external provider endpoints, register your \`AI_GATEWAY_TOKEN\` in the Cloudflare Dashboard. In the meantime, you can switch to high-performance native serverless edge models like **Llama 3.3 70B**, **DeepSeek R1 32B**, or **Llama 3.2 3B**!\n`,
-        mode,
-        activeStyleCode: style.style_code
-      };
-    }
 
     if (env?.AI) {
       try {
@@ -394,7 +383,7 @@ export async function handleCopilotChat(
           max_tokens: 350
         });
 
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 12000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));
         const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
 
         const textReply = aiResponse?.response || 
@@ -451,7 +440,7 @@ export async function handleCopilotChat(
   }
 
   let genModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-  if (env?.AI && !genModel.includes('gateway') && !genModel.includes('glm') && !genModel.includes('argon')) {
+  if (env?.AI) {
     try {
       const aiPromise = env.AI.run(genModel, {
         messages: [
@@ -462,7 +451,7 @@ export async function handleCopilotChat(
         max_tokens: 300
       });
 
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 12000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));
       const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
 
       const textReply = aiResponse?.response || 
