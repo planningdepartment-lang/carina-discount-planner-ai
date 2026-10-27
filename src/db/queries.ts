@@ -195,7 +195,14 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_8wk,
 
       COUNT(DISTINCT product_sku) AS size_count,
-      MAX(COALESCE(cost, unit_cost, 0)) AS unit_cost,
+      COALESCE(
+        ROUND(AVG(CASE 
+          WHEN CAST(unit_cost AS REAL) > 0 THEN CAST(unit_cost AS REAL)
+          WHEN CAST(standard_price AS REAL) > 0 THEN CAST(standard_price AS REAL)
+          WHEN CAST(cost AS REAL) > 0 AND quantity > 0 THEN CAST(cost AS REAL) / quantity
+        END), 2),
+        10.0
+      ) AS unit_cost,
       MAX(COALESCE(sales_price, 0)) AS ticket_price,
       MAX(product_category_id_name) AS category,
       MAX(season_id_name) AS season
