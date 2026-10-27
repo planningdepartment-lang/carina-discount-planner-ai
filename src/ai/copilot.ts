@@ -18,6 +18,7 @@ export interface CopilotChatResponse {
   mode: AgentMode;
   activeStyleCode?: string;
   suggestedRule?: any;
+  activeModel?: string;
 }
 
 export interface D1StyleSnapshotRow {
@@ -195,6 +196,35 @@ function getDataSourceResponse(): string {
 /**
  * Cloudflare Workers AI Copilot Orchestrator
  */
+
+/**
+ * Strips raw thinking tokens, scratchpad monologues, and <think>...</think> blocks.
+ */
+function sanitizeAiResponse(raw: string): string {
+  if (!raw) return '';
+  let text = raw.trim();
+
+  // 1. Strip explicit <think>...</think> tags and unclosed <think>
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  text = text.replace(/<think>[\s\S]*$/gi, '').trim();
+
+  // 2. Strip internal reasoning monologue patterns like:
+  // "Okay, so the user is asking..."
+  // "First, I should check..."
+  if (/^(Okay|Alright|So|Let's see|First|Looking back),\s*(the\s*user|so\s*the\s*user|I\s*need|let's)/i.test(text)) {
+    const sections = text.split(/\n\n+/);
+    const realSections = sections.filter(sec => {
+      const s = sec.trim();
+      return !/^(Okay|Alright|So,\s*the\s*user|First,\s*I\s*should|Next,\s*I'll|Now,\s*considering|Looking\s*back|Let's\s*calculate|Let's\s*see)/i.test(s);
+    });
+    if (realSections.length > 0) {
+      text = realSections.join('\n\n').trim();
+    }
+  }
+
+  return text;
+}
+
 export async function handleCopilotChat(
   env: { AI?: any; DB?: D1Database },
   request: CopilotChatRequest
@@ -371,7 +401,8 @@ export async function handleCopilotChat(
           `1. Answer the user's specific analytical, mathematical, or strategic question directly and intelligently using the provided telemetry.\n` +
           `2. Do NOT lock yourself into canned greeting templates or repeat generic overview cards.\n` +
           `3. If the user asks about growth, MoM trends, trajectory, or projections, synthesize the 8-week velocity (${style.weekly_ros} u/wk), run-rate (${(style.weekly_ros * 4.3).toFixed(0)} u/mo), STR trajectory (${style.cumulative_str_pct}%), and inventory runway to provide an insightful, structured assessment.\n` +
-          `4. Format response in clean, organized bullet points with bold highlights.`;
+          `4. Format response in clean, organized bullet points with bold highlights.\n` +
+          `5. STRICT EXECUTIVE RULE: Output ONLY your final commercial answer directly. Do NOT output internal monologues, scratchpad thoughts, or reasoning steps (such as "Okay, so the user is asking...", "First I should calculate...").`;
 
         const aiPromise = env.AI.run(userModel, {
           messages: [
@@ -390,10 +421,12 @@ export async function handleCopilotChat(
                           (typeof aiResponse === 'string' ? aiResponse : null);
 
         if (textReply && textReply.trim().length > 0) {
+          const cleanReply = sanitizeAiResponse(textReply);
           return {
-            reply: textReply.trim(),
+            reply: cleanReply,
             mode,
-            activeStyleCode: style.style_code
+            activeStyleCode: style.style_code,
+            activeModel: userModel
           };
         }
       } catch (err: any) {
@@ -443,7 +476,7 @@ export async function handleCopilotChat(
     try {
       const aiPromise = env.AI.run(genModel, {
         messages: [
-          { role: 'system', content: 'You are CARINA Senior Merchandising Strategist in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Enforce zero-loss floor (Price >= Cost * 1.15). Keep responses concise, direct, and under 120 words.' },
+          { role: 'system', content: 'You are CARINA Senior Merchandising Strategist in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Enforce zero-loss floor (Price >= Cost * 1.15). STRICT EXECUTIVE RULE: Provide ONLY your final, professional commercial answer directly without any internal monologue or thinking steps (e.g., do NOT start with "Okay, so the user is asking..." or "First, I will..."). Keep responses concise, direct, and under 120 words.' },
           { role: 'user', content: userMessage }
         ],
         temperature: 0.2,
@@ -458,9 +491,11 @@ export async function handleCopilotChat(
                         (typeof aiResponse === 'string' ? aiResponse : null);
 
       if (textReply && textReply.trim().length > 0) {
+        const cleanReply = sanitizeAiResponse(textReply);
         return {
-          reply: textReply.trim(),
-          mode
+          reply: cleanReply,
+          mode,
+          activeModel: genModel
         };
       }
     } catch (err: any) {

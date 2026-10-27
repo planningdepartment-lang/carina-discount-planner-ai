@@ -1361,24 +1361,41 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .drawer-footer form {
   display: flex;
-  gap: 0.5rem;
+  align-items: flex-end;
+  gap: 0.65rem;
 }
 
-.drawer-footer input {
+.drawer-footer textarea {
   flex: 1;
-  background: rgba(8, 10, 15, 0.8);
+  min-height: 42px;
+  max-height: 140px;
+  background: rgba(8, 10, 15, 0.92);
   border: 1px solid var(--border-subtle);
   padding: 0.65rem 0.95rem;
   border-radius: 8px;
   color: #fff;
   font-family: var(--font-sans);
   font-size: 0.85rem;
+  line-height: 1.45;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.drawer-footer input:focus {
+.drawer-footer textarea:focus {
   outline: none;
   border-color: var(--gold-primary);
   box-shadow: 0 0 12px var(--gold-glow);
+}
+
+.drawer-footer button {
+  height: 42px;
+  padding: 0 1.25rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Chat Rule Execution */

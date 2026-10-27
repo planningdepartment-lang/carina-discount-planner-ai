@@ -656,7 +656,7 @@ async function runSimulation() {
 async function submitCopilotChat(message) {
   const history = document.getElementById('chatHistory');
   const mode = document.getElementById('agentModeSelect').value;
-  const model = document.getElementById('aiModelSelect')?.value || document.getElementById('drawerModelSelect')?.value || 'auto';
+  const model = document.getElementById('drawerModelSelect')?.value || localStorage.getItem('carina_active_ai_model') || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
   // Add User bubble
   const userDiv = document.createElement('div');
@@ -713,7 +713,9 @@ async function submitCopilotChat(message) {
       }
     }
 
-    loadingDiv.innerHTML = `<strong>CARINA Copilot [${data.mode}]:</strong><div>${formattedReply}</div>`;
+    const modelLabel = document.getElementById('drawerModelSelect')?.selectedOptions?.[0]?.textContent || 'Autonomous Advisor';
+    const activeModelTag = `<span style="display: inline-block; font-size: 0.65rem; padding: 2px 7px; border-radius: 4px; background: rgba(212,175,55,0.15); color: #e6ca65; border: 1px solid rgba(212,175,55,0.3); margin-left: 6px; font-weight: 600;">⚡ ${escapeHtml(modelLabel)}</span>`;
+    loadingDiv.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px;"><strong>CARINA Copilot [${data.mode}]</strong>${activeModelTag}</div><div>${formattedReply}</div>`;
     history.scrollTop = history.scrollHeight;
 
     // Attach listener for newly rendered rule buttons in chat
@@ -851,6 +853,22 @@ function escapeHtml(str) {
 
 function formatMarkdown(text) {
   if (!text) return '';
+
+  // 1. Strip raw thinking steps and scratchpad monologues
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  text = text.replace(/<think>[\s\S]*$/gi, '').trim();
+
+  // Strip conversational internal monologues (e.g. "Okay, so the user is asking...")
+  if (/^(Okay|Alright|So|Let's see|First|Looking back),\s*(the\s*user|so\s*the\s*user|I\s*need|let's)/i.test(text)) {
+    const sections = text.split(/\n\n+/);
+    const cleanSections = sections.filter(sec => {
+      const s = sec.trim();
+      return !/^(Okay|Alright|So,\s*the\s*user|First,\s*I\s*should|Next,\s*I'll|Now,\s*considering|Looking\s*back|Let's\s*calculate|Let's\s*see)/i.test(s);
+    });
+    if (cleanSections.length > 0) {
+      text = cleanSections.join('\n\n').trim();
+    }
+  }
   return text
     .replace(/^### (.*$)/gim, '<h4 style="margin: 6px 0 10px 0; color: #f59e0b; font-family: \'Cinzel\', serif; font-size: 0.95rem; letter-spacing: 0.04em;">$1</h4>')
     .replace(/^## (.*$)/gim, '<h3 style="margin: 8px 0 12px 0; color: #f59e0b; font-family: \'Cinzel\', serif;">$1</h3>')
