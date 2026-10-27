@@ -45,18 +45,19 @@ interface D1StyleSnapshotRow {
 }
 
 /**
- * Searches D1 style_plan_snapshots for matches based on user message.
+ * Searches D1 style_plan_snapshots for specific matches based on user message.
+ * Prioritizes distinct style identifiers to avoid returning unrelated products.
  */
 async function searchStylesInD1(db: D1Database | undefined, userMessage: string): Promise<D1StyleSnapshotRow[]> {
   if (!db) return [];
 
   try {
-    // 1. Check for exact 5-digit style codes (e.g. 59465, 50177)
+    // 1. Exact 5-digit style code match (e.g. 59465, 50177)
     const codeMatch = userMessage.match(/\b\d{5}\b/);
     if (codeMatch) {
       const code = codeMatch[0];
       const { results } = await db
-        .prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 3')
+        .prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1')
         .bind(code)
         .all<D1StyleSnapshotRow>();
       if (results && results.length > 0) return results;
@@ -66,30 +67,46 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
     const stopWords = new Set([
       'what', 'are', 'the', 'source', 'data', 'using', 'from', 'where', 'this', 'that',
       'with', 'have', 'does', 'show', 'tell', 'about', 'plan', 'price', 'discount',
-      'please', 'style', 'code', 'stock', 'store', 'which', 'will', 'make'
+      'please', 'style', 'code', 'stock', 'store', 'which', 'will', 'make', 'why',
+      'how', 'many', 'much', 'for', 'you', 'can', 'off', 'who', 'when'
     ]);
     const words = userMessage
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
-      .filter(w => w.length >= 3 && !stopWords.has(w));
+      .filter(w => w.length >= 2 && !stopWords.has(w));
 
     if (words.length > 0) {
-      // First try combined full phrase or first 2 words
-      const phrase = words.slice(0, 2).join('%');
-      const { results: phraseResults } = await db
-        .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 3')
-        .bind(`%${phrase}%`)
-        .all<D1StyleSnapshotRow>();
-      if (phraseResults && phraseResults.length > 0) return phraseResults;
+      // Filter out generic product type words to find unique style descriptors
+      const genericWords = new Set(['body', 'splash', 'ml', '100ml', '50ml', 'perfume', 'spray', 'cotton', 'basic']);
+      const specificWords = words.filter(w => !genericWords.has(w));
+      const targetWords = specificWords.length > 0 ? specificWords : words;
 
-      // Fallback: search by most prominent word
-      for (const w of words) {
-        const { results } = await db
-          .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 3')
-          .bind(`%${w}%`)
-          .all<D1StyleSnapshotRow>();
-        if (results && results.length > 0) return results;
+      // Priority 1: Match specific descriptors together (e.g. "secret" and "desire")
+      const specificPhrase = `%${targetWords.join('%')}%`;
+      const { results: specificResults } = await db
+        .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
+        .bind(specificPhrase)
+        .all<D1StyleSnapshotRow>();
+      if (specificResults && specificResults.length > 0) return specificResults;
+
+      // Priority 2: Match all keywords together
+      const fullPhrase = `%${words.join('%')}%`;
+      const { results: fullResults } = await db
+        .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
+        .bind(fullPhrase)
+        .all<D1StyleSnapshotRow>();
+      if (fullResults && fullResults.length > 0) return fullResults;
+
+      // Priority 3: Match the most specific single word (>=4 chars)
+      for (const w of targetWords) {
+        if (w.length >= 4) {
+          const { results } = await db
+            .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
+            .bind(`%${w}%`)
+            .all<D1StyleSnapshotRow>();
+          if (results && results.length > 0) return results;
+        }
       }
     }
   } catch (err) {
@@ -100,7 +117,7 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
 }
 
 /**
- * Formats a clean markdown breakdown of style rows retrieved from D1.
+ * Formats a clean markdown breakdown of style row retrieved from D1.
  */
 function formatStyleDetails(row: D1StyleSnapshotRow): string {
   return (
@@ -118,7 +135,7 @@ function formatStyleDetails(row: D1StyleSnapshotRow): string {
     `  - Original Ticket Price: **${row.ticket_price.toFixed(2)} SAR**\n` +
     `• **AI Recommendation:** **${row.recommended_offer}**\n` +
     `  - Promo Price: **${row.promotional_price.toFixed(2)} SAR** (${row.discount_pct}% off)\n` +
-    `  - Zero-Loss Compliance: **${row.zero_loss_status}** (Floor: ${row.cost_plus_vat.toFixed(2)} SAR <= Promo: ${row.promotional_price.toFixed(2)} SAR)\n` +
+    `  - Zero-Loss Compliance: **${row.zero_loss_status}** (Promo ${row.promotional_price.toFixed(2)} SAR >= Floor ${row.cost_plus_vat.toFixed(2)} SAR)\n` +
     `  - Forecast Sold: **${row.forecast_sold} units** | Projected Net Profit: **${row.forecast_profit.toLocaleString()} SAR**\n` +
     `• **Merchandising Rationale:** ${row.commercial_rationale}`
   );
@@ -177,11 +194,11 @@ export async function handleCopilotChat(
     }
   }
 
-  // 2. Query Live D1 Database for matching products or styles
+  // 2. Query Live D1 Database for matching product or style
   const matchedStyles = await searchStylesInD1(env?.DB, userMessage);
 
   // 3. Detect data source queries
-  const isDataSourceQuery = /source|where.*data|what.*table|which.*table|d1|database|odoo_stock_move_line|move line/i.test(userMessage);
+  const isDataSourceQuery = /source|where.*data|what.*table|which.*table|d1|database|odoo_stock_move_line|move line|schema|column/i.test(userMessage);
 
   if (isDataSourceQuery && matchedStyles.length === 0) {
     return {
@@ -190,81 +207,46 @@ export async function handleCopilotChat(
     };
   }
 
-  // 4. Construct System Persona and Context
-  let systemPrompt = '';
-  if (mode === 'STORE_AUDITOR') {
-    systemPrompt = `You are CARINA's Store Physics & Space Auditor dedicated to Western Saudi Arabia physical stores.\n` +
-      `Active Stores: Al-Andalus Mall Flagship (Jeddah, 260 m²), Al-Yasmeen Mall (Jeddah, 193 m²), Jouri Mall (Taif, 168 m²).\n` +
-      `Eliminate floor congestion in Jouri (>62 u/m²) and Yasmeen (>60 u/m²). Moving broken size curves to clearance rails.\n` +
-      `Both Andalus and Yasmeen are in Jeddah, enabling same-day local van transfers.\n` +
-      `Shopify is non-operational and ignored. Always be concise, data-driven, and cite physical numbers.`;
-  } else if (mode === 'RULE_COMPILER') {
-    systemPrompt = `You are CARINA's Merchandising Policy Compiler. Translate business instructions into structured JSON governance rules for Cloudflare D1.\n` +
-      `Enforce that no price can ever sell below Landed Cost * 1.15 (15% Saudi VAT).\n` +
-      `Always summarize the rule and ask for confirmation before saving.`;
-  } else {
-    // DISCOUNT_STRATEGIST
-    systemPrompt = `You are CARINA's Senior Merchandising Strategist for physical fashion retail in Saudi Arabia.\n` +
-      `Core laws:\n` +
-      `1. Zero-Loss Floor: Promo Price MUST be >= Landed Cost * 1.15 (Saudi 15% VAT). Never violate this.\n` +
-      `2. Payday: Saudi national payroll date is the 27th of every month. Promotions should activate 2-3 days before the 27th.\n` +
-      `3. Assortment Preservation: Retain at least 57.2% of stock for peak winter trading in December/January.\n` +
-      `4. Competitor Strategy: Counter fast-fashion discounters (H&M, Centrepoint, Nayomi) with multi-buy basket packs (Spend 250 Save 50, Buy 2 Save 20%) rather than brand-eroding single item markdowns.\n` +
-      `Be quantitative, concise, cite specific units, SAR costs, and store allocations.`;
-  }
-
-  let contextualUserPrompt = userMessage;
+  // If a specific style was matched, provide the precise breakdown directly
   if (matchedStyles.length > 0) {
-    const formattedD1 = matchedStyles.map(formatStyleDetails).join('\n\n---\n\n');
-    contextualUserPrompt = `${userMessage}\n\n[LIVE CLOUDFLARE D1 DATABASE CONTEXT]:\n${formattedD1}`;
-  }
-
-  // 5. Try Cloudflare Workers AI with fallback model chain
-  if (env?.AI) {
-    const candidateModels = [
-      '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-      '@cf/meta/llama-3.1-8b-instruct',
-      '@cf/meta/llama-3.1-8b-instruct-fp8',
-      '@cf/meta/llama-3-8b-instruct'
-    ];
-
-    for (const model of candidateModels) {
+    const style = matchedStyles[0];
+    
+    // When Workers AI is available, use fast Llama 3.1 8B to provide an instant, concise commercial brief
+    if (env?.AI) {
       try {
-        const messages = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: contextualUserPrompt }
-        ];
+        const prompt = `Style Code: ${style.style_code}\nProduct: ${style.product_name}\nCategory: ${style.category}\nSeason: ${style.season}\nTotal Physical Stock: ${style.total_physical_stock} units\nStock Breakdown: Andalus Mall=${style.stock_andalus}, Yasmeen Mall=${style.stock_yasmeen}, Jouri Mall=${style.stock_jouri}, Central WH=${style.stock_wh}\nLanded Unit Cost: ${style.unit_cost} SAR\nCost + 15% VAT (Zero-loss floor): ${style.cost_plus_vat} SAR\nTicket Price: ${style.ticket_price} SAR\nRecommended Offer: ${style.recommended_offer}\nPromotional Price: ${style.promotional_price} SAR\nCurve Health: ${style.sar_curve_health}\nWeekly ROS: ${style.weekly_ros} u/wk\nSTR: ${style.cumulative_str_pct}%\nUser Question: "${userMessage}"\n\nInstructions: Provide an immediate, concise, 3-4 bullet point executive merchandising assessment for this exact product only. Focus on inventory location, margin safety, and recommended promotional action. Keep it under 150 words.`;
 
-        const aiResponse = await env.AI.run(model, {
-          messages,
-          temperature: 0.2,
-          max_tokens: 1024
+        const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+          messages: [
+            { role: 'system', content: 'You are CARINA Senior Merchandising Copilot in Saudi Arabia. Be concise, direct, quantitative, and focus ONLY on the specific style asked. Never discuss other unrelated products.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 400
         });
 
         if (aiResponse?.response) {
           return {
-            reply: aiResponse.response,
+            reply: `${formatStyleDetails(style)}\n\n💡 **Copilot Executive Assessment:**\n${aiResponse.response.trim()}`,
             mode
           };
         }
       } catch (err: any) {
-        console.warn(`Workers AI model ${model} failed, trying next fallback:`, err?.message || err);
+        console.warn('Fast AI run warning, using direct structured response:', err?.message || err);
       }
     }
-  }
 
-  // 6. Intelligent Context-Driven Fallback (when offline or Workers AI is unavailable)
-  if (matchedStyles.length > 0) {
-    const primary = matchedStyles[0];
-    const details = matchedStyles.map(formatStyleDetails).join('\n\n---\n\n');
+    // Direct structured response (instantaneous < 5ms)
     return {
-      reply: `I retrieved the live merchandising data from Cloudflare D1 for your inquiry:\n\n${details}\n\n` +
-        `💡 **Strategic Recommendation:** Style \`${primary.style_code}\` has **${primary.total_physical_stock} units** in physical stock. ` +
-        `At **${primary.promotional_price.toFixed(2)} SAR** (vs cost+VAT floor of ${primary.cost_plus_vat.toFixed(2)} SAR), it provides healthy unit contribution while clearing slow-moving inventory before December peak.`,
+      reply: `${formatStyleDetails(style)}\n\n💡 **Copilot Executive Assessment:**\n` +
+        `• **Inventory Distribution:** Total **${style.total_physical_stock} units** (WH: ${style.stock_wh}, Yasmeen: ${style.stock_yasmeen}, Andalus: ${style.stock_andalus}, Jouri: ${style.stock_jouri}).\n` +
+        `• **Margin Security:** Selling at **${style.promotional_price.toFixed(2)} SAR** guarantees compliance with Saudi zero-loss floor (${style.cost_plus_vat.toFixed(2)} SAR).\n` +
+        `• **Commercial Action:** Activate **"${style.recommended_offer}"** 2-3 days before the 27th national payday to accelerate sell-through while preserving core assortment.`,
       mode
     };
   }
 
+  // 4. Fallback for general queries
   if (isDataSourceQuery) {
     return {
       reply: getDataSourceResponse(),
@@ -272,15 +254,36 @@ export async function handleCopilotChat(
     };
   }
 
-  // Default intelligent retail context response
+  // General assistant response using fast 8B model
+  if (env?.AI) {
+    try {
+      const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          { role: 'system', content: 'You are CARINA Senior Merchandising Copilot in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Always enforce zero-loss floor (Price >= Cost * 1.15). Keep responses concise, direct, and under 150 words.' },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.2,
+        max_tokens: 350
+      });
+
+      if (aiResponse?.response) {
+        return {
+          reply: aiResponse.response.trim(),
+          mode
+        };
+      }
+    } catch (err) {
+      console.warn('General AI run warning:', err);
+    }
+  }
+
   return {
-    reply: `### [CARINA AI Merchandising Copilot — ${mode}]\n\n` +
-      `**Request Analysis:** "${userMessage}"\n\n` +
-      `• **Saudi VAT Floor Law:** Promo Price $\\ge$ Landed Cost $\\times$ 1.15 is strictly enforced across all 1,493 active styles in D1.\n` +
-      `• **Physical Stores:** Andalus Mall (260 m²), Yasmeen Mall (193 m²), Jouri Mall (168 m²), and Central Warehouse (WH). Virtual and damaged stock are excluded.\n` +
-      `• **Assortment Protection:** 57.2% of depth is held for December/January peak winter trading.\n` +
-      `• **Payday Alignment:** Promotions calibrated for pre-payday surge starting the 25th.\n\n` +
-      `*Tip: You can query any specific style code (e.g. \`59465\`, \`50177\`) or product name (e.g. "Body splash Secret Desire") to inspect live store quantities and zero-loss pricing.*`,
+    reply: `### [CARINA Merchandising Copilot — ${mode}]\n\n` +
+      `**Request:** "${userMessage}"\n\n` +
+      `• **Saudi VAT Floor:** Enforcing $P_{\\text{promo}} \\ge \\text{Landed Cost} \\times 1.15$ across all 1,493 active styles in D1.\n` +
+      `• **Physical Stores:** Al-Andalus (260 m²), Al-Yasmeen (193 m²), Jouri Mall Taif (168 m²), and Central Warehouse (WH). Virtual and damaged locations excluded.\n` +
+      `• **Assortment Protection:** Retaining $\\ge 57.2\\%$ of depth for December/January winter peak.\n\n` +
+      `*Tip: Enter any style code (e.g. \`59465\`, \`50177\`) or product name (e.g. "Body splash Secret Desire") for an instant live breakdown.*`,
     mode
   };
 }

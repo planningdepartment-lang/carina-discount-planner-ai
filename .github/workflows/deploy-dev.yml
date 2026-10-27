@@ -1,19 +1,18 @@
-name: Deploy CARINA Discount Planner AI to Cloudflare
+name: Deploy Development to Cloudflare Edge
 
 on:
   push:
     branches:
-      - main
-      - master
+      - dev
   workflow_dispatch:
 
 concurrency:
-  group: cloudflare-discount-planner-deploy
+  group: cloudflare-discount-planner-dev
   cancel-in-progress: true
 
 jobs:
   verify-and-deploy:
-    name: Verify & Deploy Edge Worker
+    name: Verify & Deploy Development Edge Worker
     runs-on: ubuntu-latest
 
     steps:
@@ -29,14 +28,18 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # Gate 1: TypeScript Compilation Check
+      # Gate 1: Static Type Check
       - name: Run TypeScript Check
         run: npm run check
 
-      # Gate 2: Deploy Worker & Static Dashboard to Cloudflare Edge
-      - name: Deploy Worker to Cloudflare Edge
+      # Gate 2: Automated Unit Tests
+      - name: Run Unit Tests
+        run: npm test
+
+      # Gate 3: Deploy to Cloudflare Development
+      - name: Deploy Worker to Cloudflare Development Edge
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          command: deploy --env dev

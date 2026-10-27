@@ -1,0 +1,45 @@
+name: Deploy Production to Cloudflare Edge
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: cloudflare-discount-planner-prod
+  cancel-in-progress: true
+
+jobs:
+  verify-and-deploy:
+    name: Verify & Deploy Production Edge Worker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # Gate 1: Static Type Check
+      - name: Run TypeScript Check
+        run: npm run check
+
+      # Gate 2: Automated Unit Tests
+      - name: Run Unit Tests
+        run: npm test
+
+      # Gate 3: Deploy to Cloudflare Production
+      - name: Deploy Worker to Cloudflare Production Edge
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
