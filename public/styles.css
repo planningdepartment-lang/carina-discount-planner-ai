@@ -1389,20 +1389,22 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .drawer-footer form {
   display: flex;
   align-items: flex-end;
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .drawer-footer textarea {
   flex: 1;
-  min-height: 42px;
-  max-height: 130px;
+  min-height: 52px;
+  height: 52px;
+  max-height: 150px;
+  box-sizing: border-box;
   background: rgba(8, 10, 15, 0.94);
   border: 1px solid var(--border-subtle);
-  padding: 0.65rem 0.95rem;
+  padding: 0.75rem 1rem;
   border-radius: 8px;
   color: #fff;
   font-family: var(--font-sans);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   line-height: 1.45;
   outline: none;
   resize: none;
@@ -1434,15 +1436,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .drawer-footer button {
-  height: 42px;
-  padding: 0 1.25rem;
+  height: 52px;
+  padding: 0 1.4rem;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
+  border-radius: 8px;
   letter-spacing: 0.03em;
 }
 

@@ -120,7 +120,7 @@ async function initApp() {
       chatInput.value = promptText;
       submitCopilotChat(promptText);
       chatInput.value = '';
-      chatInput.style.height = '42px';
+      chatInput.style.height = '';
       chatInput.style.overflowY = 'hidden';
     });
   });
@@ -131,7 +131,7 @@ async function initApp() {
     const msg = chatInput.value.trim();
     if (!msg) return;
     chatInput.value = '';
-    chatInput.style.height = '42px';
+    chatInput.style.height = '';
     chatInput.style.overflowY = 'hidden';
     submitCopilotChat(msg);
   });
@@ -149,9 +149,9 @@ async function initApp() {
 
   chatInput.addEventListener('input', () => {
     chatInput.style.height = 'auto';
-    const newHeight = Math.min(chatInput.scrollHeight, 130);
+    const newHeight = Math.max(52, Math.min(chatInput.scrollHeight, 150));
     chatInput.style.height = `${newHeight}px`;
-    chatInput.style.overflowY = chatInput.scrollHeight > 130 ? 'auto' : 'hidden';
+    chatInput.style.overflowY = chatInput.scrollHeight > 150 ? 'auto' : 'hidden';
   });
 
   // Rules Modal
