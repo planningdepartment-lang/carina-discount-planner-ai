@@ -236,28 +236,26 @@ function formatOfferCard(row: D1StyleSnapshotRow): string {
 }
 
 /**
- * Formats full breakdown card only when explicitly requested.
+ * Formats full style profile card (stock, velocity, and pricing economics).
+ * Strictly omits promotional offers unless promotional recommendations are explicitly requested.
  */
 function formatFullStyleCard(row: D1StyleSnapshotRow): string {
+  const wosVal = row.weekly_ros > 0 ? (row.total_physical_stock / row.weekly_ros).toFixed(1) : '999';
+  const imuVal = row.ticket_price > 0 ? (((row.ticket_price - row.unit_cost) / row.ticket_price) * 100).toFixed(1) : '0';
+
   return (
     `### Style **${row.style_code}** — *${row.product_name}*\n` +
     `• **Category / Season:** \`${row.category || 'General'}\` | \`${row.season || 'Continuity'}\`\n` +
-    `• **Total Physical Inventory:** **${row.total_physical_stock} units**\n` +
+    `• **Total Physical Inventory:** **${row.total_physical_stock.toLocaleString()} units** on-hand\n` +
     `  - **Al-Andalus Mall Flagship (Jeddah):** ${row.stock_andalus} units\n` +
     `  - **Al-Yasmeen Mall (Jeddah):** ${row.stock_yasmeen} units\n` +
     `  - **Jouri Mall (Taif):** ${row.stock_jouri} units\n` +
     `  - **Central Warehouse (WH):** ${row.stock_wh} units\n` +
-    `• **Curve & Velocity:** ${row.sar_curve_health} | Cumulative STR: **${row.cumulative_str_pct}%** | Weekly ROS: **${row.weekly_ros} u/wk**\n` +
+    `• **Curve & Velocity:** ${row.sar_curve_health} | Cumulative STR: **${row.cumulative_str_pct}%** | Weekly ROS: **${row.weekly_ros} u/wk** | Runway: **${wosVal} WOS**\n` +
     `• **Cost & Pricing Economics:**\n` +
-    `  - Unit Landed Cost: **${row.unit_cost.toFixed(2)} SAR**\n` +
-    `  - Zero-Loss Legal Floor (Cost + 15% VAT): **${row.cost_plus_vat.toFixed(2)} SAR**\n` +
-    `  - Original Ticket Price: **${row.ticket_price.toFixed(2)} SAR**\n` +
-    `• **Recommended Offers:**\n` +
-    `  - **Primary Offer (Velocity Driver):** **${row.recommended_offer}** at **${row.promotional_price.toFixed(2)} SAR** (${row.discount_pct}% off)\n` +
-    `  - **Alternative (Margin Defense):** **Spend 250 Save 50 (Multi-Buy Basket Pack)** to preserve full price margin.\n` +
-    `  - **Zero-Loss Compliance:** **${row.zero_loss_status}** (Promo ${row.promotional_price.toFixed(2)} SAR >= Floor ${row.cost_plus_vat.toFixed(2)} SAR)\n` +
-    `  - **Forecast Clearance:** **${row.forecast_sold} units** | Projected Net Cash Margin: **${row.forecast_profit.toLocaleString()} SAR**\n` +
-    `• **Commercial Rationale:** ${row.commercial_rationale}`
+    `  - Original List Ticket Price: **${row.ticket_price.toFixed(2)} SAR**\n` +
+    `  - Landed Unit Cost (COGS): **${row.unit_cost.toFixed(2)} SAR** (IMU: **${imuVal}%**)\n` +
+    `  - Saudi 15% VAT Legal Floor: **${row.cost_plus_vat.toFixed(2)} SAR**`
   );
 }
 
@@ -350,19 +348,8 @@ export async function handleCopilotChat(
 
   const lowerMsg = userMessage.toLowerCase();
 
-  // Check for ambiguous reference to "this style" when no style is currently in focus
+  // Pattern to detect when user asks about an unspecified style without naming it
   const asksForUnspecifiedStyle = /\b(performance.*(this|the) (style|item)|(this|the) (style|item).*performance|what is the performance (of|for) this|what is the price of this|how many.*this item|tell me about this (product|style|item)|what is this style|how is this selling|evaluate this (style|item)|analyze this (style|item)|about this style|for this style)\b/i.test(lowerMsg);
-  const hasExplicitCode = /\b\d{5}\b/.test(userMessage);
-
-  if (asksForUnspecifiedStyle && !hasExplicitCode && (!contextStyleCode || !/^\d{5}$/.test(contextStyleCode))) {
-    return {
-      reply: `### Clarification Required\n\n` +
-        `You asked about *"this style"*, but no specific style is currently in focus.\n\n` +
-        `• Please enter the **5-digit style code** (e.g. \`59465\`, \`50177\`, \`59461\`) or the **product name**.\n` +
-        `• Or click on any style code badge in the catalog table to immediately load its performance telemetry into Copilot.`,
-      mode
-    };
-  }
 
   // 2. Query Live D1 Database for matching product or style (with context tracking)
   const matchedStyles = await searchStylesInD1(env?.DB, userMessage, contextStyleCode);
@@ -382,12 +369,15 @@ export async function handleCopilotChat(
     const style = matchedStyles[0];
 
     // Intent classification for targeted queries
-    const isComplexAnalysis = /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|evaluate|analyze|review|compare)\b/i.test(lowerMsg);
-    const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
+    const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance|sale price)\b/i.test(lowerMsg);
     const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
     const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
-    const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast|performance|selling)\b/i.test(lowerMsg);
-    const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance)\b/i.test(lowerMsg);
+    const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast)\b/i.test(lowerMsg);
+    const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
+
+    // Conversational, open-ended, qualitative, or analytical inquiries that require smart AI assessment:
+    const isConversational = /\b(what about|how about|tell me about|how is|thoughts on|opinion|status of|evaluate|review|analyze|assessment|performance|doing)\b/i.test(lowerMsg);
+    const isComplexAnalysis = isConversational || /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|compare)\b/i.test(lowerMsg);
 
     // Case A: Specific property queries without analytical reasoning (Zero LLM Tokens, Instant Deterministic Accuracy)
     if (!isComplexAnalysis && !isFullOverview) {
@@ -479,7 +469,7 @@ export async function handleCopilotChat(
         const promoNetMargin = (promoRev - style.unit_cost).toFixed(2);
         const promoMarginPct = promoRev > 0 ? (((promoRev - style.unit_cost) / promoRev) * 100).toFixed(1) : '0';
 
-        const styleContext = `[Comprehensive Merchandising & Financial Telemetry for Style ${style.style_code}]:\n` +
+        let styleContext = `[Comprehensive Merchandising & Financial Telemetry for Style ${style.style_code}]:\n` +
           `- Style Code: ${style.style_code}\n` +
           `- Product Name: ${style.product_name}\n` +
           `- Assortment Category: ${style.category}\n` +
@@ -489,35 +479,32 @@ export async function handleCopilotChat(
           `- Store Runway / Weeks of Supply (WOS): ${wosVal} weeks [Formula: Total Physical Stock / Weekly ROS = ${style.total_physical_stock} / ${style.weekly_ros} = ${wosVal} weeks]\n` +
           `- Active Size Curve: ${style.sar_curve_health}\n` +
           `- Total Physical Stock: ${style.total_physical_stock} units on-hand\n` +
-          `- Physical Store Distribution: Al-Andalus Mall Flagship (Jeddah)=${style.stock_andalus}u (${((style.stock_andalus / style.total_physical_stock) * 100).toFixed(1)}%), Al-Yasmeen Mall (Jeddah)=${style.stock_yasmeen}u (${((style.stock_yasmeen / style.total_physical_stock) * 100).toFixed(1)}%), Jouri Mall (Taif)=${style.stock_jouri}u (${((style.stock_jouri / style.total_physical_stock) * 100).toFixed(1)}%), Central Warehouse (WH)=${style.stock_wh}u (${((style.stock_wh / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `- Physical Store Distribution: Al-Andalus Mall Flagship (Jeddah)=${style.stock_andalus}u (${((style.stock_andalus / (style.total_physical_stock || 1)) * 100).toFixed(1)}%), Al-Yasmeen Mall (Jeddah)=${style.stock_yasmeen}u (${((style.stock_yasmeen / (style.total_physical_stock || 1)) * 100).toFixed(1)}%), Jouri Mall (Taif)=${style.stock_jouri}u (${((style.stock_jouri / (style.total_physical_stock || 1)) * 100).toFixed(1)}%), Central Warehouse (WH)=${style.stock_wh}u (${((style.stock_wh / (style.total_physical_stock || 1)) * 100).toFixed(1)}%)\n` +
           `- Landed Unit Cost (COGS): ${style.unit_cost.toFixed(2)} SAR\n` +
           `- Saudi 15% VAT Legal Break-Even Floor: ${style.cost_plus_vat.toFixed(2)} SAR [Formula: Landed Cost x 1.15 = ${style.unit_cost.toFixed(2)} x 1.15]\n` +
           `- Original List Ticket Price: ${style.ticket_price.toFixed(2)} SAR\n` +
-          `- Initial Sales Markup (IMU): ${imuVal}% [Formula: (Ticket Price - Cost) / Ticket Price * 100]\n` +
-          `- Recommended Promotional Offer: ${style.recommended_offer}\n` +
-          `- Promotional Price: ${style.promotional_price.toFixed(2)} SAR (${style.discount_pct}% off list)\n` +
-          `- Zero-Loss Compliance Status: ${style.zero_loss_status} (Promo ${style.promotional_price.toFixed(2)} SAR >= Legal Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
-          `- Promo Net Margin Contribution: +${promoNetMargin} SAR/unit (${promoMarginPct}% net margin)\n` +
-          `- Forecast Event Clearance: ${style.forecast_sold} units (Liquidation Rate: ${Math.round((style.forecast_sold / style.total_physical_stock) * 100)}%)\n` +
-          `- Projected Net Margin Contribution: +${style.forecast_profit.toLocaleString()} SAR\n` +
-          `- Commercial Rationale: ${style.commercial_rationale}`;
+          `- Initial Sales Markup (IMU): ${imuVal}% [Formula: (Ticket Price - Cost) / Ticket Price * 100]\n`;
+
+        // Strictly omit promotional offers unless promotional recommendations were explicitly requested by the user
+        if (isOfferQuery) {
+          styleContext += `- Recommended Promotional Offer: ${style.recommended_offer}\n` +
+            `- Promotional Price: ${style.promotional_price.toFixed(2)} SAR (${style.discount_pct}% off list)\n` +
+            `- Zero-Loss Compliance Status: ${style.zero_loss_status} (Promo ${style.promotional_price.toFixed(2)} SAR >= Legal Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
+            `- Promo Net Margin Contribution: +${promoNetMargin} SAR/unit (${promoMarginPct}% net margin)\n` +
+            `- Forecast Event Clearance: ${style.forecast_sold} units (Liquidation Rate: ${Math.round((style.forecast_sold / (style.total_physical_stock || 1)) * 100)}%)\n` +
+            `- Projected Net Margin Contribution: +${style.forecast_profit.toLocaleString()} SAR\n` +
+            `- Commercial Rationale: ${style.commercial_rationale}\n`;
+        }
 
         const systemPrompt = `You are CARINA's Senior Commercial Merchandising Strategist and Retail Pricing Analyst in Saudi Arabia.\n` +
           `Stores: Al-Andalus Mall Flagship (Jeddah, 260 m²), Al-Yasmeen Mall (Jeddah, 193 m²), Jouri Mall (Taif, 168 m²), Central Warehouse (WH).\n\n` +
-          `CRITICAL INSTRUCTIONS — ANSWER ONLY WHAT IS ASKED & OPTIMIZE TOKEN USAGE:\n` +
-          `1. STRICT TOPIC RELEVANCE: Answer ONLY the specific analytical, mathematical, operational, or strategic question asked by the user.\n` +
-          `2. DO NOT OVER-EXPOSE UNREQUESTED DATA: Do not dump unasked metrics or telemetry. If asked about margins, do NOT list store inventory; if asked about stock, do NOT expose unit cost or promotional offers; if asked about a formula, do not recite warehouse distribution. Keep your answer focused strictly on the question.\n` +
-          `3. STEP-BY-STEP CALCULATION: When the user asks "how did you calculate...", "why...", or asks for a formula, explain the exact formula and show the arithmetic using the style telemetry.\n` +
-          `4. PROHIBITED ACTIONS & COMMERCIAL GOVERNANCE:\n` +
-          `   - If the user proposes, asks for, or calculates a price or action that violates Saudi commercial law or commercial governance rules, clearly inform them that it is PROHIBITED:\n` +
-          `     * Below-Cost Selling: Under Saudi retail pricing regulations, selling below landed cost plus 15% VAT (Price < Cost x 1.15) is strictly prohibited. State: "Prohibited Action: Selling below landed unit cost plus 15% VAT (${style.unit_cost.toFixed(2)} SAR x 1.15 = ${style.cost_plus_vat.toFixed(2)} SAR) is legally prohibited under Saudi retail pricing regulations."\n` +
-          `     * Assortment Degradation: Deep discounting on fresh Winter AW26 collection or protected core styles is prohibited by active governance policies.\n` +
-          `     * Inventory Contamination: Moving virtual online stock or damaged goods into physical store sales floors is prohibited.\n` +
-          `   - State the prohibition clearly, explain the reason, and provide the compliant alternative.\n` +
-          `5. CONCISE EXECUTIVE FORMATTING:\n` +
-          `   - Provide ONLY your final, professional commercial answer directly (under 180 words).\n` +
-          `   - Do NOT output internal monologues, scratchpad thoughts, or reasoning steps.\n` +
-          `   - Strictly NO emojis or unicode icons in your output. Format with clean section headers and bullet points.`;
+          `CRITICAL RULES — SMART MERCHANDISING ASSESSMENT & STRICT RELEVANCE:\n` +
+          `1. SMART ASSESSMENT: When the user asks a conversational or open-ended question about a style (e.g. "what about this style", "how is this doing", "tell me about this item", "status"), provide a SMART, executive commercial assessment synthesizing its lifecycle/season, sales velocity, sell-through rate, inventory health, store distribution balance, and runway coverage.\n` +
+          `2. NEVER VOLUNTEER PROMOTIONAL OFFERS UNLESS EXPLICITLY ASKED: If the user did NOT explicitly ask for offers, promotions, markdowns, or discounts, DO NOT mention, volunteer, or pitch promotional offers, clearance rails (e.g. Take 3 For 99), multi-buys, discount percentages, or clearance forecasts. Only discuss promotional offers if the user specifically asked for offers or discounts.\n` +
+          `3. STRICT TOPIC RELEVANCE: Answer ONLY what is asked. If asked about margins, do not dump inventory per store; if asked about stock, do not expose unit cost or margins; if asked about a formula, do not recite warehouse distribution.\n` +
+          `4. STEP-BY-STEP CALCULATION: When the user asks "how did you calculate...", "why...", or asks for a formula, explain the exact formula and show the arithmetic using the style telemetry.\n` +
+          `5. PROHIBITED ACTIONS & COMMERCIAL GOVERNANCE: If the user proposes a price or action that violates Saudi regulations (Price < Cost x 1.15) or commercial governance, state that it is PROHIBITED, explain why with exact numbers, and give the compliant alternative.\n` +
+          `6. CONCISE EXECUTIVE FORMATTING: Under 180 words. NO internal monologues, scratchpad thoughts, or reasoning steps. Strictly NO emojis or unicode icons.`;
 
         const aiPromise = env.AI.run(userModel, {
           messages: [
@@ -547,6 +534,23 @@ export async function handleCopilotChat(
         }
       } catch (err: any) {
         console.warn('AI run warning, using intelligent contextual fallback:', err?.message || err);
+
+        // Context-aware fallback for conversational style assessment
+        if (isConversational) {
+          const imu = style.ticket_price > 0 ? (((style.ticket_price - style.unit_cost) / style.ticket_price) * 100).toFixed(1) : '0';
+          const wosVal = style.weekly_ros > 0 ? (style.total_physical_stock / style.weekly_ros).toFixed(1) : '999';
+          const monthsVal = (Number(wosVal) / 4.33).toFixed(1);
+          return {
+            reply: `### Commercial Assessment — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+              `• **Assortment & Lifecycle:** \`${style.category || 'General'}\` | \`${style.season || 'Continuity'}\`\n` +
+              `• **Inventory & Runway:** **${style.total_physical_stock} physical units** on-hand with ${style.sar_curve_health}. At a rolling velocity of **${style.weekly_ros} units/week** and **${style.cumulative_str_pct}% STR**, on-hand inventory provides approximately **${wosVal} weeks of supply (~${monthsVal} months)**.\n` +
+              `• **Store Distribution:** Stock is distributed across Al-Andalus (${style.stock_andalus}u), Al-Yasmeen (${style.stock_yasmeen}u), and Jouri Mall Taif (${style.stock_jouri}u), backed by **${style.stock_wh} units** in Central Warehouse reserve.\n` +
+              `• **Pricing Economics:** Original list price is **${style.ticket_price.toFixed(2)} SAR** against **${style.unit_cost.toFixed(2)} SAR** landed cost (${imu}% IMU), safely above the **${style.cost_plus_vat.toFixed(2)} SAR** Saudi 15% VAT legal floor.`,
+            mode,
+            activeStyleCode: style.style_code,
+            activeStyleName: style.product_name
+          };
+        }
 
         // Context-aware mathematical fallback if AI model times out
         if (/runway|wos|weeks of supply|supply|coverage/i.test(lowerMsg)) {

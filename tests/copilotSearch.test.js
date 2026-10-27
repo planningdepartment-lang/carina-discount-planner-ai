@@ -156,12 +156,14 @@ test('Copilot Search: "what is the performance for this style?" without context 
 
 // Intent classification and targeted property card tests
 function routeStyleQueryIntent(lowerMsg) {
-  const isComplexAnalysis = /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|evaluate|analyze|review|compare)\b/i.test(lowerMsg);
-  const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
+  const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance|sale price)\b/i.test(lowerMsg);
   const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
   const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
-  const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast|performance|selling)\b/i.test(lowerMsg);
-  const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance)\b/i.test(lowerMsg);
+  const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast)\b/i.test(lowerMsg);
+  const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
+
+  const isConversational = /\b(what about|how about|tell me about|how is|thoughts on|opinion|status of|evaluate|review|analyze|assessment|performance|doing)\b/i.test(lowerMsg);
+  const isComplexAnalysis = isConversational || /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|compare)\b/i.test(lowerMsg);
 
   if (!isComplexAnalysis && !isFullOverview) {
     if (isStockQuery && !isPricingQuery && !isVelocityQuery && !isOfferQuery) return 'STOCK_CARD';
@@ -179,6 +181,11 @@ function routeStyleQueryIntent(lowerMsg) {
 
   return 'COMPLEX_AI';
 }
+
+test('Copilot Intent: "what about this style High Neck Sleeveless Top (V)" routes to SMART AI assessment', () => {
+  const intent = routeStyleQueryIntent('what about this style high neck sleeveless top (v)');
+  assert.equal(intent, 'COMPLEX_AI');
+});
 
 test('Copilot Intent: "Pyjama Set AW25-PJ-5017 stock" routes strictly to STOCK_CARD without exposing price/offer', () => {
   const intent = routeStyleQueryIntent('pyjama set aw25-pj-5017 stock');
