@@ -103,10 +103,11 @@ async function searchStylesInD1(db, userMessage, contextStyleCode) {
     }
   }
 
-  const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it)\b/i.test(lowerMsg);
-  const isMacroOrGeneralQuery = /\b(analyze|analysis|sales|performance|overall|catalog|store|stores|density|total|summary|margin|profit|revenue)\b/i.test(lowerMsg);
+  const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it|this style|the style)\b/i.test(lowerMsg);
+  const isMacroQueryWithoutStyle = !/\b(this|it|its|the item|this item|this style|for this|for it)\b/i.test(lowerMsg) &&
+    /\b(catalog|stores?|overall|total|density|network|sales|performance)\b/i.test(lowerMsg);
 
-  if (isContextualFollowup && !isMacroOrGeneralQuery && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
+  if (isContextualFollowup && !isMacroQueryWithoutStyle && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
     const { results } = await db.prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1').bind(contextStyleCode).all();
     if (results && results.length > 0) return results;
   }
@@ -128,6 +129,13 @@ test('Copilot Search: does NOT reuse previous context style for general "analyze
   // User says "analyze the sales performance" while context was 59399
   const results = await searchStylesInD1(db, 'analyze the sales performance', '59399');
   assert.equal(results.length, 0); // Must be empty so it routes to Macro Sales Intelligence!
+});
+
+test('Copilot Search: reuses active context style for "what is the performance for this style?" when context style is active', async () => {
+  const db = createMockDb(mockCatalog);
+  const results = await searchStylesInD1(db, 'what is the performance for this style?', '59461');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].style_code, '59461');
 });
 
 test('Copilot Search: reuses previous context style only for explicit follow-up question', async () => {

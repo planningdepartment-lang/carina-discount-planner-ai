@@ -86,13 +86,15 @@ async function searchStylesInD1(
       'analyze', 'analyzing', 'analysis', 'performance', 'overall', 'summary', 'metrics',
       'talking', 'talk', 'mean', 'me', 'my', 'one', 'ones', 'here', 'look', 'looking',
       'check', 'review', 'trend', 'trends', 'report', 'numbers', 'velocity', 'runway',
-      'hello', 'hi', 'hey', 'thanks', 'thank'
+      'hello', 'hi', 'hey', 'thanks', 'thank',
+      'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'do', 'did', 'has', 'had',
+      'in', 'on', 'at', 'to', 'of', 'by', 'as', 'into', 'like', 'through', 'over', 'out'
     ]);
 
     const words = lowerMsg
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
-      .filter(w => w.length >= 2 && !stopWords.has(w));
+      .filter(w => w.length >= 3 && !stopWords.has(w));
 
     // If product candidate words were found in current message, search D1 FIRST!
     if (words.length > 0) {
@@ -120,13 +122,15 @@ async function searchStylesInD1(
         if (results && results.length > 0) return results;
       }
 
-      // Step C: Contiguous phrase match
-      const phrase = `%${coreWords.join('%')}%`;
-      const { results: phraseResults } = await db
-        .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
-        .bind(phrase)
-        .all<D1StyleSnapshotRow>();
-      if (phraseResults && phraseResults.length > 0) return phraseResults;
+      // Step C: Contiguous phrase match (requires at least 2 words)
+      if (coreWords.length > 1) {
+        const phrase = `%${coreWords.join('%')}%`;
+        const { results: phraseResults } = await db
+          .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
+          .bind(phrase)
+          .all<D1StyleSnapshotRow>();
+        if (phraseResults && phraseResults.length > 0) return phraseResults;
+      }
 
       // Step D: Individual specific words (length >= 4, excluding generic fashion tokens)
       const genericSingleWords = new Set(['perfume', 'splash', 'cotton', 'basic', 'shirt', 'dress', 'pants', 'skirt', 'top', 'bottom']);
@@ -142,11 +146,12 @@ async function searchStylesInD1(
     }
 
     // 3. ONLY IF NO specific product keyword was found in current user message:
-    // Check if user is referencing the previous active style ('this', 'it', 'for this item')
-    const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it)\b/i.test(lowerMsg);
-    const isMacroOrGeneralQuery = /\b(analyze|analysis|sales|performance|overall|catalog|store|stores|density|total|summary|margin|profit|revenue)\b/i.test(lowerMsg);
+    // Check if user is referencing the active style in focus ('this', 'it', 'for this item', 'this style')
+    const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it|this style|the style)\b/i.test(lowerMsg);
+    const isMacroQueryWithoutStyle = !/\b(this|it|its|the item|this item|this style|for this|for it)\b/i.test(lowerMsg) &&
+      /\b(catalog|stores?|overall|total|density|network|sales|performance)\b/i.test(lowerMsg);
 
-    if (isContextualFollowup && !isMacroOrGeneralQuery && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
+    if (isContextualFollowup && !isMacroQueryWithoutStyle && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
       const { results } = await db
         .prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1')
         .bind(contextStyleCode)
@@ -273,6 +278,22 @@ export async function handleCopilotChat(
     }
   }
 
+  const lowerMsg = userMessage.toLowerCase();
+
+  // Check for ambiguous reference to "this style" when no style is currently in focus
+  const asksForUnspecifiedStyle = /\b(performance.*(this|the) (style|item)|(this|the) (style|item).*performance|what is the performance (of|for) this|what is the price of this|how many.*this item|tell me about this (product|style|item)|what is this style|how is this selling|evaluate this (style|item)|analyze this (style|item)|about this style|for this style)\b/i.test(lowerMsg);
+  const hasExplicitCode = /\b\d{5}\b/.test(userMessage);
+
+  if (asksForUnspecifiedStyle && !hasExplicitCode && (!contextStyleCode || !/^\d{5}$/.test(contextStyleCode))) {
+    return {
+      reply: `### Clarification Required\n\n` +
+        `You asked about *"this style"*, but no specific style is currently in focus.\n\n` +
+        `• Please enter the **5-digit style code** (e.g. \`59465\`, \`50177\`, \`59461\`) or the **product name**.\n` +
+        `• Or click on any style code badge in the catalog table to immediately load its performance telemetry into Copilot.`,
+      mode
+    };
+  }
+
   // 2. Query Live D1 Database for matching product or style (with context tracking)
   const matchedStyles = await searchStylesInD1(env?.DB, userMessage, contextStyleCode);
 
@@ -285,9 +306,6 @@ export async function handleCopilotChat(
       mode
     };
   }
-
-  // Determine user intent for style queries
-  const lowerMsg = userMessage.toLowerCase();
 
   // If a specific style was matched from the message or active conversation context
   if (matchedStyles.length > 0) {
@@ -438,7 +456,6 @@ export async function handleCopilotChat(
 
   // Case C: General assistant query (No specific style matched in context)
   // If user asks about an unspecified style ("this style", "this item", "its performance"), ask for clarification!
-  const asksForUnspecifiedStyle = /\b(performance.*(this|the) (style|item)|(this|the) (style|item).*performance|what is the price of this|how many.*this item|tell me about this (product|style|item)|what is this style|how is this selling|evaluate this (style|item)|analyze this (style|item)|about this style|for this style)\b/i.test(lowerMsg);
   if (asksForUnspecifiedStyle) {
     return {
       reply: `### Clarification Required\n\n` +
