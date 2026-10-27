@@ -3,40 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARINA | Autonomous Merchandising Radar & Strategic Discount Planner</title>
+  <title>CARINA | Autonomous Merchandising Architecture &amp; Discount Intelligence</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Ambient Cosmic Grid & Glow Backdrop -->
-  <div class="cyber-ambient-bg"></div>
+  <!-- Ambient Luxury Vignette Overlay -->
+  <div class="luxury-ambient-bg"></div>
 
-  <!-- Global Application Futuristic Header -->
+  <!-- Haute-Couture Navigation Bar -->
   <header class="app-header">
     <div class="header-inner">
       <div class="brand-group">
-        <div class="brand-badge-wrap">
-          <div class="brand-logo">CARINA</div>
-          <div class="radar-status-chip">
-            <span class="radar-pulse-dot"></span>
-            <span class="radar-text">KSA RADAR LIVE // 24/7 AI</span>
-          </div>
-        </div>
+        <div class="brand-monogram">C</div>
         <div class="brand-titles">
-          <h1>Autonomous Style Lifecycle Monitor &amp; Strategic Discount Planner</h1>
-          <div class="sub-text">
-            <span>KSA Physical Store Network (621 m²)</span>
-            <span class="divider-dot">&bull;</span>
-            <span class="tech-tag">QUANTUM MERCHANDISING ENGINE V2.4</span>
-          </div>
+          <div class="brand-name">CARINA</div>
+          <div class="brand-sub">HAUTE MERCHANDISING INTELLIGENCE &bull; KSA NETWORK</div>
+        </div>
+        <div class="status-radar-pill">
+          <span class="live-pulse-dot"></span>
+          <span>D1 NETWORK LIVE</span>
         </div>
       </div>
 
       <div class="nav-actions">
-        <div class="cyber-select-capsule">
-          <label for="agentModeSelect">PERSONA:</label>
+        <div class="luxury-select-wrap">
+          <span class="select-label">PERSONA</span>
           <select id="agentModeSelect">
             <option value="DISCOUNT_STRATEGIST" selected>Commercial Strategist (Margin Defense)</option>
             <option value="STORE_AUDITOR">Store Space Auditor (Decongestion)</option>
@@ -44,8 +38,8 @@
           </select>
         </div>
 
-        <div class="cyber-select-capsule">
-          <label for="aiModelSelect">AI CORE:</label>
+        <div class="luxury-select-wrap">
+          <span class="select-label">AI CORE</span>
           <select id="aiModelSelect">
             <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
             <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
@@ -57,328 +51,367 @@
           </select>
         </div>
 
-        <button id="rulesBtn" class="btn btn-cyber-secondary">
+        <button id="rulesBtn" class="btn btn-luxury-secondary">
           <span class="btn-icon">⚖️</span>
           <span>Governance Rules</span>
         </button>
 
-        <button id="exportCsvBtn" class="btn btn-cyber-cyan">
+        <button id="exportCsvBtn" class="btn btn-luxury-gold">
           <span class="btn-icon">📥</span>
           <span>Export POS CSV</span>
         </button>
 
-        <button id="toggleCopilotBtn" class="btn btn-cyber-violet">
+        <button id="toggleCopilotBtn" class="btn btn-luxury-ruby">
           <span class="btn-icon">💬</span>
           <span>Ask Copilot</span>
-          <span class="btn-neon-spark"></span>
         </button>
       </div>
     </div>
   </header>
 
+  <!-- Editorial Hero Banner Section -->
+  <section class="editorial-hero">
+    <div class="hero-image-backdrop" style="background-image: url('images/hero-carina.jpg');"></div>
+    <div class="hero-overlay-gradient"></div>
+    <div class="hero-content">
+      <div class="hero-badge">CAMPAIGN GOVERNANCE &bull; KSA WHITE FRIDAY &amp; WINTER AW26</div>
+      <h1 class="hero-title">Autonomous Promotion Architecture &amp; Lifecycle Optimizer</h1>
+      <p class="hero-lead">
+        Protecting gross margin across 53,999 physical inventory units in Jeddah and Taif through deterministic algorithmic pricing, legal zero-loss enforcement, and real-time store space physics.
+      </p>
+
+      <!-- Category Mood Highlights -->
+      <div class="category-showcase-pills">
+        <div class="cat-pill-item">
+          <img src="images/cat-bra.jpg" alt="Lingerie" class="cat-pill-thumb">
+          <div class="cat-pill-text">
+            <strong>Bras &amp; Lingerie</strong>
+            <span>40% Margin Floor</span>
+          </div>
+        </div>
+        <div class="cat-pill-item">
+          <img src="images/cat-pyjama.jpg" alt="Loungewear" class="cat-pill-thumb">
+          <div class="cat-pill-text">
+            <strong>Pyjamas &amp; Robes</strong>
+            <span>Spend &amp; Save Eligible</span>
+          </div>
+        </div>
+        <div class="cat-pill-item">
+          <img src="images/cat-cosmetics.jpg" alt="Fragrance" class="cat-pill-thumb">
+          <div class="cat-pill-text">
+            <strong>Body Splash &amp; Cosmetics</strong>
+            <span>Take 3 For 99 SAR Rail</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <main class="dashboard-container">
-    <!-- Executive 6-Card Holographic KPI Ribbon -->
+    <!-- Executive 6-Card Financial KPI Ribbon -->
     <section class="kpi-ribbon">
-      <div class="kpi-card card-cyan">
-        <div class="card-corner-tag">SYS.01 // ON-HAND</div>
-        <div class="kpi-label">Total Physical Stock</div>
+      <div class="kpi-card card-gold">
+        <div class="kpi-header-row">
+          <span class="kpi-tag">INVENTORY ASSET</span>
+          <span class="kpi-icon">📦</span>
+        </div>
         <div class="kpi-value" id="kpiTotalStock">53,999</div>
-        <div class="kpi-sub">Units across 4 Physical Nodes (excl. Shopify)</div>
-        <div class="card-progress-bar"><div class="fill-cyan" style="width: 82%;"></div></div>
+        <div class="kpi-label">Total Physical Units</div>
+        <div class="kpi-sub">Across 4 Physical Nodes (excl. Shopify)</div>
+        <div class="kpi-accent-bar"><span style="width: 82%;"></span></div>
       </div>
 
-      <div class="kpi-card card-purple">
-        <div class="card-corner-tag">SYS.02 // CAPITAL</div>
-        <div class="kpi-label">Cost Capital at Risk</div>
+      <div class="kpi-card card-ruby">
+        <div class="kpi-header-row">
+          <span class="kpi-tag">CAPITAL EXPOSURE</span>
+          <span class="kpi-icon">💎</span>
+        </div>
         <div class="kpi-value" id="kpiTotalCost">2,526,907 SAR</div>
+        <div class="kpi-label">Cost Capital at Risk</div>
         <div class="kpi-sub">Total Inventory Asset Landed Valuation</div>
-        <div class="card-progress-bar"><div class="fill-purple" style="width: 76%;"></div></div>
+        <div class="kpi-accent-bar"><span style="width: 76%;"></span></div>
       </div>
 
       <div class="kpi-card card-emerald">
-        <div class="card-corner-tag">SYS.03 // YIELD</div>
-        <div class="kpi-label">Projected Cash Recovery</div>
+        <div class="kpi-header-row">
+          <span class="kpi-tag">PROJECTED REVENUE</span>
+          <span class="kpi-icon">📈</span>
+        </div>
         <div class="kpi-value" id="kpiRetailValue">3,268,517 SAR</div>
+        <div class="kpi-label">Projected Cash Recovery</div>
         <div class="kpi-sub">Gross Clearance Yield at Recommended Offers</div>
-        <div class="card-progress-bar"><div class="fill-emerald" style="width: 65%;"></div></div>
+        <div class="kpi-accent-bar"><span style="width: 65%;"></span></div>
       </div>
 
-      <div class="kpi-card card-blue">
-        <div class="card-corner-tag">SYS.04 // BENCHMARK</div>
-        <div class="kpi-label">Blended Initial Markup</div>
+      <div class="kpi-card card-sapphire">
+        <div class="kpi-header-row">
+          <span class="kpi-tag">MARKUP BENCHMARK</span>
+          <span class="kpi-icon">🏷️</span>
+        </div>
         <div class="kpi-value" id="kpiBlendedIMU">49.7%</div>
+        <div class="kpi-label">Blended Initial Markup</div>
         <div class="kpi-sub">Catalog Benchmark Baseline</div>
-        <div class="card-progress-bar"><div class="fill-blue" style="width: 49.7%;"></div></div>
+        <div class="kpi-accent-bar"><span style="width: 49.7%;"></span></div>
       </div>
 
       <div class="kpi-card card-amber">
-        <div class="card-corner-tag">SYS.05 // RETENTION</div>
-        <div class="kpi-label">Winter Reserve Protected</div>
+        <div class="kpi-header-row">
+          <span class="kpi-tag">ASSORTMENT SHIELD</span>
+          <span class="kpi-icon">❄️</span>
+        </div>
         <div class="kpi-value" id="kpiCurveHealth">57.8%</div>
+        <div class="kpi-label">Winter Reserve Protected</div>
         <div class="kpi-sub">Target &ge; 57.2% Assortment Retention (Pass)</div>
-        <div class="card-progress-bar"><div class="fill-amber" style="width: 57.8%;"></div></div>
+        <div class="kpi-accent-bar"><span style="width: 57.8%;"></span></div>
       </div>
 
-      <div class="kpi-card card-green">
-        <div class="card-corner-tag">SYS.06 // LAW COMPLIANCE</div>
-        <div class="kpi-label">Zero-Loss Guard Compliance</div>
+      <div class="kpi-card card-mint">
+        <div class="kpi-header-row">
+          <span class="kpi-tag">SAUDI VAT COMPLIANCE</span>
+          <span class="kpi-icon">⚖️</span>
+        </div>
         <div class="kpi-value" id="kpiZeroLoss">100% PASS</div>
+        <div class="kpi-label">Zero-Loss Guard Compliance</div>
         <div class="kpi-sub">0 Violations of Saudi 15% VAT Legal Floor</div>
-        <div class="card-progress-bar"><div class="fill-green" style="width: 100%;"></div></div>
+        <div class="kpi-accent-bar"><span style="width: 100%;"></span></div>
       </div>
     </section>
 
-    <!-- Physical Store Space Physics (621 m² Sales Floor Network) -->
-    <section class="section-block cyber-glass-panel">
+    <!-- Physical Store Space Physics & Photographic Showcase (621 m²) -->
+    <section class="section-block">
       <div class="section-header">
-        <div class="sec-title-wrap">
-          <span class="sec-icon">🛰️</span>
-          <div>
-            <h2>Physical Store Space Physics (621 m² Sales Floor Network)</h2>
-            <span class="sec-sub">Real-Time Floor Density Telemetry &amp; Bottleneck Diagnostics</span>
-          </div>
+        <div>
+          <h2 class="serif-title">Physical Store Space Physics</h2>
+          <span class="section-subtext">KSA Retail Network: 621 m² Sales Floor Capacity &bull; Density Choke Diagnostics</span>
         </div>
-        <span class="tag-live-pulse"><span class="pulse-dot"></span> LIVE TELEMETRY</span>
+        <div class="header-status-pill">
+          <span class="live-pulse-dot"></span>
+          <span>ACTIVE FLOOR SENSORS</span>
+        </div>
       </div>
 
-      <div class="density-grid">
-        <!-- Store 1: Al-Andalus -->
-        <div class="store-card store-card-healthy" id="cardAndalus">
-          <div class="store-head">
-            <div>
-              <span class="store-tech-chip">NODE // JED-01</span>
-              <h3>Al-Andalus Mall Flagship</h3>
+      <div class="store-grid">
+        <!-- Store 1: Al-Andalus Flagship -->
+        <div class="store-photo-card" id="cardAndalus">
+          <div class="store-img-bg" style="background-image: url('images/store-andalus.jpg');"></div>
+          <div class="store-scrim"></div>
+          <div class="store-card-content">
+            <div class="store-card-top">
+              <span class="store-geo-tag">JEDDAH FLAGSHIP &bull; 260 M²</span>
+              <span class="status-badge badge-healthy" id="statusAndalus">
+                <span class="status-dot"></span> Balanced Hub
+              </span>
             </div>
-            <span class="city-pill">Jeddah &bull; 260 m²</span>
-          </div>
-
-          <div class="store-gauge-block">
-            <div class="gauge-meta">
-              <span>Floor Space Saturation</span>
-              <strong>95.0% (47.5 / 50.0 u/m²)</strong>
+            <h3 class="store-name">Al-Andalus Mall</h3>
+            <div class="store-saturation-meter">
+              <div class="sat-labels">
+                <span>Floor Saturation</span>
+                <strong>95.0%</strong>
+              </div>
+              <div class="sat-track">
+                <div class="sat-fill fill-healthy" style="width: 95%;"></div>
+              </div>
             </div>
-            <div class="gauge-track">
-              <div class="gauge-fill gauge-fill-healthy" style="width: 95%;"></div>
+            <div class="store-metrics-panel">
+              <div class="s-metric">
+                <span class="lbl">Floor Units:</span>
+                <strong id="stockAndalus">12,346 u</strong>
+              </div>
+              <div class="s-metric">
+                <span class="lbl">Density:</span>
+                <strong id="densityAndalus" class="density-val">47.5 u/m²</strong>
+              </div>
+              <div class="s-metric">
+                <span class="lbl">Benchmark:</span>
+                <span>&le; 50.0 u/m²</span>
+              </div>
             </div>
-          </div>
-
-          <div class="store-body">
-            <div class="metric-row">
-              <span class="m-lbl">On-Hand Floor Stock:</span>
-              <strong id="stockAndalus" class="m-val">12,346 units</strong>
-            </div>
-            <div class="metric-row">
-              <span class="m-lbl">Current Floor Density:</span>
-              <strong id="densityAndalus" class="density-val">47.5 u/m²</strong>
-            </div>
-            <div class="metric-row">
-              <span class="m-lbl">Target Benchmark:</span>
-              <span class="m-sub">&le; 50.0 u/m² (Commercial Volume Hub)</span>
-            </div>
-          </div>
-          <div class="store-status status-healthy" id="statusAndalus">
-            <span class="status-indicator"></span> Balanced Volume Hub
           </div>
         </div>
 
-        <!-- Store 2: Al-Yasmeen -->
-        <div class="store-card store-card-warning" id="cardYasmeen">
-          <div class="store-head">
-            <div>
-              <span class="store-tech-chip">NODE // JED-02</span>
-              <h3>Al-Yasmeen Mall</h3>
+        <!-- Store 2: Al-Yasmeen Mall -->
+        <div class="store-photo-card" id="cardYasmeen">
+          <div class="store-img-bg" style="background-image: url('images/store-yasmeen.jpg');"></div>
+          <div class="store-scrim"></div>
+          <div class="store-card-content">
+            <div class="store-card-top">
+              <span class="store-geo-tag">JEDDAH BOUTIQUE &bull; 193 M²</span>
+              <span class="status-badge badge-warning" id="statusYasmeen">
+                <span class="status-dot"></span> Liquidation Priority
+              </span>
             </div>
-            <span class="city-pill">Jeddah &bull; 193 m²</span>
-          </div>
-
-          <div class="store-gauge-block">
-            <div class="gauge-meta">
-              <span>Floor Space Saturation</span>
-              <strong class="text-amber">112.9% (62.1 / 55.0 u/m²)</strong>
+            <h3 class="store-name">Al-Yasmeen Mall</h3>
+            <div class="store-saturation-meter">
+              <div class="sat-labels">
+                <span>Floor Saturation</span>
+                <strong class="text-amber">112.9% (Overload)</strong>
+              </div>
+              <div class="sat-track">
+                <div class="sat-fill fill-warning" style="width: 100%;"></div>
+              </div>
             </div>
-            <div class="gauge-track">
-              <div class="gauge-fill gauge-fill-warning" style="width: 100%;"></div>
+            <div class="store-metrics-panel">
+              <div class="s-metric">
+                <span class="lbl">Floor Units:</span>
+                <strong id="stockYasmeen">11,978 u</strong>
+              </div>
+              <div class="s-metric">
+                <span class="lbl">Density:</span>
+                <strong id="densityYasmeen" class="density-val text-amber">62.1 u/m²</strong>
+              </div>
+              <div class="s-metric">
+                <span class="lbl">Benchmark:</span>
+                <span>&le; 55.0 u/m²</span>
+              </div>
             </div>
-          </div>
-
-          <div class="store-body">
-            <div class="metric-row">
-              <span class="m-lbl">On-Hand Floor Stock:</span>
-              <strong id="stockYasmeen" class="m-val">11,978 units</strong>
-            </div>
-            <div class="metric-row">
-              <span class="m-lbl">Current Floor Density:</span>
-              <strong id="densityYasmeen" class="density-val choke">62.1 u/m²</strong>
-            </div>
-            <div class="metric-row">
-              <span class="m-lbl">Target Benchmark:</span>
-              <span class="m-sub">&le; 55.0 u/m² (Severe Rack Choke)</span>
-            </div>
-          </div>
-          <div class="store-status status-warning" id="statusYasmeen">
-            <span class="status-indicator"></span> Requires Urgent Liquidation
           </div>
         </div>
 
-        <!-- Store 3: Jouri Mall -->
-        <div class="store-card store-card-danger" id="cardJouri">
-          <div class="store-head">
-            <div>
-              <span class="store-tech-chip">NODE // TAI-01</span>
-              <h3>Jouri Mall Flagship</h3>
+        <!-- Store 3: Jouri Mall Taif -->
+        <div class="store-photo-card" id="cardJouri">
+          <div class="store-img-bg" style="background-image: url('images/store-jouri.jpg');"></div>
+          <div class="store-scrim"></div>
+          <div class="store-card-content">
+            <div class="store-card-top">
+              <span class="store-geo-tag">TAIF FLAGSHIP &bull; 168 M²</span>
+              <span class="status-badge badge-danger" id="statusJouri">
+                <span class="status-dot"></span> Critical Bottleneck
+              </span>
             </div>
-            <span class="city-pill">Taif &bull; 168 m²</span>
-          </div>
-
-          <div class="store-gauge-block">
-            <div class="gauge-meta">
-              <span>Floor Space Saturation</span>
-              <strong class="text-danger">113.5% (68.1 / 60.0 u/m²)</strong>
+            <h3 class="store-name">Jouri Mall</h3>
+            <div class="store-saturation-meter">
+              <div class="sat-labels">
+                <span>Floor Saturation</span>
+                <strong class="text-danger">113.5% (Severe Choke)</strong>
+              </div>
+              <div class="sat-track">
+                <div class="sat-fill fill-danger" style="width: 100%;"></div>
+              </div>
             </div>
-            <div class="gauge-track">
-              <div class="gauge-fill gauge-fill-danger" style="width: 100%;"></div>
+            <div class="store-metrics-panel">
+              <div class="s-metric">
+                <span class="lbl">Floor Units:</span>
+                <strong id="stockJouri">11,438 u</strong>
+              </div>
+              <div class="s-metric">
+                <span class="lbl">Density:</span>
+                <strong id="densityJouri" class="density-val text-danger">68.1 u/m²</strong>
+              </div>
+              <div class="s-metric">
+                <span class="lbl">Benchmark:</span>
+                <span>&le; 60.0 u/m²</span>
+              </div>
             </div>
-          </div>
-
-          <div class="store-body">
-            <div class="metric-row">
-              <span class="m-lbl">On-Hand Floor Stock:</span>
-              <strong id="stockJouri" class="m-val">11,438 units</strong>
-            </div>
-            <div class="metric-row">
-              <span class="m-lbl">Current Floor Density:</span>
-              <strong id="densityJouri" class="density-val choke">68.1 u/m²</strong>
-            </div>
-            <div class="metric-row">
-              <span class="m-lbl">Target Benchmark:</span>
-              <span class="m-sub">&le; 60.0 u/m² (Critical Clearance Bottleneck)</span>
-            </div>
-          </div>
-          <div class="store-status status-danger" id="statusJouri">
-            <span class="status-indicator"></span> Critical Clearance Bottleneck
           </div>
         </div>
       </div>
     </section>
 
     <!-- Interactive Dynamic What-If Scenario Simulator -->
-    <section class="simulator-panel cyber-glass-panel">
+    <section class="section-block luxury-panel">
       <div class="sim-header">
-        <div class="sim-title-wrap">
-          <span class="sim-icon">⚡</span>
-          <div>
-            <h2>Dynamic What-If Scenario Simulator Engine</h2>
-            <p>Model financial yield, gross clearance cash profits, and store rack density in real time.</p>
-          </div>
+        <div>
+          <h2 class="serif-title">Dynamic Promotional Yield Simulator</h2>
+          <p class="section-subtext">Real-time simulation of cash register profits, margin retention, and store rack decongestion.</p>
         </div>
-        <button id="resetSimBtn" class="btn btn-cyber-outline">
-          <span>↺ Reset to Baseline</span>
-        </button>
+        <button id="resetSimBtn" class="btn btn-luxury-outline">↺ Reset to Baseline</button>
       </div>
 
-      <div class="sim-controls">
-        <div class="slider-group">
-          <div class="slider-label-row">
-            <span class="slider-title">TARGET LIQUIDATION VOLUME:</span>
-            <span class="slider-display" id="valLiquidation">22,550 Units (42.8%)</span>
+      <div class="sim-controls-grid">
+        <div class="sim-slider-box">
+          <div class="slider-head">
+            <label for="sliderLiquidation">TARGET LIQUIDATION VOLUME</label>
+            <span class="slider-value-pill" id="valLiquidation">22,550 Units (42.8%)</span>
           </div>
-          <div class="slider-track-wrap">
-            <input type="range" id="sliderLiquidation" min="5000" max="40000" step="500" value="22550">
-          </div>
-          <div class="slider-ticks">
-            <span>5K Units</span>
-            <span>22.5K Baseline</span>
-            <span>40K Max Clearance</span>
+          <input type="range" id="sliderLiquidation" min="5000" max="40000" step="500" value="22550">
+          <div class="slider-range-ticks">
+            <span>5,000 Units (Gentle)</span>
+            <span>22,550 Units (Baseline)</span>
+            <span>40,000 Units (Max Decongest)</span>
           </div>
         </div>
 
-        <div class="slider-group">
-          <div class="slider-label-row">
-            <span class="slider-title">MINIMUM REALIZED NET MARGIN FLOOR:</span>
-            <span class="slider-display" id="valMarginFloor">48.0%</span>
+        <div class="sim-slider-box">
+          <div class="slider-head">
+            <label for="sliderMarginFloor">MINIMUM REALIZED NET MARGIN FLOOR</label>
+            <span class="slider-value-pill" id="valMarginFloor">48.0%</span>
           </div>
-          <div class="slider-track-wrap">
-            <input type="range" id="sliderMarginFloor" min="30" max="65" step="1" value="48">
-          </div>
-          <div class="slider-ticks">
-            <span>30% Minimum Floor</span>
-            <span>48% Baseline Target</span>
-            <span>65% Maximum Defense</span>
+          <input type="range" id="sliderMarginFloor" min="30" max="65" step="1" value="48">
+          <div class="slider-range-ticks">
+            <span>30.0% (Aggressive Clearance)</span>
+            <span>48.0% (Target Margin)</span>
+            <span>65.0% (Strict Margin Defense)</span>
           </div>
         </div>
       </div>
 
-      <!-- Telemetry Matrix Results Ribbon -->
       <div class="sim-results-ribbon">
-        <div class="sim-result-box">
-          <span class="label">PROJECTED CASH REGISTER GROSS</span>
-          <strong id="simGrossRev" class="val-num">1,103,077 SAR</strong>
-          <span class="sub-chip">Gross Consumer Spend</span>
+        <div class="sim-metric-card">
+          <span class="lbl">PROJECTED REGISTER GROSS</span>
+          <strong id="simGrossRev" class="val">1,103,077 SAR</strong>
+          <span class="sub">Gross Customer Turnover</span>
         </div>
-        <div class="sim-result-box highlight-emerald">
-          <span class="label">PROJECTED CASH NET PROFIT</span>
-          <strong id="simNetProfit" class="val-num text-success">+471,919 SAR</strong>
-          <span class="sub-chip chip-success">Net Margin Realization</span>
+        <div class="sim-metric-card highlight-gold">
+          <span class="lbl">PROJECTED CASH NET PROFIT</span>
+          <strong id="simNetProfit" class="val text-gold">+471,919 SAR</strong>
+          <span class="sub">Cash Flow Generation</span>
         </div>
-        <div class="sim-result-box highlight-cyan">
-          <span class="label">REALIZED NET MARGIN</span>
-          <strong id="simRealizedMargin" class="val-num text-cyan">49.2%</strong>
-          <span class="sub-chip chip-cyan">&gt; 48.0% Floor Constraint</span>
+        <div class="sim-metric-card highlight-emerald">
+          <span class="lbl">REALIZED NET MARGIN</span>
+          <strong id="simRealizedMargin" class="val text-emerald">49.2%</strong>
+          <span class="sub">&ge; 48.0% Floor Preserved</span>
         </div>
-        <div class="sim-result-box">
-          <span class="label">RETAINED WINTER ASSORTMENT</span>
-          <strong id="simRetainedStock" class="val-num">30,182 Units</strong>
-          <span class="sub-chip">57.2% Assortment Retention</span>
+        <div class="sim-metric-card">
+          <span class="lbl">RETAINED WINTER STOCK</span>
+          <strong id="simRetainedStock" class="val">30,182 Units</strong>
+          <span class="sub">57.2% Assortment Retention</span>
         </div>
-        <div class="sim-result-box highlight-blue">
-          <span class="label">POST-EVENT JOURI DENSITY</span>
-          <strong id="simJouriPostDensity" class="val-num text-info">35.4 u/m²</strong>
-          <span class="sub-chip chip-info">Decongestion Achieved</span>
+        <div class="sim-metric-card highlight-sapphire">
+          <span class="lbl">POST-EVENT TAIF DENSITY</span>
+          <strong id="simJouriPostDensity" class="val text-sapphire">35.4 u/m²</strong>
+          <span class="sub">Clean Commercial Hub</span>
         </div>
       </div>
     </section>
 
-    <!-- Master Style Merchandising Radar Table -->
-    <section class="section-block cyber-glass-panel">
-      <div class="table-header-bar">
-        <div class="sec-title-wrap">
-          <span class="sec-icon">📊</span>
-          <div>
-            <h2>Master Style Merchandising Radar</h2>
-            <span class="sec-sub">Continuous Algorithmic Pricing, Size Curves, &amp; Dual Offer Optimizations</span>
-          </div>
+    <!-- Master Style Assortment Merchandising Radar -->
+    <section class="section-block">
+      <div class="table-headline-bar">
+        <div>
+          <h2 class="serif-title">Style Lifecycle Assortment Radar</h2>
+          <span class="section-subtext">Continuous Algorithmic Dual-Offers, Size Curve Diagnostics, and Unit Economics</span>
         </div>
       </div>
 
-      <div class="table-controls-bar">
-        <div class="search-input-wrap">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 59465) or Product Name...">
-          <span class="search-shortcut">CTRL + K</span>
+      <div class="table-filter-bar">
+        <div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 59465) or Product Description...">
         </div>
-        <div class="filter-group">
-          <div class="cyber-select-capsule">
-            <label for="filterCategory">CATEGORY:</label>
+
+        <div class="filter-actions">
+          <div class="luxury-select-wrap">
+            <span class="select-label">CATEGORY</span>
             <select id="filterCategory">
               <option value="ALL">All Categories</option>
-              <option value="Bra">Bras & Lingerie</option>
-              <option value="Pant">Pants & Leggings</option>
-              <option value="Top">Tops & T-Shirts</option>
+              <option value="Bra">Bras &amp; Lingerie</option>
+              <option value="Pant">Pants &amp; Leggings</option>
+              <option value="Top">Tops &amp; T-Shirts</option>
               <option value="Short">Shorts</option>
-              <option value="Pyjama">Pyjamas, Gowns & Robes</option>
-              <option value="Cosmetics">Cosmetics & Fragrance</option>
-              <option value="Brief">Briefs, Panties & Bikinis</option>
+              <option value="Pyjama">Pyjamas &amp; Robes</option>
+              <option value="Cosmetics">Cosmetics &amp; Fragrance</option>
+              <option value="Brief">Briefs &amp; Panties</option>
               <option value="Set">Sets</option>
               <option value="Socks">Socks</option>
-              <option value="Towel">Towels & Linens</option>
+              <option value="Towel">Towels &amp; Linens</option>
             </select>
           </div>
 
-          <div class="cyber-select-capsule">
-            <label for="filterTier">TIER:</label>
+          <div class="luxury-select-wrap">
+            <span class="select-label">LIFECYCLE TIER</span>
             <select id="filterTier">
               <option value="ALL">All Lifecycle Tiers</option>
-              <option value="STEADY_ACTIVE">Steady Active (Spend & Save)</option>
+              <option value="STEADY_ACTIVE">Steady Active (Spend &amp; Save)</option>
               <option value="HERO_CORE">Hero Core (0% Off Margin Protect)</option>
               <option value="MATURE_SUMMER_EXIT">Mature Summer (40% Off)</option>
               <option value="CLEARANCE_50_PCT">Clearance (50% Off Rail)</option>
@@ -389,36 +422,36 @@
         </div>
       </div>
 
-      <!-- Interactive Style Table -->
-      <div class="table-wrapper">
+      <!-- Master Style Table -->
+      <div class="table-container">
         <table class="style-table" id="stylesTable">
           <thead>
             <tr>
-              <th>Style Code</th>
-              <th>Product Name</th>
+              <th>Style</th>
+              <th>Product Description</th>
               <th>Category</th>
               <th>Season</th>
               <th>Physical Stock</th>
-              <th>Store Breakdown</th>
+              <th>Store Allocation</th>
               <th>STR %</th>
               <th>ROS (8-wk)</th>
-              <th>Curve Health</th>
+              <th>Size Curve</th>
               <th>Unit Cost</th>
-              <th>Cost + 15% VAT</th>
+              <th>VAT Floor</th>
               <th>Ticket Price</th>
               <th>Recommended Offer</th>
               <th>Discount</th>
               <th>Promo Price</th>
               <th>Zero-Loss</th>
-              <th>Action</th>
+              <th>Manage</th>
             </tr>
           </thead>
           <tbody id="stylesTableBody">
             <tr>
               <td colspan="17" class="loading-cell">
-                <div class="table-loader-wrap">
-                  <span class="cyber-spinner"></span>
-                  <span>Synchronizing style telemetry from Cloudflare D1...</span>
+                <div class="table-spinner-wrap">
+                  <span class="luxury-spinner"></span>
+                  <span>Synchronizing live assortment intelligence from Cloudflare D1...</span>
                 </div>
               </td>
             </tr>
@@ -426,25 +459,24 @@
         </table>
       </div>
 
-      <!-- Pagination -->
       <div class="pagination-bar">
-        <span id="pageInfo" class="page-info-tag">Showing styles 1 to 50</span>
-        <div class="page-btns">
-          <button id="prevPageBtn" class="btn btn-cyber-sm">← Previous</button>
-          <button id="nextPageBtn" class="btn btn-cyber-sm">Next →</button>
+        <span id="pageInfo" class="page-info-pill">Showing styles 1 to 50</span>
+        <div class="page-controls">
+          <button id="prevPageBtn" class="btn btn-luxury-sm">← Previous</button>
+          <button id="nextPageBtn" class="btn btn-luxury-sm">Next →</button>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- AI Copilot Side Drawer -->
+  <!-- AI Merchandising Concierge Drawer -->
   <aside class="copilot-drawer" id="copilotDrawer">
     <div class="drawer-header">
       <div class="drawer-title">
-        <span class="ai-avatar-spark">⚡</span>
+        <div class="copilot-avatar">✨</div>
         <div>
-          <h3>CARINA Merchandising Copilot</h3>
-          <span class="drawer-status-chip"><span class="chip-dot"></span> NEURAL STRATEGIST ACTIVE</span>
+          <h3>CARINA Strategy Concierge</h3>
+          <span class="drawer-sub">KSA MERCHANDISING ADVISOR</span>
         </div>
       </div>
       <button id="closeCopilotBtn" class="btn-close">&times;</button>
@@ -465,7 +497,7 @@
 
     <div class="drawer-body">
       <div class="quick-prompts">
-        <span class="quick-title">EXECUTIVE QUICK PROMPTS:</span>
+        <span class="quick-title">EXECUTIVE QUESTIONS:</span>
         <button class="pill-btn" data-prompt="What is the recommended offer for style 59465?">Offer for Style 59465?</button>
         <button class="pill-btn" data-prompt="How do we decongest Jouri Mall in Taif before December cold weather?">Decongest Jouri Mall</button>
         <button class="pill-btn" data-prompt="Exclude all fresh Winter AW26 styles from any promotion">Exclude AW26</button>
@@ -482,15 +514,15 @@
 
     <div class="drawer-footer">
       <form id="chatForm">
-        <input type="text" id="chatInput" placeholder="Ask about styles, floor density, or add new rules..." autocomplete="off">
-        <button type="submit" class="btn btn-cyber-primary">Send</button>
+        <input type="text" id="chatInput" placeholder="Ask about styles, store density, or submit commercial policies..." autocomplete="off">
+        <button type="submit" class="btn btn-luxury-ruby">Send</button>
       </form>
     </div>
   </aside>
 
   <!-- Governance Rules Modal -->
   <div class="modal-overlay" id="rulesModal">
-    <div class="modal-dialog cyber-modal">
+    <div class="modal-dialog luxury-modal">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <span class="modal-icon">⚖️</span>
@@ -504,7 +536,7 @@
           <!-- Populated dynamically -->
         </div>
 
-        <hr class="cyber-divider">
+        <hr class="luxury-divider">
         <h4>Add New Dynamic Business Requirement</h4>
         <form id="newRuleForm" class="new-rule-form">
           <div class="form-row">
@@ -525,7 +557,7 @@
             </select>
             <input type="text" id="ruleValue" placeholder="Value (e.g. 20.0)" required>
           </div>
-          <button type="submit" class="btn btn-cyber-primary">Activate Rule in D1</button>
+          <button type="submit" class="btn btn-luxury-gold">Activate Rule in D1</button>
         </form>
       </div>
     </div>
@@ -533,7 +565,7 @@
 
   <!-- Offer Override Modal -->
   <div class="modal-overlay" id="overrideModal">
-    <div class="modal-dialog cyber-modal">
+    <div class="modal-dialog luxury-modal">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <span class="modal-icon">✏️</span>
@@ -548,9 +580,9 @@
 
         <form id="overrideForm">
           <input type="hidden" id="overrideStyleCode">
-          <div class="form-group" style="margin-bottom: 1rem;">
-            <label for="overrideOfferSelect"><strong>Select Promotional Strategy:</strong></label>
-            <select id="overrideOfferSelect" class="form-select cyber-input" style="width: 100%; margin-top: 0.3rem;">
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="overrideOfferSelect" style="display: block; margin-bottom: 0.4rem; font-weight: 600;">Promotional Campaign Strategy:</label>
+            <select id="overrideOfferSelect" class="form-select luxury-input" style="width: 100%;">
               <option value="Take 3 For 99 SAR Rail (33 SAR/u)">Take 3 For 99 SAR Rail (33.00 SAR/u)</option>
               <option value="50% Off Dedicated Clearance Rail">50% Off Dedicated Clearance Rail</option>
               <option value="Category Markdown 40% Off">Category Markdown 40% Off</option>
@@ -560,25 +592,25 @@
             </select>
           </div>
 
-          <div class="form-group" style="margin-bottom: 1rem;">
-            <label for="overridePriceInput"><strong>Promotional Price (SAR):</strong></label>
-            <input type="number" step="0.5" id="overridePriceInput" class="form-control cyber-input" style="width: 100%; margin-top: 0.3rem;" required>
+          <div class="form-group" style="margin-bottom: 1.25rem;">
+            <label for="overridePriceInput" style="display: block; margin-bottom: 0.4rem; font-weight: 600;">Promotional Price (SAR inclusive of 15% VAT):</label>
+            <input type="number" step="0.5" id="overridePriceInput" class="form-control luxury-input" style="width: 100%;" required>
           </div>
 
-          <div id="zeroLossAlert" class="alert-box" style="display: none; padding: 0.85rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
+          <div id="zeroLossAlert" class="alert-box" style="display: none; padding: 0.85rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.85rem;">
             <!-- Warning if price < Cost * 1.15 -->
           </div>
 
           <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-            <button type="button" id="cancelOverrideBtn" class="btn btn-cyber-secondary">Cancel</button>
-            <button type="submit" id="saveOverrideBtn" class="btn btn-cyber-primary">Save &amp; Apply to POS</button>
+            <button type="button" id="cancelOverrideBtn" class="btn btn-luxury-secondary">Cancel</button>
+            <button type="submit" id="saveOverrideBtn" class="btn btn-luxury-gold">Save &amp; Apply to POS</button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- Floating Calculation Tooltip / Popover -->
+  <!-- Floating Mathematical Derivation Tooltip / Popover -->
   <div id="calcPopover" class="calc-popover" style="display: none;"></div>
 
   <script src="app.js"></script>
