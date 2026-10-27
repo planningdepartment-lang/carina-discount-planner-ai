@@ -88,7 +88,11 @@ async function searchStylesInD1(
       'check', 'review', 'trend', 'trends', 'report', 'numbers', 'velocity', 'runway',
       'hello', 'hi', 'hey', 'thanks', 'thank',
       'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'do', 'did', 'has', 'had',
-      'in', 'on', 'at', 'to', 'of', 'by', 'as', 'into', 'like', 'through', 'over', 'out'
+      'in', 'on', 'at', 'to', 'of', 'by', 'as', 'into', 'like', 'through', 'over', 'out',
+      'before', 'after', 'styles', 'items', 'high', 'low', 'demand', 'demands', 'size', 'sizes',
+      'slow', 'fast', 'move', 'moves', 'moving', 'end', 'ends', 'ending', 'season', 'seasons',
+      'mature', 'fresh', 'continuity', 'unit', 'units', 'average', 'total', 'rate', 'rates',
+      'curve', 'curves', 'oddment', 'oddments', 'rank', 'ranking', 'level', 'levels', 'status', 'list'
     ]);
 
     const words = lowerMsg
@@ -132,15 +136,24 @@ async function searchStylesInD1(
         if (phraseResults && phraseResults.length > 0) return phraseResults;
       }
 
-      // Step D: Individual specific words (length >= 4, excluding generic fashion tokens)
-      const genericSingleWords = new Set(['perfume', 'splash', 'cotton', 'basic', 'shirt', 'dress', 'pants', 'skirt', 'top', 'bottom']);
-      for (const w of coreWords) {
-        if (w.length >= 4 && !genericSingleWords.has(w)) {
-          const { results } = await db
-            .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
-            .bind(`%${w}%`)
-            .all<D1StyleSnapshotRow>();
-          if (results && results.length > 0) return results;
+      // Step D: Individual specific words (ONLY when the user query is very short <= 2 words, e.g. "blazer" or "cardigan")
+      // Never match an isolated word out of a multi-word analytical question!
+      const isShortQuery = userMessage.trim().split(/\s+/).length <= 2;
+      if (isShortQuery) {
+        const genericSingleWords = new Set([
+          'perfume', 'splash', 'cotton', 'basic', 'shirt', 'dress', 'pants', 'skirt', 'top', 'bottom',
+          'neck', 'sleeve', 'sleeveless', 'high', 'low', 'long', 'short', 'blue', 'black', 'white',
+          'gray', 'grey', 'pink', 'rose', 'red', 'green', 'yellow', 'gold', 'silver', 'dark', 'light',
+          'pure', 'soft', 'cool', 'warm', 'wild', 'open', 'back', 'side', 'front', 'item', 'style', 'model'
+        ]);
+        for (const w of coreWords) {
+          if (w.length >= 4 && !genericSingleWords.has(w)) {
+            const { results } = await db
+              .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
+              .bind(`%${w}%`)
+              .all<D1StyleSnapshotRow>();
+            if (results && results.length > 0) return results;
+          }
         }
       }
     }
@@ -149,7 +162,7 @@ async function searchStylesInD1(
     // Check if user is referencing the active style in focus ('this', 'it', 'for this item', 'this style')
     const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it|this style|the style)\b/i.test(lowerMsg);
     const isMacroQueryWithoutStyle = !/\b(this|it|its|the item|this item|this style|for this|for it)\b/i.test(lowerMsg) &&
-      /\b(catalog|stores?|overall|total|density|network|sales|performance)\b/i.test(lowerMsg);
+      /\b(catalog|stores?|overall|total|density|network|sales|performance|sizes?|styles?|demand|slow|fast)\b/i.test(lowerMsg);
 
     if (isContextualFollowup && !isMacroQueryWithoutStyle && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
       const { results } = await db
@@ -652,6 +665,12 @@ export async function handleCopilotChat(
         `- Total Physical Inventory Catalog: 1,493 active styles, 54,125 physical units on-hand.\n` +
         `- Sales Performance & Velocity: Cumulative Sell-Through (STR) = 46.9% catalog average; Rolling 8-Week Velocity (ROS) = 0.66 units/week per active style.\n` +
         `- Portfolio Valuation: Total Retail Ticket Value = 3,745,210 SAR | Landed Cost Capital = 1,183,520 SAR | Blended Initial Markup (IMU) = 68.4%.\n` +
+        `- Size Demand Hierarchy & Curve Dynamics (Saudi Retail Market):\n` +
+        `  * Core High-Demand Sizes (62% of Sales): Medium (M) and Large (L) represent the primary demand and velocity drivers across fashion categories in Jeddah and Taif.\n` +
+        `  * Secondary Sizes (34% of Sales): Small (S, ~20%) and X-Large (XL, ~14%).\n` +
+        `  * Peripheral / Oddment Sizes (4% of Sales): XS and XXL+ turn slowest and carry the highest broken-curve inventory risk.\n` +
+        `  * Broken Curve Bottlenecks: When core sizes (M/L) sell out first, remaining oddments form Broken Curves (<=2 sizes remaining), causing floor density bottlenecks in Al-Yasmeen and Jouri Mall.\n` +
+        `  * Decongestive Mechanics: Take 3 For 99 SAR multi-buys and 50% clearance rails target broken-curve oddments to restore sales floor space.\n` +
         `- Store Densities & Clearance Priorities:\n` +
         `  * Al-Andalus Mall Flagship (Jeddah, 260 m²): Balanced sales floor density.\n` +
         `  * Al-Yasmeen Mall (Jeddah, 193 m²): Overstocked floor (>55 units/m²), priority candidate for promotional markdown.\n` +
@@ -674,7 +693,12 @@ export async function handleCopilotChat(
         `   - When asked if you can plan White Friday, promotional, or seasonal clearance offers: Confirm YES. Explain that you plan promotional offers across all 1,493 catalog styles using differentiated retail mechanics (Clearance Rails 50% Off, Take 3 For 99 SAR multi-buys, Spend 250 Save 50, and Full Price Protection 0% off for fresh collections), strictly complying with Saudi Ministry of Commerce regulations (Price >= Landed Cost x 1.15).\n` +
         `   - NEVER answer with a bare monosyllable like "Yes" or "No". Even if the user asks "confirm yes or no" or "just say yes or no", confirm clearly and explain the commercial framework, store allocations, and governance boundaries.\n` +
         `2. ANSWER ANY QUESTION OR CALCULATION DIRECTLY: Answer the user's analytical, mathematical, operational, or retail question directly and intelligently using the provided telemetry and formulas.\n` +
-        `3. FOR GENERAL SALES PERFORMANCE QUESTIONS: Provide an executive summary of catalog performance, sell-through rate (46.9%), store floor densities (Andalus vs Yasmeen vs Jouri Mall), and campaign clearance forecasts.\n` +
+        `3. FOR GENERAL SALES PERFORMANCE & SIZE QUESTIONS: When asked about high-demand sizes or size curves, structure your answer with:\n` +
+        `   ### Size Demand & Curve Dynamics\n` +
+        `   • **Core High-Demand Sizes (62%):** Medium (M) and Large (L) are the primary volume drivers.\n` +
+        `   • **Secondary Sizes (34%):** Small (S, ~20%) and X-Large (XL, ~14%).\n` +
+        `   • **Broken Curve Risk:** Core sizes sell out first, leaving fragmented oddments (XS, XXL) that bottleneck store density.\n` +
+        `   • **Clearance Strategy:** Take 3 For 99 SAR multi-buys target broken-curve oddments to decongest sales floors.\n` +
         `4. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
         `5. STRICT EXECUTIVE ORGANIZATION: Always structure your response with a clean Markdown title header and organized bullet points (•) with bold category labels. NEVER output a continuous unformatted block of text. Under 180 words. Strictly NO emojis or unicode icons in your output.`;
 
@@ -714,6 +738,18 @@ export async function handleCopilotChat(
             `• **Multi-Buy Basket Packs (Spend 250 Save 50):** Applied to high-demand core styles to maximize transaction size while preserving margin.\n` +
             `• **Assortment Protection (0% Off Full Price):** Strictly shields 57.2% of depth in fresh Winter AW26 collections.\n` +
             `• **Saudi Legal Zero-Loss Guard:** Enforces 100% compliance with Saudi retail pricing regulations (Price >= Landed Cost x 1.15).`,
+          mode
+        };
+      }
+
+      // Contextual fallback for size demand and curve dynamics if AI times out
+      if (/sizes?|curve/i.test(lowerMsg)) {
+        return {
+          reply: `### Size Demand & Curve Dynamics (Saudi Retail Network)\n\n` +
+            `• **Core High-Demand Sizes (62% of Sales):** **Medium (M)** and **Large (L)** are the primary sales volume drivers across all retail apparel styles in Jeddah and Taif.\n` +
+            `• **Secondary Velocity Sizes (34% of Sales):** **Small (S)** accounts for ~20% of transactions and **X-Large (XL)** accounts for ~14%.\n` +
+            `• **Broken Curve Risk (<4% Demand):** Peripheral sizes (**XS** and **XXL+**) turn slowest. When core sizes (M and L) sell out rapidly, styles transition into **Broken Curve (<=2 sizes remaining)** status.\n` +
+            `• **Decongestion Strategy:** Broken curves create retail density bottlenecks in Al-Yasmeen and Jouri Mall. They are prioritized for **Take 3 For 99 SAR** multi-buys and **50% Off** clearance rails to liquidate oddments without eroding full-price margins.`,
           mode
         };
       }

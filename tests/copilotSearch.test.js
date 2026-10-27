@@ -79,7 +79,11 @@ async function searchStylesInD1(db, userMessage, contextStyleCode) {
     'check', 'review', 'trend', 'trends', 'report', 'numbers', 'velocity', 'runway',
     'hello', 'hi', 'hey', 'thanks', 'thank',
     'is', 'am', 'are', 'was', 'were', 'be', 'been', 'being', 'do', 'did', 'has', 'had',
-    'in', 'on', 'at', 'to', 'of', 'by', 'as', 'into', 'like', 'through', 'over', 'out'
+    'in', 'on', 'at', 'to', 'of', 'by', 'as', 'into', 'like', 'through', 'over', 'out',
+    'before', 'after', 'styles', 'items', 'high', 'low', 'demand', 'demands', 'size', 'sizes',
+    'slow', 'fast', 'move', 'moves', 'moving', 'end', 'ends', 'ending', 'season', 'seasons',
+    'mature', 'fresh', 'continuity', 'unit', 'units', 'average', 'total', 'rate', 'rates',
+    'curve', 'curves', 'oddment', 'oddments', 'rank', 'ranking', 'level', 'levels', 'status', 'list'
   ]);
 
   const words = lowerMsg
@@ -107,7 +111,7 @@ async function searchStylesInD1(db, userMessage, contextStyleCode) {
 
   const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it|this style|the style)\b/i.test(lowerMsg);
   const isMacroQueryWithoutStyle = !/\b(this|it|its|the item|this item|this style|for this|for it)\b/i.test(lowerMsg) &&
-    /\b(catalog|stores?|overall|total|density|network|sales|performance)\b/i.test(lowerMsg);
+    /\b(catalog|stores?|overall|total|density|network|sales|performance|sizes?|styles?|demand|slow|fast)\b/i.test(lowerMsg);
 
   if (isContextualFollowup && !isMacroQueryWithoutStyle && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
     const { results } = await db.prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1').bind(contextStyleCode).all();
@@ -116,6 +120,12 @@ async function searchStylesInD1(db, userMessage, contextStyleCode) {
 
   return [];
 }
+
+test('Copilot Search: "what are the sizes that have high demand" does NOT match any style in D1', async () => {
+  const db = createMockDb(mockCatalog);
+  const results = await searchStylesInD1(db, 'what are the sizes that have high demand', null);
+  assert.equal(results.length, 0);
+});
 
 test('Copilot Search: matches Perfume Silk Dream 50ML over active context style 59399', async () => {
   const db = createMockDb(mockCatalog);
