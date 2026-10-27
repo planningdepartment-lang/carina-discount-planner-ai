@@ -149,13 +149,13 @@ async function searchStylesInD1(
  */
 function formatFullStyleCard(row: D1StyleSnapshotRow): string {
   return (
-    `### 🏷️ Style **${row.style_code}** — *${row.product_name}*\n` +
+    `### Style **${row.style_code}** — *${row.product_name}*\n` +
     `• **Category / Season:** \`${row.category || 'General'}\` | \`${row.season || 'Continuity'}\`\n` +
     `• **Total Physical Inventory:** **${row.total_physical_stock} units**\n` +
-    `  - 🏬 **Al-Andalus Mall Flagship (Jeddah):** ${row.stock_andalus} units\n` +
-    `  - 🏬 **Al-Yasmeen Mall (Jeddah):** ${row.stock_yasmeen} units\n` +
-    `  - 🏬 **Jouri Mall (Taif):** ${row.stock_jouri} units\n` +
-    `  - 🏭 **Central Warehouse (WH):** ${row.stock_wh} units\n` +
+    `  - **Al-Andalus Mall Flagship (Jeddah):** ${row.stock_andalus} units\n` +
+    `  - **Al-Yasmeen Mall (Jeddah):** ${row.stock_yasmeen} units\n` +
+    `  - **Jouri Mall (Taif):** ${row.stock_jouri} units\n` +
+    `  - **Central Warehouse (WH):** ${row.stock_wh} units\n` +
     `• **Curve & Velocity:** ${row.sar_curve_health} | Cumulative STR: **${row.cumulative_str_pct}%** | Weekly ROS: **${row.weekly_ros} u/wk**\n` +
     `• **Cost & Pricing Economics:**\n` +
     `  - Unit Landed Cost: **${row.unit_cost.toFixed(2)} SAR**\n` +
@@ -175,18 +175,18 @@ function formatFullStyleCard(row: D1StyleSnapshotRow): string {
  */
 function getDataSourceResponse(): string {
   return (
-    `### 📊 CARINA Merchandising Architecture — Assortment Intelligence\n\n` +
+    `### CARINA Merchandising Architecture — Assortment Intelligence\n\n` +
     `All promotional pricing, store allocations, and lifecycle strategies are synthesized directly from **Verified Point-of-Sale (POS) & Store Inventory Records** across the Kingdom of Saudi Arabia:\n\n` +
     `1. **Inventory Movements & Transaction History:**\n` +
     `   - **Audited Ledger Volume:** 380,518 verified retail store and warehouse stock movements.\n` +
     `   - **Verified Assortment Invariant:** Ingests only retail apparel and accessories SKUs with valid size and color curves.\n` +
     `   - **Active Styles In Catalog:** 1,493 verified physical styles on-hand.\n\n` +
     `2. **Physical Store Network Capacity (621 m² Sales Floor):**\n` +
-    `   - 🏬 **Al-Andalus Mall Flagship (Jeddah, 260 m²):** Balanced commercial hub.\n` +
-    `   - 🏬 **Al-Yasmeen Mall (Jeddah, 193 m²):** Overloaded floor; priority clearance hub.\n` +
-    `   - 🏬 **Jouri Mall (Taif, 168 m²):** High density bottleneck; primary candidate for Take 3 for 99 SAR rail.\n` +
-    `   - 🏭 **Central Warehouse:** Reserve fulfillment for replenishment.\n` +
-    `   - 🚫 **Virtual & Damaged Isolation:** Online virtual stock and damaged items are strictly separated from physical sales floors.\n\n` +
+    `   - **Al-Andalus Mall Flagship (Jeddah, 260 m²):** Balanced commercial hub.\n` +
+    `   - **Al-Yasmeen Mall (Jeddah, 193 m²):** Overloaded floor; priority clearance hub.\n` +
+    `   - **Jouri Mall (Taif, 168 m²):** High density bottleneck; primary candidate for Take 3 for 99 SAR rail.\n` +
+    `   - **Central Warehouse:** Reserve fulfillment for replenishment.\n` +
+    `   - **Virtual & Damaged Isolation:** Online virtual stock and damaged items are strictly separated from physical sales floors.\n\n` +
     `3. **Commercial Guardrails:**\n` +
     `   - **Saudi Zero-Loss Legal Compliance:** Every offer strictly complies with Price >= Cost x 1.15 (15% VAT).\n` +
     `   - **Winter Assortment Shield:** At least 57.2% of core winter assortment depth is preserved for peak trading.`
@@ -198,7 +198,7 @@ function getDataSourceResponse(): string {
  */
 
 /**
- * Strips raw thinking tokens, scratchpad monologues, and <think>...</think> blocks.
+ * Strips raw thinking tokens, scratchpad monologues, <think>...</think> blocks, and all emojis/icons.
  */
 function sanitizeAiResponse(raw: string): string {
   if (!raw) return '';
@@ -222,7 +222,11 @@ function sanitizeAiResponse(raw: string): string {
     }
   }
 
-  return text;
+  // 3. Strictly strip all emojis and icons
+  text = text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1FA00}-\u{1FAFF}\u{200D}\u{FE0F}\u{FE0E}]/gu, '')
+             .replace(/[⚡✨🧠➤✅❌⚖🛡💡🏬🏭🚫💰🏷📦🎯📈⏳🔮💫🌟🌐💻📱🌪🌙🗑✏]/g, '');
+
+  return text.trim();
 }
 
 export async function handleCopilotChat(
@@ -277,6 +281,16 @@ export async function handleCopilotChat(
   const asksForPrice = /price|cost|cogs|margin|markup|imu|vat|floor|ticket/i.test(lowerMsg) && !asksForIdentity && !asksForOffer && !asksForPerformance;
   const asksForFullDetails = /detail|breakdown|all|everything|full|overview|card/i.test(lowerMsg) || /^\d{5}$/.test(userMessage);
 
+  // If no style matched but the user asked about an item or specific metrics, ask for clarification
+  if (matchedStyles.length === 0 && (asksForPerformance || asksForIdentity || asksForOffer || asksForStock || asksForPrice || /this item|this product|the style|the item|for this/i.test(lowerMsg))) {
+    return {
+      reply: `### Clarification Required\n\n` +
+        `• Please provide the 5-digit style code (e.g. \`59465\` or \`50177\`) or the specific product name.\n` +
+        `• Once specified, I will pull its physical stock across Jeddah and Taif, weekly velocity, margin economics, and zero-loss pricing rules for you.`,
+      mode
+    };
+  }
+
   // If a specific style was matched
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
@@ -288,14 +302,14 @@ export async function handleCopilotChat(
       const wosVal = style.weekly_ros > 0 ? (style.total_physical_stock / style.weekly_ros).toFixed(1) : '999';
 
       return {
-        reply: `### 📊 Sales Performance — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
-          `• 🎯 **Sell-Through Rate (STR):** **${style.cumulative_str_pct}%** (${paceLabel})\n` +
-          `• ⚡ **Sales Velocity (8-Week ROS):** **${style.weekly_ros} units/week**\n` +
-          `• 📦 **Physical Inventory On-Hand:** **${style.total_physical_stock} units** (${style.sar_curve_health})\n` +
-          `• ⏳ **Store Runway:** **${wosVal} Weeks of Supply (WOS)**\n` +
-          `• 🎯 **Campaign Clearance Forecast:** **${style.forecast_sold} units** (${Math.round((style.forecast_sold / style.total_physical_stock) * 100)}% liquidation rate)\n` +
-          `• 💰 **Projected Campaign Net Margin:** **+${style.forecast_profit.toLocaleString()} SAR**\n` +
-          `• 🏷️ **Commercial Action:** **${style.recommended_offer}** (${style.discount_pct}% off) to maintain inventory rotation.`,
+        reply: `### Sales Performance — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `• **Sell-Through Rate (STR):** **${style.cumulative_str_pct}%** (${paceLabel})\n` +
+          `• **Sales Velocity (8-Week ROS):** **${style.weekly_ros} units/week**\n` +
+          `• **Physical Inventory On-Hand:** **${style.total_physical_stock} units** (${style.sar_curve_health})\n` +
+          `• **Store Runway:** **${wosVal} Weeks of Supply (WOS)**\n` +
+          `• **Campaign Clearance Forecast:** **${style.forecast_sold} units** (${Math.round((style.forecast_sold / style.total_physical_stock) * 100)}% liquidation rate)\n` +
+          `• **Projected Campaign Net Margin:** **+${style.forecast_profit.toLocaleString()} SAR**\n` +
+          `• **Commercial Action:** **${style.recommended_offer}** (${style.discount_pct}% off) to maintain inventory rotation.`,
         mode,
         activeStyleCode: style.style_code
       };
@@ -304,7 +318,7 @@ export async function handleCopilotChat(
     // Priority 2: Answer product identity/description directly
     if (asksForIdentity && !asksForOffer && !asksForStock && !asksForFullDetails) {
       return {
-        reply: `### 🏷️ Product Information — Style **${style.style_code}**\n\n` +
+        reply: `### Product Information — Style **${style.style_code}**\n\n` +
           `• **Product Name:** **${style.product_name}**\n` +
           `• **Assortment Category:** \`${style.category}\` | **Season Collection:** \`${style.season}\`\n` +
           `• **Catalog Pricing:** Ticket **${style.ticket_price.toFixed(2)} SAR** | Landed Cost **${style.unit_cost.toFixed(2)} SAR** (IMU: ${(((style.ticket_price - style.unit_cost) / style.ticket_price) * 100).toFixed(1)}%)\n` +
@@ -317,11 +331,11 @@ export async function handleCopilotChat(
     // Priority 3: Answer promotional offer / White Friday recommendations directly
     if (asksForOffer && !asksForFullDetails) {
       return {
-        reply: `### 🏷️ Recommended Commercial Offer — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
-          `• 🏷️ **Primary Clearance Offer:** **${style.recommended_offer}** at **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
-          `• 🛡️ **Alternative Margin Defense Offer:** **Spend 250 Save 50 (Multi-Buy Basket Pack)** to preserve full price margin while driving units.\n` +
-          `• ⚖️ **Zero-Loss Legal Compliance:** **${style.zero_loss_status}** (Promo ${style.promotional_price.toFixed(2)} SAR >= Legal Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
-          `• 💡 **Commercial Strategy:** ${style.commercial_rationale}`,
+        reply: `### Recommended Commercial Offer — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `• **Primary Clearance Offer:** **${style.recommended_offer}** at **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
+          `• **Alternative Margin Defense Offer:** **Spend 250 Save 50 (Multi-Buy Basket Pack)** to preserve full price margin while driving units.\n` +
+          `• **Zero-Loss Legal Compliance:** **${style.zero_loss_status}** (Promo ${style.promotional_price.toFixed(2)} SAR >= Legal Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
+          `• **Commercial Strategy:** ${style.commercial_rationale}`,
         mode,
         activeStyleCode: style.style_code
       };
@@ -330,12 +344,12 @@ export async function handleCopilotChat(
     // Priority 4: Answer physical inventory/stock questions
     if (asksForStock && !asksForFullDetails) {
       return {
-        reply: `### 🏬 Physical Inventory Breakdown — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+        reply: `### Physical Inventory Breakdown — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
           `**Total Physical Stock:** **${style.total_physical_stock} units** (${style.sar_curve_health})\n\n` +
-          `• 🏬 **Al-Andalus Mall Flagship (Jeddah):** **${style.stock_andalus} units** (${((style.stock_andalus / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
-          `• 🏬 **Al-Yasmeen Mall (Jeddah):** **${style.stock_yasmeen} units** (${((style.stock_yasmeen / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
-          `• 🏬 **Jouri Mall (Taif):** **${style.stock_jouri} units** (${((style.stock_jouri / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
-          `• 🏭 **Central Warehouse (WH):** **${style.stock_wh} units** (${((style.stock_wh / style.total_physical_stock) * 100).toFixed(1)}%)`,
+          `• **Al-Andalus Mall Flagship (Jeddah):** **${style.stock_andalus} units** (${((style.stock_andalus / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `• **Al-Yasmeen Mall (Jeddah):** **${style.stock_yasmeen} units** (${((style.stock_yasmeen / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `• **Jouri Mall (Taif):** **${style.stock_jouri} units** (${((style.stock_jouri / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `• **Central Warehouse (WH):** **${style.stock_wh} units** (${((style.stock_wh / style.total_physical_stock) * 100).toFixed(1)}%)`,
         mode,
         activeStyleCode: style.style_code
       };
@@ -349,13 +363,13 @@ export async function handleCopilotChat(
       const promoMarginPct = netPromoRev > 0 ? ((promoMargin / netPromoRev) * 100).toFixed(1) : '0';
 
       return {
-        reply: `### 💰 Pricing & Margin Economics — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
-          `• 🏷️ **Original List Ticket Price:** **${style.ticket_price.toFixed(2)} SAR**\n` +
-          `• 📦 **Landed Unit Cost (COGS):** **${style.unit_cost.toFixed(2)} SAR**\n` +
-          `• ⚖️ **Saudi 15% VAT Legal Floor:** **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
-          `• 📈 **Initial Sales Markup (IMU):** **${imu}%**\n` +
-          `• 🏷️ **Recommended Promo Price:** **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
-          `• 💵 **Promo Unit Net Margin:** **+${promoMargin.toFixed(2)} SAR** (${promoMarginPct}% net margin)`,
+        reply: `### Pricing & Margin Economics — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `• **Original List Ticket Price:** **${style.ticket_price.toFixed(2)} SAR**\n` +
+          `• **Landed Unit Cost (COGS):** **${style.unit_cost.toFixed(2)} SAR**\n` +
+          `• **Saudi 15% VAT Legal Floor:** **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
+          `• **Initial Sales Markup (IMU):** **${imu}%**\n` +
+          `• **Recommended Promo Price:** **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
+          `• **Promo Unit Net Margin:** **+${promoMargin.toFixed(2)} SAR** (${promoMarginPct}% net margin)`,
         mode,
         activeStyleCode: style.style_code
       };
@@ -372,7 +386,6 @@ export async function handleCopilotChat(
 
     // For open-ended questions about this style, run Workers AI with complete context
     let userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-
 
     if (env?.AI) {
       try {
@@ -399,10 +412,10 @@ export async function handleCopilotChat(
         const systemPrompt = `You are CARINA's Senior Commercial Merchandising Strategist and Financial Retail Analyst in Saudi Arabia.\n` +
           `CRITICAL INSTRUCTIONS:\n` +
           `1. Answer the user's specific analytical, mathematical, or strategic question directly and intelligently using the provided telemetry.\n` +
-          `2. Do NOT lock yourself into canned greeting templates or repeat generic overview cards.\n` +
-          `3. If the user asks about growth, MoM trends, trajectory, or projections, synthesize the 8-week velocity (${style.weekly_ros} u/wk), run-rate (${(style.weekly_ros * 4.3).toFixed(0)} u/mo), STR trajectory (${style.cumulative_str_pct}%), and inventory runway to provide an insightful, structured assessment.\n` +
-          `4. Format response in clean, organized bullet points with bold highlights.\n` +
-          `5. STRICT EXECUTIVE RULE: Output ONLY your final commercial answer directly. Do NOT output internal monologues, scratchpad thoughts, or reasoning steps (such as "Okay, so the user is asking...", "First I should calculate...").`;
+          `2. If the user's question is unclear, underspecified, or missing key parameters, proactively ask 2 to 3 concise clarifying questions.\n` +
+          `3. Strictly NO emojis, icons, or pictographs in your output.\n` +
+          `4. Format response in clean, organized sections and bullet points.\n` +
+          `5. STRICT EXECUTIVE RULE: Output ONLY your final commercial answer directly. Do NOT output internal monologues, scratchpad thoughts, or reasoning steps.`;
 
         const aiPromise = env.AI.run(userModel, {
           messages: [
@@ -438,7 +451,7 @@ export async function handleCopilotChat(
           const wos = style.weekly_ros > 0 ? (style.total_physical_stock / style.weekly_ros).toFixed(1) : '999';
 
           return {
-            reply: `### 📈 Growth & MoM Velocity Assessment — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+            reply: `### Growth & MoM Velocity Assessment — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
               `• **Monthly Run-Rate:** **~${monthlyRunRate} units/month** based on 8-week rolling velocity (${style.weekly_ros} u/wk)\n` +
               `• **Cumulative Sell-Through (STR):** **${style.cumulative_str_pct}%** (${style.cumulative_str_pct >= 40 ? 'Healthy Seasonal Trajectory' : 'Pacing Below Category Target'})\n` +
               `• **Inventory Coverage:** **${wos} Weeks of Supply** across physical store nodes\n` +
@@ -452,12 +465,12 @@ export async function handleCopilotChat(
 
     // Default organized overview card (only for pure item name lookups)
     return {
-      reply: `### 🏷️ Style **${style.style_code}** — *${style.product_name}*\n\n` +
+      reply: `### Style **${style.style_code}** — *${style.product_name}*\n\n` +
         `• **Assortment:** \`${style.category}\` | \`${style.season}\` | **${style.total_physical_stock} units** on-hand\n` +
         `• **Sales Performance:** STR **${style.cumulative_str_pct}%** | Velocity **${style.weekly_ros} units/week** (${style.sar_curve_health})\n` +
         `• **Economics:** Ticket **${style.ticket_price.toFixed(2)} SAR** | Landed Cost **${style.unit_cost.toFixed(2)} SAR** | Floor **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
         `• **Recommended Offer:** **${style.recommended_offer}** at **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n\n` +
-        `*Ask me specifically about: \`sales performance\`, \`growth MoM\`, \`stock breakdown\`, or \`pricing\`.*\n`,
+        `*Ask specifically about: \`sales performance\`, \`growth MoM\`, \`stock breakdown\`, or \`pricing\`.*\n`,
       mode,
       activeStyleCode: style.style_code
     };
@@ -476,7 +489,10 @@ export async function handleCopilotChat(
     try {
       const aiPromise = env.AI.run(genModel, {
         messages: [
-          { role: 'system', content: 'You are CARINA Senior Merchandising Strategist in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Enforce zero-loss floor (Price >= Cost * 1.15). STRICT EXECUTIVE RULE: Provide ONLY your final, professional commercial answer directly without any internal monologue or thinking steps (e.g., do NOT start with "Okay, so the user is asking..." or "First, I will..."). Keep responses concise, direct, and under 120 words.' },
+          { 
+            role: 'system', 
+            content: 'You are CARINA Senior Merchandising Strategist in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Enforce zero-loss floor (Price >= Cost * 1.15). If the user inquiry is broad, ambiguous, or missing required parameters (such as a specific style code, category, or store location), proactively ask concise clarifying questions to determine their exact commercial objective. Strictly NO emojis or unicode icons in your output. Provide ONLY your final, professional commercial answer directly without any internal monologue or thinking steps. Keep responses concise, structured, and under 130 words.' 
+          },
           { role: 'user', content: userMessage }
         ],
         temperature: 0.2,
@@ -508,8 +524,8 @@ export async function handleCopilotChat(
       `**Request:** "${userMessage}"\n\n` +
       `• **Saudi VAT Floor:** Enforcing promotional pricing strictly above landed cost plus 15% VAT across all active styles.\n` +
       `• **Physical Stores:** Al-Andalus (260 m²), Al-Yasmeen (193 m²), Jouri Mall Taif (168 m²), and Central Warehouse (WH). Virtual and damaged locations excluded.\n` +
-      `• **Assortment Protection:** Retaining $\\ge 57.2\\%$ of depth for December/January winter peak.\n\n` +
-      `*Tip: Enter any style code (e.g. \`59465\`, \`50177\`) or product name (e.g. "Body splash Secret Desire") for an instant live breakdown.*`,
+      `• **Assortment Protection:** Retaining 57.2% of depth for December/January winter peak.\n\n` +
+      `*Tip: Enter any style code (e.g. \`59465\`, \`50177\`) or product name for an instant live breakdown.*`,
     mode
   };
 }

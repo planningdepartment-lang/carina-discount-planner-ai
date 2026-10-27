@@ -111,22 +111,47 @@ async function initApp() {
   });
 
   // Quick Prompt Pills
+  const chatInput = document.getElementById('chatInput');
+  const chatForm = document.getElementById('chatForm');
+
   document.querySelectorAll('.pill-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const promptText = btn.getAttribute('data-prompt');
-      document.getElementById('chatInput').value = promptText;
+      chatInput.value = promptText;
       submitCopilotChat(promptText);
+      chatInput.value = '';
+      chatInput.style.height = '42px';
+      chatInput.style.overflowY = 'hidden';
     });
   });
 
-  // Copilot Chat Form
-  document.getElementById('chatForm').addEventListener('submit', (e) => {
+  // Copilot Chat Form & Keyboard Shortcuts: Enter sends, Shift+Enter new line
+  chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const input = document.getElementById('chatInput');
-    const msg = input.value.trim();
+    const msg = chatInput.value.trim();
     if (!msg) return;
-    input.value = '';
+    chatInput.value = '';
+    chatInput.style.height = '42px';
+    chatInput.style.overflowY = 'hidden';
     submitCopilotChat(msg);
+  });
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (chatForm.requestSubmit) {
+        chatForm.requestSubmit();
+      } else {
+        chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    }
+  });
+
+  chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    const newHeight = Math.min(chatInput.scrollHeight, 130);
+    chatInput.style.height = `${newHeight}px`;
+    chatInput.style.overflowY = chatInput.scrollHeight > 130 ? 'auto' : 'hidden';
   });
 
   // Rules Modal
@@ -702,7 +727,7 @@ async function submitCopilotChat(message) {
           const buttonHtml = `
             <div class="chat-rule-action">
               <button class="btn btn-luxury-gold btn-apply-rule" data-rule='${escapeHtml(JSON.stringify(ruleObj))}'>
-                ✨ Apply & Activate Policy
+                Apply Policy
               </button>
             </div>
           `;
@@ -714,8 +739,14 @@ async function submitCopilotChat(message) {
     }
 
     const modelLabel = document.getElementById('drawerModelSelect')?.selectedOptions?.[0]?.textContent || 'Autonomous Advisor';
-    const activeModelTag = `<span style="display: inline-block; font-size: 0.65rem; padding: 2px 7px; border-radius: 4px; background: rgba(212,175,55,0.15); color: #e6ca65; border: 1px solid rgba(212,175,55,0.3); margin-left: 6px; font-weight: 600;">⚡ ${escapeHtml(modelLabel)}</span>`;
-    loadingDiv.innerHTML = `<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px;"><strong>CARINA Copilot [${data.mode}]</strong>${activeModelTag}</div><div>${formattedReply}</div>`;
+    const activeModelTag = `<span class="chat-model-badge">[${escapeHtml(modelLabel)}]</span>`;
+    loadingDiv.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+        <span class="chat-sender">CARINA Merchandising Strategist</span>
+        ${activeModelTag}
+      </div>
+      <div class="copilot-response-body">${formattedReply}</div>
+    `;
     history.scrollTop = history.scrollHeight;
 
     // Attach listener for newly rendered rule buttons in chat
@@ -733,15 +764,15 @@ async function submitCopilotChat(message) {
           });
 
           if (ruleRes.ok) {
-            btn.textContent = '✅ Policy Active';
+            btn.textContent = 'Policy Active';
             btn.className = 'btn btn-secondary';
             loadStyles();
             loadSummary();
           } else {
-            btn.textContent = '❌ Failed to Activate';
+            btn.textContent = 'Failed to Activate';
           }
         } catch (err) {
-          btn.textContent = '❌ Connection Error';
+          btn.textContent = 'Connection Error';
         }
       });
     });
@@ -787,7 +818,7 @@ async function loadRules() {
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="badge ${r.enforcement_level === 'HARD_BLOCK' ? 'badge-flag' : 'badge-yes'}">${r.enforcement_level}</span>
           <button class="btn-delete-rule" data-id="${escapeHtml(r.rule_id)}" title="Delete this rule" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.75rem; transition: all 0.2s;">
-            🗑️ Remove
+            Remove
           </button>
         </div>
       `;
@@ -836,7 +867,7 @@ if (clearAllBtn) {
       console.error('Error clearing rules:', err);
     } finally {
       clearAllBtn.disabled = false;
-      clearAllBtn.textContent = '🗑️ Clear All Rules';
+      clearAllBtn.textContent = 'Clear All Rules';
     }
   });
 }
@@ -869,14 +900,55 @@ function formatMarkdown(text) {
       text = cleanSections.join('\n\n').trim();
     }
   }
-  return text
-    .replace(/^### (.*$)/gim, '<h4 style="margin: 6px 0 10px 0; color: #f59e0b; font-family: \'Cinzel\', serif; font-size: 0.95rem; letter-spacing: 0.04em;">$1</h4>')
-    .replace(/^## (.*$)/gim, '<h3 style="margin: 8px 0 12px 0; color: #f59e0b; font-family: \'Cinzel\', serif;">$1</h3>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\n\n/g, '<div style="height: 8px;"></div>')
-    .replace(/\n/g, '<br>');
+
+  // 2. Strictly strip all emojis and unicode pictographs
+  text = text.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1FA00}-\u{1FAFF}\u{200D}\u{FE0F}\u{FE0E}]/gu, '')
+             .replace(/[⚡✨🧠➤✅❌⚖🛡💡🏬🏭🚫💰🏷📦🎯📈⏳🔮💫🌟🌐💻📱🌪🌙🗑✏]/g, '');
+
+  function parseInline(str) {
+    return str
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code class="copilot-code">$1</code>');
+  }
+
+  // 3. Process line-by-line for clean structured organization
+  const lines = text.split('\n');
+  const out = [];
+
+  for (let rawLine of lines) {
+    let line = rawLine.trim();
+    if (!line) continue;
+
+    // Headers: ### Header or ## Header
+    const hMatch = line.match(/^(#{2,4})\s*(.*)$/);
+    if (hMatch) {
+      const title = hMatch[2].trim();
+      out.push(`<div class="copilot-section-header">${parseInline(title)}</div>`);
+      continue;
+    }
+
+    // Pseudo Headers: '* Title:*' or '**Title:**' or 'Title:' (when short uppercase or Title Case)
+    const pseudoHMatch = line.match(/^(\*{1,2}|_)?([A-Za-z0-9\s\/\-\&]+):(\*{1,2}|_)?$/);
+    if (pseudoHMatch && pseudoHMatch[2].length < 45 && !line.includes('http')) {
+      out.push(`<div class="copilot-section-header">${pseudoHMatch[2].trim()}</div>`);
+      continue;
+    }
+
+    // List items: •, *, -, +, or numbered 1., 2.
+    const listMatch = line.match(/^([•\*\-\+]|\d+\.)\s+(.*)$/);
+    if (listMatch) {
+      const bullet = listMatch[1].match(/\d+\./) ? listMatch[1] : '&bull;';
+      const content = listMatch[2].trim();
+      out.push(`<div class="copilot-item-row"><span class="copilot-bullet">${bullet}</span><div class="copilot-item-content">${parseInline(content)}</div></div>`);
+      continue;
+    }
+
+    // Regular line
+    out.push(`<div class="copilot-text-line">${parseInline(line)}</div>`);
+  }
+
+  return out.join('');
 }
 
 
@@ -900,10 +972,10 @@ function initCustomLuxurySelects() {
     // Selected option info
     function getSelectedData() {
       const opt = select.options[select.selectedIndex] || select.options[0];
-      if (!opt) return { val: '', icon: '⚡', title: 'Select...', sub: '' };
+      if (!opt) return { val: '', icon: '', title: 'Select...', sub: '' };
       return {
         val: opt.value,
-        icon: opt.dataset.icon || '✨',
+        icon: opt.dataset.icon || '',
         title: opt.dataset.title || opt.textContent.trim(),
         sub: opt.dataset.sub || ''
       };
@@ -916,7 +988,7 @@ function initCustomLuxurySelects() {
     trigger.type = 'button';
     trigger.className = 'luxury-trigger';
     trigger.innerHTML = `
-      <span class="trigger-icon">${cur.icon}</span>
+      ${cur.icon ? `<span class="trigger-icon">${cur.icon}</span>` : ''}
       <span class="trigger-text">
         <span class="trigger-title">${escapeHtml(cur.title)}</span>
       </span>
@@ -935,7 +1007,6 @@ function initCustomLuxurySelects() {
       const searchBox = document.createElement('div');
       searchBox.className = 'luxury-dropdown-search';
       searchBox.innerHTML = `
-        <span class="luxury-search-icon">🔍</span>
         <input type="text" class="luxury-search-input" placeholder="Filter strategy options..." autocomplete="off">
       `;
       menu.appendChild(searchBox);
@@ -965,7 +1036,7 @@ function initCustomLuxurySelects() {
 
     function renderOptionRow(opt, container) {
       const val = opt.value;
-      const icon = opt.dataset.icon || '✨';
+      const icon = opt.dataset.icon || '';
       const title = opt.dataset.title || opt.textContent.trim();
       const sub = opt.dataset.sub || '';
       const isSelected = opt.selected;
@@ -974,12 +1045,12 @@ function initCustomLuxurySelects() {
       row.className = `luxury-option-row ${isSelected ? 'selected' : ''}`;
       row.dataset.val = val;
       row.innerHTML = `
-        <span class="opt-icon">${icon}</span>
+        ${icon ? `<span class="opt-icon">${icon}</span>` : ''}
         <div class="opt-text">
           <div class="opt-title">${escapeHtml(title)}</div>
           ${sub ? `<div class="opt-sub">${escapeHtml(sub)}</div>` : ''}
         </div>
-        <span class="opt-check">✓</span>
+        <span class="opt-check">Active</span>
       `;
 
       row.addEventListener('click', (e) => {
