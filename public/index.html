@@ -18,11 +18,20 @@
     </div>
     <div class="nav-actions">
       <div class="mode-select-wrap">
-        <label for="agentModeSelect">Copilot Persona:</label>
+        <label for="agentModeSelect">Persona:</label>
         <select id="agentModeSelect">
           <option value="DISCOUNT_STRATEGIST" selected>Commercial Strategist (Margin Defense)</option>
           <option value="STORE_AUDITOR">Store Space Auditor (Decongestion)</option>
           <option value="RULE_COMPILER">Policy Compiler (D1 Governance)</option>
+        </select>
+      </div>
+      <div class="mode-select-wrap">
+        <label for="aiModelSelect">AI Model:</label>
+        <select id="aiModelSelect">
+          <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
+          <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
+          <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
+          <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
         </select>
       </div>
       <button id="rulesBtn" class="btn btn-secondary">
@@ -200,12 +209,16 @@
         <div class="filter-group">
           <select id="filterCategory">
             <option value="ALL">All Categories</option>
-            <option value="Bra">Bras</option>
-            <option value="Leggings">Leggings & Pants</option>
+            <option value="Bra">Bras & Lingerie</option>
+            <option value="Pant">Pants & Leggings</option>
+            <option value="Top">Tops & T-Shirts</option>
             <option value="Short">Shorts</option>
-            <option value="Pyjama">Pyjama & Sleepwear</option>
-            <option value="Tops">Tops & Tees</option>
-            <option value="Beauty">Fragrance & Splashes</option>
+            <option value="Pyjama">Pyjamas, Gowns & Robes</option>
+            <option value="Cosmetics">Cosmetics & Fragrance</option>
+            <option value="Brief">Briefs, Panties & Bikinis</option>
+            <option value="Set">Sets</option>
+            <option value="Socks">Socks</option>
+            <option value="Towel">Towels & Linens</option>
           </select>
 
           <select id="filterTier">
@@ -269,6 +282,15 @@
         <h3>CARINA Merchandising Copilot</h3>
       </div>
       <button id="closeCopilotBtn" class="btn-close">&times;</button>
+    </div>
+    <div class="drawer-model-bar">
+      <span>AI Engine Model:</span>
+      <select id="drawerModelSelect">
+        <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
+        <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
+        <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
+        <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
+      </select>
     </div>
     <div class="drawer-body">
       <div class="quick-prompts">

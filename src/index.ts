@@ -106,10 +106,36 @@ export default {
           );
         }
         if (category && category !== 'ALL') {
-          filtered = filtered.filter(r => (r.metrics.category || '').toUpperCase().includes(category.toUpperCase()));
+          const c = category.toLowerCase();
+          filtered = filtered.filter(r => {
+            const cat = (r.metrics.category || '').toLowerCase();
+            if (c === 'beauty' || c === 'cosmetics') return cat.includes('cosmetic') || cat.includes('beauty');
+            if (c === 'leggings' || c === 'pant' || c === 'pants') return cat.includes('legging') || cat.includes('pant') || cat.includes('bermuda');
+            if (c === 'pyjama' || c === 'sleepwear') return cat.includes('pijama') || cat.includes('night gown') || cat.includes('robe');
+            if (c === 'tops' || c === 'top') return cat.includes('top') || cat.includes('t-shirt') || cat.includes('shirt');
+            if (c === 'brief' || c === 'panty') return cat.includes('brief') || cat.includes('panty') || cat.includes('bikini');
+            if (c === 'short' || c === 'shorts') return cat.includes('short');
+            return cat.includes(c);
+          });
         }
         if (tier && tier !== 'ALL') {
-          filtered = filtered.filter(r => r.recommendation.tier === tier);
+          const t = tier.toUpperCase();
+          filtered = filtered.filter(r => {
+            const offer = (r.recommendation.recommendedOffer || '').toUpperCase();
+            const recTier = (r.recommendation.tier || '').toUpperCase();
+            const season = (r.metrics.season || '').toUpperCase();
+
+            if (t === 'STEADY_ACTIVE') return offer.includes('SPEND & SAVE');
+            if (t === 'HERO_CORE') return offer.includes('MARGIN PROTECTION') || offer.includes('0% OFF');
+            if (t === 'MATURE_SUMMER_EXIT') return offer.includes('40%');
+            if (t === 'CLEARANCE_50_PCT') return offer.includes('50%');
+            if (t === 'CLEARANCE_3_FOR_99') return offer.includes('99 SAR');
+            if (t === 'FRESH_WINTER') return season.includes('AW26') || season.includes('WINTER 2026');
+            if (t === 'CLEARANCE') return recTier === 'CLEARANCE' || offer.includes('CLEARANCE') || offer.includes('RAIL');
+            if (t === 'ACTIVE') return recTier === 'ACTIVE';
+
+            return recTier === t || offer.includes(t);
+          });
         }
 
         // Limit results to 100 for fast UI rendering

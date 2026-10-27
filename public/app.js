@@ -72,8 +72,20 @@ function setupEventListeners() {
     triggerSimulationDebounced();
   });
 
-  // Copilot Drawer
+  // Copilot Drawer & Model Selector Sync
   const copilotDrawer = document.getElementById('copilotDrawer');
+  const aiModelSelect = document.getElementById('aiModelSelect');
+  const drawerModelSelect = document.getElementById('drawerModelSelect');
+
+  if (aiModelSelect && drawerModelSelect) {
+    aiModelSelect.addEventListener('change', () => {
+      drawerModelSelect.value = aiModelSelect.value;
+    });
+    drawerModelSelect.addEventListener('change', () => {
+      aiModelSelect.value = drawerModelSelect.value;
+    });
+  }
+
   document.getElementById('toggleCopilotBtn').addEventListener('click', () => {
     copilotDrawer.classList.toggle('open');
   });
@@ -283,6 +295,7 @@ async function runSimulation() {
 async function submitCopilotChat(message) {
   const history = document.getElementById('chatHistory');
   const mode = document.getElementById('agentModeSelect').value;
+  const model = document.getElementById('aiModelSelect')?.value || document.getElementById('drawerModelSelect')?.value || 'auto';
 
   // Add User bubble
   const userDiv = document.createElement('div');
@@ -294,7 +307,7 @@ async function submitCopilotChat(message) {
   // Add Loading indicator
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'chat-bubble ai';
-  loadingDiv.textContent = 'Thinking with Workers AI...';
+  loadingDiv.textContent = model.includes('70b') ? 'Thinking with Llama 3.3 70B (Deep Reasoning)...' : 'Thinking with Workers AI...';
   history.appendChild(loadingDiv);
   history.scrollTop = history.scrollHeight;
 
@@ -302,7 +315,7 @@ async function submitCopilotChat(message) {
     const res = await fetch('/api/copilot/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, mode })
+      body: JSON.stringify({ message, mode, model })
     });
     const data = await res.json();
 

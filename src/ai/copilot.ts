@@ -8,6 +8,7 @@ export type AgentMode = 'DISCOUNT_STRATEGIST' | 'STORE_AUDITOR' | 'RULE_COMPILER
 export interface CopilotChatRequest {
   message: string;
   mode?: AgentMode;
+  model?: string;
   contextStyleCode?: string;
   metricsSnapshot?: Partial<StyleMetrics>;
 }
@@ -46,7 +47,6 @@ interface D1StyleSnapshotRow {
 
 /**
  * Searches D1 style_plan_snapshots for specific matches based on user message.
- * Prioritizes distinct style identifiers to avoid returning unrelated products.
  */
 async function searchStylesInD1(db: D1Database | undefined, userMessage: string): Promise<D1StyleSnapshotRow[]> {
   if (!db) return [];
@@ -68,7 +68,7 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
       'what', 'are', 'the', 'source', 'data', 'using', 'from', 'where', 'this', 'that',
       'with', 'have', 'does', 'show', 'tell', 'about', 'plan', 'price', 'discount',
       'please', 'style', 'code', 'stock', 'store', 'which', 'will', 'make', 'why',
-      'how', 'many', 'much', 'for', 'you', 'can', 'off', 'who', 'when'
+      'how', 'many', 'much', 'for', 'you', 'can', 'off', 'who', 'when', 'model', 'name'
     ]);
     const words = userMessage
       .toLowerCase()
@@ -77,12 +77,11 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
       .filter(w => w.length >= 2 && !stopWords.has(w));
 
     if (words.length > 0) {
-      // Filter out generic product type words to find unique style descriptors
       const genericWords = new Set(['body', 'splash', 'ml', '100ml', '50ml', 'perfume', 'spray', 'cotton', 'basic']);
       const specificWords = words.filter(w => !genericWords.has(w));
       const targetWords = specificWords.length > 0 ? specificWords : words;
 
-      // Priority 1: Match specific descriptors together (e.g. "secret" and "desire")
+      // Match specific descriptors together (e.g. "secret" and "desire")
       const specificPhrase = `%${targetWords.join('%')}%`;
       const { results: specificResults } = await db
         .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
@@ -90,7 +89,6 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
         .all<D1StyleSnapshotRow>();
       if (specificResults && specificResults.length > 0) return specificResults;
 
-      // Priority 2: Match all keywords together
       const fullPhrase = `%${words.join('%')}%`;
       const { results: fullResults } = await db
         .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
@@ -98,7 +96,6 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
         .all<D1StyleSnapshotRow>();
       if (fullResults && fullResults.length > 0) return fullResults;
 
-      // Priority 3: Match the most specific single word (>=4 chars)
       for (const w of targetWords) {
         if (w.length >= 4) {
           const { results } = await db
@@ -117,9 +114,9 @@ async function searchStylesInD1(db: D1Database | undefined, userMessage: string)
 }
 
 /**
- * Formats a clean markdown breakdown of style row retrieved from D1.
+ * Formats full breakdown card only when explicitly requested.
  */
-function formatStyleDetails(row: D1StyleSnapshotRow): string {
+function formatFullStyleCard(row: D1StyleSnapshotRow): string {
   return (
     `### 🏷️ Style **${row.style_code}** — *${row.product_name}*\n` +
     `• **Category / Season:** \`${row.category || 'General'}\` | \`${row.season || 'Continuity'}\`\n` +
@@ -207,46 +204,118 @@ export async function handleCopilotChat(
     };
   }
 
-  // If a specific style was matched, provide the precise breakdown directly
+  // Determine user intent for style queries
+  const lowerMsg = userMessage.toLowerCase();
+  const asksForName = /name|model|what is this|title|description|product/i.test(lowerMsg) && !lowerMsg.includes('offer') && !lowerMsg.includes('recommend') && !lowerMsg.includes('promo') && !lowerMsg.includes('discount');
+  const asksForStock = /how many|stock|inventory|units|quantity|wh|store|andalus|yasmeen|jouri/i.test(lowerMsg) && !lowerMsg.includes('name');
+  const asksForPrice = /price|cost|margin|vat|floor|ticket/i.test(lowerMsg) && !lowerMsg.includes('name');
+  const asksForOffer = /offer|recommend|promo|discount|deal|rail/i.test(lowerMsg);
+  const asksForFullDetails = /detail|breakdown|all|everything|full|overview|card/i.test(lowerMsg) || /^\d{5}$/.test(userMessage);
+
+  // If a specific style was matched
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
-    
-    // When Workers AI is available, use fast Llama 3.1 8B to provide an instant, concise commercial brief
+
+    // Priority 1: Instant direct answer for specific factual questions (sub-millisecond latency)
+    if (asksForName && !asksForFullDetails) {
+      return {
+        reply: `Style **${style.style_code}** is **${style.product_name}** (Category: \`${style.category}\`, Season: \`${style.season}\`).`,
+        mode
+      };
+    }
+
+    if (asksForStock && !asksForFullDetails) {
+      return {
+        reply: `Style **${style.style_code}** (*${style.product_name}*) has **${style.total_physical_stock} physical units** in stock:\n` +
+          `• 🏭 Central WH: **${style.stock_wh} units**\n` +
+          `• 🏬 Al-Andalus Mall Flagship: **${style.stock_andalus} units**\n` +
+          `• 🏬 Al-Yasmeen Mall: **${style.stock_yasmeen} units**\n` +
+          `• 🏬 Jouri Mall (Taif): **${style.stock_jouri} units**`,
+        mode
+      };
+    }
+
+    if (asksForPrice && !asksForFullDetails) {
+      return {
+        reply: `Style **${style.style_code}** (*${style.product_name}*) Pricing Economics:\n` +
+          `• Unit Landed Cost: **${style.unit_cost.toFixed(2)} SAR**\n` +
+          `• Zero-Loss Legal Floor (Cost + 15% VAT): **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
+          `• Original Ticket Price: **${style.ticket_price.toFixed(2)} SAR**`,
+        mode
+      };
+    }
+
+    if (asksForOffer && !asksForFullDetails) {
+      return {
+        reply: `Recommended promotional offer for Style **${style.style_code}** (*${style.product_name}*):\n` +
+          `• **${style.recommended_offer}**\n` +
+          `• Promo Price: **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
+          `• Zero-Loss Compliance: **${style.zero_loss_status}** (Promo ${style.promotional_price.toFixed(2)} SAR >= Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
+          `• Rationale: ${style.commercial_rationale}`,
+        mode
+      };
+    }
+
+    // If user explicitly asks for full details, report, or bare style code:
+    if (asksForFullDetails) {
+      return {
+        reply: formatFullStyleCard(style),
+        mode
+      };
+    }
+
+    // For open-ended questions about this style, run Workers AI
+    const userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.1-8b-instruct';
     if (env?.AI) {
       try {
-        const prompt = `Style Code: ${style.style_code}\nProduct: ${style.product_name}\nCategory: ${style.category}\nSeason: ${style.season}\nTotal Physical Stock: ${style.total_physical_stock} units\nStock Breakdown: Andalus Mall=${style.stock_andalus}, Yasmeen Mall=${style.stock_yasmeen}, Jouri Mall=${style.stock_jouri}, Central WH=${style.stock_wh}\nLanded Unit Cost: ${style.unit_cost} SAR\nCost + 15% VAT (Zero-loss floor): ${style.cost_plus_vat} SAR\nTicket Price: ${style.ticket_price} SAR\nRecommended Offer: ${style.recommended_offer}\nPromotional Price: ${style.promotional_price} SAR\nCurve Health: ${style.sar_curve_health}\nWeekly ROS: ${style.weekly_ros} u/wk\nSTR: ${style.cumulative_str_pct}%\nUser Question: "${userMessage}"\n\nInstructions: Provide an immediate, concise, 3-4 bullet point executive merchandising assessment for this exact product only. Focus on inventory location, margin safety, and recommended promotional action. Keep it under 150 words.`;
+        const styleContext = `[Context for Style ${style.style_code}]:\n` +
+          `- Style Code: ${style.style_code}\n` +
+          `- Product Name: ${style.product_name}\n` +
+          `- Category: ${style.category}\n` +
+          `- Season: ${style.season}\n` +
+          `- Total Physical Stock: ${style.total_physical_stock} units\n` +
+          `- Stock Breakdown: Andalus=${style.stock_andalus}, Yasmeen=${style.stock_yasmeen}, Jouri=${style.stock_jouri}, WH=${style.stock_wh}\n` +
+          `- Landed Unit Cost: ${style.unit_cost.toFixed(2)} SAR\n` +
+          `- Zero-Loss Floor (Cost + 15% VAT): ${style.cost_plus_vat.toFixed(2)} SAR\n` +
+          `- Ticket Price: ${style.ticket_price.toFixed(2)} SAR\n` +
+          `- Recommended Offer: ${style.recommended_offer}\n` +
+          `- Promotional Price: ${style.promotional_price.toFixed(2)} SAR (${style.discount_pct}% off)`;
 
-        const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        const systemPrompt = `You are CARINA's Merchandising Copilot in Saudi Arabia.\n` +
+          `CRITICAL INSTRUCTION: Answer ONLY what the user specifically asked using the context. Do not dump unrequested pricing tables, inventory breakdowns, or generic essays. Answer directly in 1-2 concise sentences.`;
+
+        const aiPromise = env.AI.run(userModel, {
           messages: [
-            { role: 'system', content: 'You are CARINA Senior Merchandising Copilot in Saudi Arabia. Be concise, direct, quantitative, and focus ONLY on the specific style asked. Never discuss other unrelated products.' },
-            { role: 'user', content: prompt }
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `${styleContext}\n\nUser Question: "${userMessage}"` }
           ],
           temperature: 0.1,
-          max_tokens: 400
+          max_tokens: 250
         });
+
+        // 5-second timeout guard
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 5000));
+        const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
 
         if (aiResponse?.response) {
           return {
-            reply: `${formatStyleDetails(style)}\n\n💡 **Copilot Executive Assessment:**\n${aiResponse.response.trim()}`,
+            reply: aiResponse.response.trim(),
             mode
           };
         }
       } catch (err: any) {
-        console.warn('Fast AI run warning, using direct structured response:', err?.message || err);
+        console.warn('AI run warning, using direct response:', err?.message || err);
       }
     }
 
-    // Direct structured response (instantaneous < 5ms)
+    // Default direct response
     return {
-      reply: `${formatStyleDetails(style)}\n\n💡 **Copilot Executive Assessment:**\n` +
-        `• **Inventory Distribution:** Total **${style.total_physical_stock} units** (WH: ${style.stock_wh}, Yasmeen: ${style.stock_yasmeen}, Andalus: ${style.stock_andalus}, Jouri: ${style.stock_jouri}).\n` +
-        `• **Margin Security:** Selling at **${style.promotional_price.toFixed(2)} SAR** guarantees compliance with Saudi zero-loss floor (${style.cost_plus_vat.toFixed(2)} SAR).\n` +
-        `• **Commercial Action:** Activate **"${style.recommended_offer}"** 2-3 days before the 27th national payday to accelerate sell-through while preserving core assortment.`,
+      reply: `Style **${style.style_code}** is **${style.product_name}** (${style.category}, ${style.season}). Total physical stock: **${style.total_physical_stock} units** (Ticket: ${style.ticket_price.toFixed(2)} SAR, Promo: ${style.promotional_price.toFixed(2)} SAR).`,
       mode
     };
   }
 
-  // 4. Fallback for general queries
+  // 4. General assistant query (not a specific style)
   if (isDataSourceQuery) {
     return {
       reply: getDataSourceResponse(),
@@ -254,17 +323,20 @@ export async function handleCopilotChat(
     };
   }
 
-  // General assistant response using fast 8B model
+  const userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.1-8b-instruct';
   if (env?.AI) {
     try {
-      const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      const aiPromise = env.AI.run(userModel, {
         messages: [
-          { role: 'system', content: 'You are CARINA Senior Merchandising Copilot in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Always enforce zero-loss floor (Price >= Cost * 1.15). Keep responses concise, direct, and under 150 words.' },
+          { role: 'system', content: 'You are CARINA Senior Merchandising Copilot in Saudi Arabia. Stores: Andalus Mall (260m²), Yasmeen Mall (193m²), Jouri Mall (Taif, 168m²), Central WH. Enforce zero-loss floor (Price >= Cost * 1.15). Keep responses concise, direct, and under 120 words.' },
           { role: 'user', content: userMessage }
         ],
         temperature: 0.2,
-        max_tokens: 350
+        max_tokens: 250
       });
+
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 5000));
+      const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
 
       if (aiResponse?.response) {
         return {
