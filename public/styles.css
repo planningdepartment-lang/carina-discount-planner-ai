@@ -1288,6 +1288,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  scroll-behavior: smooth;
 }
 
 .quick-prompts {
@@ -1394,18 +1395,18 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .drawer-footer textarea {
   flex: 1;
-  min-height: 52px;
-  height: 52px;
-  max-height: 150px;
+  min-height: 58px;
+  height: 58px;
+  max-height: 160px;
   box-sizing: border-box;
   background: rgba(8, 10, 15, 0.94);
   border: 1px solid var(--border-subtle);
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.95rem;
   border-radius: 8px;
   color: #fff;
   font-family: var(--font-sans);
-  font-size: 0.88rem;
-  line-height: 1.45;
+  font-size: 0.86rem;
+  line-height: 1.35;
   outline: none;
   resize: none;
   overflow-y: hidden;
@@ -1436,7 +1437,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .drawer-footer button {
-  height: 52px;
+  height: 58px;
   padding: 0 1.4rem;
   flex-shrink: 0;
   display: inline-flex;

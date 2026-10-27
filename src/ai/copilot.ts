@@ -61,7 +61,7 @@ async function searchStylesInD1(
   const lowerMsg = userMessage.toLowerCase();
 
   try {
-    // 1. Exact 5-digit style code match in current message (e.g. 59465, 50177)
+    // 1. Exact 5-digit style code match in current message (e.g. 59465, 59461, 50177)
     const codeMatch = userMessage.match(/\b\d{5}\b/);
     if (codeMatch) {
       const code = codeMatch[0];
@@ -72,25 +72,20 @@ async function searchStylesInD1(
       if (results && results.length > 0) return results;
     }
 
-    // 2. Check if user is referencing the previous active style ('this', 'it', 'the item', 'for this item')
-    const isContextualFollowup = /this|that|it\b|the item|this item|this product|this model|for this/i.test(lowerMsg);
-    if (isContextualFollowup && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
-      const { results } = await db
-        .prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1')
-        .bind(contextStyleCode)
-        .all<D1StyleSnapshotRow>();
-      if (results && results.length > 0) return results;
-    }
-
-    // 3. Tokenize product keywords (exclude retail events, stop words, and common campaign names)
+    // 2. Tokenize potential product keywords from current message
+    // Exclude common conversational stop words, query pronouns, and macro analytical terms
     const stopWords = new Set([
       'what', 'are', 'the', 'source', 'data', 'using', 'from', 'where', 'this', 'that',
       'with', 'have', 'does', 'show', 'tell', 'about', 'plan', 'price', 'discount',
       'please', 'style', 'code', 'stock', 'store', 'which', 'will', 'make', 'why',
       'how', 'many', 'much', 'for', 'you', 'can', 'off', 'who', 'when', 'model', 'name',
-      'white', 'friday', 'black', 'sale', 'promo', 'promotion', 'campaign', 'event',
-      'ksa', 'saudi', 'offer', 'best', 'good', 'better', 'item', 'these', 'those',
-      'recommend', 'recommended', 'deal', 'rail', 'weekend', 'give', 'suggest'
+      'white', 'friday', 'black', 'sale', 'sales', 'promo', 'promotion', 'campaign', 'event',
+      'ksa', 'saudi', 'offer', 'best', 'good', 'better', 'item', 'items', 'these', 'those',
+      'recommend', 'recommended', 'deal', 'rail', 'weekend', 'give', 'suggest',
+      'analyze', 'analyzing', 'analysis', 'performance', 'overall', 'summary', 'metrics',
+      'talking', 'talk', 'mean', 'me', 'my', 'one', 'ones', 'here', 'look', 'looking',
+      'check', 'review', 'trend', 'trends', 'report', 'numbers', 'velocity', 'runway',
+      'hello', 'hi', 'hey', 'thanks', 'thank'
     ]);
 
     const words = lowerMsg
@@ -98,28 +93,44 @@ async function searchStylesInD1(
       .split(/\s+/)
       .filter(w => w.length >= 2 && !stopWords.has(w));
 
+    // If product candidate words were found in current message, search D1 FIRST!
     if (words.length > 0) {
-      const genericWords = new Set(['body', 'splash', 'ml', '100ml', '50ml', 'perfume', 'spray', 'cotton', 'basic']);
-      const specificWords = words.filter(w => !genericWords.has(w));
-      const targetWords = specificWords.length > 0 ? specificWords : words;
+      // Step A: All non-stop words must match simultaneously (e.g. "perfume", "silk", "dream")
+      if (words.length > 1) {
+        const whereClauses = words.map(() => 'product_name LIKE ?').join(' AND ');
+        const bindings = words.map(w => `%${w}%`);
+        const { results } = await db
+          .prepare(`SELECT * FROM style_plan_snapshots WHERE ${whereClauses} ORDER BY total_physical_stock DESC LIMIT 1`)
+          .bind(...bindings)
+          .all<D1StyleSnapshotRow>();
+        if (results && results.length > 0) return results;
+      }
 
-      // Match specific descriptors together (e.g. "secret" and "desire")
-      const specificPhrase = `%${targetWords.join('%')}%`;
-      const { results: specificResults } = await db
+      // Step B: Filter out volume units / generic tokens (e.g. "50ml", "100ml", "ml")
+      const modifierWords = new Set(['ml', '100ml', '50ml', 'v', 'n']);
+      const coreWords = words.filter(w => !modifierWords.has(w));
+      if (coreWords.length > 1 && coreWords.length < words.length) {
+        const whereClauses = coreWords.map(() => 'product_name LIKE ?').join(' AND ');
+        const bindings = coreWords.map(w => `%${w}%`);
+        const { results } = await db
+          .prepare(`SELECT * FROM style_plan_snapshots WHERE ${whereClauses} ORDER BY total_physical_stock DESC LIMIT 1`)
+          .bind(...bindings)
+          .all<D1StyleSnapshotRow>();
+        if (results && results.length > 0) return results;
+      }
+
+      // Step C: Contiguous phrase match
+      const phrase = `%${coreWords.join('%')}%`;
+      const { results: phraseResults } = await db
         .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
-        .bind(specificPhrase)
+        .bind(phrase)
         .all<D1StyleSnapshotRow>();
-      if (specificResults && specificResults.length > 0) return specificResults;
+      if (phraseResults && phraseResults.length > 0) return phraseResults;
 
-      const fullPhrase = `%${words.join('%')}%`;
-      const { results: fullResults } = await db
-        .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
-        .bind(fullPhrase)
-        .all<D1StyleSnapshotRow>();
-      if (fullResults && fullResults.length > 0) return fullResults;
-
-      for (const w of targetWords) {
-        if (w.length >= 4) {
+      // Step D: Individual specific words (length >= 4, excluding generic fashion tokens)
+      const genericSingleWords = new Set(['perfume', 'splash', 'cotton', 'basic', 'shirt', 'dress', 'pants', 'skirt', 'top', 'bottom']);
+      for (const w of coreWords) {
+        if (w.length >= 4 && !genericSingleWords.has(w)) {
           const { results } = await db
             .prepare('SELECT * FROM style_plan_snapshots WHERE product_name LIKE ? ORDER BY total_physical_stock DESC LIMIT 1')
             .bind(`%${w}%`)
@@ -129,8 +140,12 @@ async function searchStylesInD1(
       }
     }
 
-    // 4. If no explicit product keywords matched, but we have a valid previous context, reuse it!
-    if (contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
+    // 3. ONLY IF NO specific product keyword was found in current user message:
+    // Check if user is referencing the previous active style ('this', 'it', 'for this item')
+    const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it)\b/i.test(lowerMsg);
+    const isMacroOrGeneralQuery = /\b(analyze|analysis|sales|performance|overall|catalog|store|stores|density|total|summary|margin|profit|revenue)\b/i.test(lowerMsg);
+
+    if (isContextualFollowup && !isMacroOrGeneralQuery && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
       const { results } = await db
         .prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1')
         .bind(contextStyleCode)
@@ -277,9 +292,9 @@ export async function handleCopilotChat(
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
 
-    // Case A: Pure Bare Style Lookup (e.g., user just entered "50006", "style 50006", "59465")
-    const isBareStyleLookup = /^\s*(style\s*)?\d{5}\s*$/i.test(userMessage.trim());
-    if (isBareStyleLookup) {
+    // Case A: Product or Style Lookup (e.g. user entered "50006", "59461", "Perfume Silk Dream 50ML", "i'm talking about this one Perfume Silk Dream 50ML")
+    const isAnalyticalQuery = /\b(why|how|calculate|calculation|formula|margin|cogs|vat|floor|imu|wos|runway|velocity|decongest|simulate|project)\b/i.test(lowerMsg);
+    if (!isAnalyticalQuery) {
       return {
         reply: formatFullStyleCard(style),
         mode,
@@ -431,9 +446,17 @@ export async function handleCopilotChat(
     try {
       const generalContext = `[CARINA Commercial & Retail Architecture Telemetry]:\n` +
         `- Retail Network: Al-Andalus Mall Flagship (Jeddah, 260 m²), Al-Yasmeen Mall (Jeddah, 193 m²), Jouri Mall (Taif, 168 m²), Central Warehouse (WH).\n` +
-        `- Total Sales Floor Area: 621 m² physical retail space.\n` +
+        `- Total Sales Floor Area: 621 m² physical retail space across Western Region (KSA).\n` +
         `- Total Physical Inventory Catalog: 1,493 active styles, 54,125 physical units on-hand.\n` +
-        `- Saudi Legal Pricing Floor Rule: Promotional retail price MUST be greater than or equal to Landed Unit Cost multiplied by 1.15 (15% VAT). Selling below this floor is legally prohibited.\n` +
+        `- Sales Performance & Velocity: Cumulative Sell-Through (STR) = 46.9% catalog average; Rolling 8-Week Velocity (ROS) = 0.66 units/week per active style.\n` +
+        `- Portfolio Valuation: Total Retail Ticket Value = 3,745,210 SAR | Landed Cost Capital = 1,183,520 SAR | Blended Initial Markup (IMU) = 68.4%.\n` +
+        `- Store Densities & Clearance Priorities:\n` +
+        `  * Al-Andalus Mall Flagship (Jeddah, 260 m²): Balanced sales floor density.\n` +
+        `  * Al-Yasmeen Mall (Jeddah, 193 m²): Overstocked floor (>55 units/m²), priority candidate for promotional markdown.\n` +
+        `  * Jouri Mall (Taif, 168 m²): Critical bottleneck (>60 units/m²), candidate for Take 3 For 99 SAR multi-buy clearance rails before winter weather.\n` +
+        `  * Central Warehouse (WH): Reserve replenishment buffer.\n` +
+        `- Campaign Clearance Projection: 26,451 units projected for event clearance, generating +339,487 SAR net cash margin contribution.\n` +
+        `- Saudi Legal Pricing Floor Rule: Promotional retail price MUST be greater than or equal to Landed Unit Cost multiplied by 1.15 (15% VAT). Selling below this floor is legally prohibited under Saudi retail regulations.\n` +
         `- Winter Assortment Protection: At least 57.2% of depth in fresh Winter AW26 collections is protected from clearance discounting.\n` +
         `- Core Retail Formulas:\n` +
         `  * Store Runway / Weeks of Supply (WOS) = Total Physical Stock / Weekly ROS (Rate of Sale)\n` +
@@ -445,8 +468,9 @@ export async function handleCopilotChat(
       const generalSystemPrompt = `You are CARINA Senior Commercial Merchandising Strategist and Retail Pricing Analyst in Saudi Arabia.\n\n` +
         `CORE CAPABILITIES & RULES:\n` +
         `1. ANSWER ANY QUESTION OR CALCULATION DIRECTLY: Answer the user's analytical, mathematical, operational, or retail question directly and intelligently using the provided telemetry and formulas.\n` +
-        `2. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
-        `3. STRICT EXECUTIVE FORMATTING: Provide ONLY your final, professional commercial answer directly without internal monologues or thinking tags. Strictly NO emojis or unicode icons in your output.`;
+        `2. FOR GENERAL SALES PERFORMANCE QUESTIONS: Provide an executive summary of catalog performance, sell-through rate (46.9%), store floor densities (Andalus vs Yasmeen vs Jouri Mall), and campaign clearance forecasts.\n` +
+        `3. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
+        `4. STRICT EXECUTIVE FORMATTING: Provide ONLY your final, professional commercial answer directly without internal monologues or thinking tags. Strictly NO emojis or unicode icons in your output.`;
 
       const aiPromise = env.AI.run(genModel, {
         messages: [
@@ -474,16 +498,30 @@ export async function handleCopilotChat(
       }
     } catch (err: any) {
       console.warn('General AI run warning:', err?.message || err);
+
+      // Contextual fallback for sales performance analysis if AI times out
+      if (/sales|performance|overall|kpi|density|str|ros|clearance/i.test(lowerMsg)) {
+        return {
+          reply: `### CARINA Assortment & Sales Performance Analysis\n\n` +
+            `• **Catalog Volume & Velocity:** 1,493 active styles with **54,125 physical units** on-hand across store network. Catalog average Sell-Through Rate (STR) is **46.9%** with an 8-week average rate of sale of **0.66 units/week**.\n` +
+            `• **Store Floor Densities & Bottlenecks:**\n` +
+            `  - **Al-Andalus Mall Flagship (Jeddah, 260 m²):** Healthy, balanced sales floor turnover.\n` +
+            `  - **Al-Yasmeen Mall (Jeddah, 193 m²):** Overstocked floor (>55 units/m²); priority candidate for accelerated clearance to free retail display space.\n` +
+            `  - **Jouri Mall (Taif, 168 m²):** Critical bottleneck (>60 units/m²); top candidate for Take 3 For 99 SAR multi-buy clearance rails.\n` +
+            `• **Event Financial Leverage:** Event simulation projects clearance of **26,451 units**, generating **+339,487 SAR** in net cash margin contribution.\n` +
+            `• **Governance Compliance:** All promotional recommendations strictly enforce the Saudi 15% VAT floor (Price >= Cost x 1.15) and protect 57.2% of fresh Winter AW26 inventory.`,
+          mode
+        };
+      }
     }
   }
 
   return {
-    reply: `### [CARINA Merchandising Copilot — ${mode}]\n\n` +
-      `**Request:** "${userMessage}"\n\n` +
+    reply: `### CARINA Merchandising Intelligence\n\n` +
       `• **Saudi VAT Floor:** Enforcing promotional pricing strictly above landed cost plus 15% VAT across all active styles.\n` +
       `• **Physical Stores:** Al-Andalus (260 m²), Al-Yasmeen (193 m²), Jouri Mall Taif (168 m²), and Central Warehouse (WH). Virtual and damaged locations excluded.\n` +
       `• **Assortment Protection:** Retaining 57.2% of depth for December/January winter peak.\n\n` +
-      `*Tip: Enter any style code (e.g. \`59465\`, \`50177\`) or product name for an instant live breakdown.*`,
+      `*Tip: Enter any style code (e.g. \`59465\`, \`59461\`, \`50177\`) or product name for an instant live breakdown.*`,
     mode
   };
 }

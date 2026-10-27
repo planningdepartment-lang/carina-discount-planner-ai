@@ -149,9 +149,9 @@ async function initApp() {
 
   chatInput.addEventListener('input', () => {
     chatInput.style.height = 'auto';
-    const newHeight = Math.max(52, Math.min(chatInput.scrollHeight, 150));
+    const newHeight = Math.max(58, Math.min(chatInput.scrollHeight, 160));
     chatInput.style.height = `${newHeight}px`;
-    chatInput.style.overflowY = chatInput.scrollHeight > 150 ? 'auto' : 'hidden';
+    chatInput.style.overflowY = chatInput.scrollHeight > 160 ? 'auto' : 'hidden';
   });
 
   // Rules Modal
@@ -680,22 +680,34 @@ async function runSimulation() {
  */
 async function submitCopilotChat(message) {
   const history = document.getElementById('chatHistory');
+  const drawerBody = document.querySelector('.drawer-body');
   const mode = document.getElementById('agentModeSelect').value;
   const model = document.getElementById('drawerModelSelect')?.value || localStorage.getItem('carina_active_ai_model') || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+
+  const scrollChatToLatest = (targetEl) => {
+    setTimeout(() => {
+      if (targetEl && targetEl.scrollIntoView) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }
+      if (drawerBody) {
+        drawerBody.scrollTop = drawerBody.scrollHeight;
+      }
+    }, 25);
+  };
 
   // Add User bubble
   const userDiv = document.createElement('div');
   userDiv.className = 'chat-bubble user';
   userDiv.innerHTML = `<p>${escapeHtml(message)}</p>`;
   history.appendChild(userDiv);
-  history.scrollTop = history.scrollHeight;
+  scrollChatToLatest(userDiv);
 
   // Add Loading indicator
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'chat-bubble ai';
   loadingDiv.textContent = model.includes('70b') ? 'Thinking with Llama 3.3 70B (Deep Reasoning)...' : 'Thinking with Copilot...';
   history.appendChild(loadingDiv);
-  history.scrollTop = history.scrollHeight;
+  scrollChatToLatest(loadingDiv);
 
   try {
     const res = await fetch('/api/copilot/chat', {
@@ -710,10 +722,8 @@ async function submitCopilotChat(message) {
     });
     const data = await res.json();
 
-    // Track active style code across conversation turns
-    if (data.activeStyleCode) {
-      activeContextStyle = data.activeStyleCode;
-    }
+    // Track active style code across conversation turns (or reset if not returned)
+    activeContextStyle = data.activeStyleCode || null;
 
     // Process reply and render interactive rule execution buttons if present
     let formattedReply = formatMarkdown(data.reply);
@@ -747,7 +757,7 @@ async function submitCopilotChat(message) {
       </div>
       <div class="copilot-response-body">${formattedReply}</div>
     `;
-    history.scrollTop = history.scrollHeight;
+    scrollChatToLatest(loadingDiv);
 
     // Attach listener for newly rendered rule buttons in chat
     loadingDiv.querySelectorAll('.btn-apply-rule').forEach(btn => {
