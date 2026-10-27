@@ -24,55 +24,53 @@
         </div>
         <div class="status-radar-pill">
           <span class="live-pulse-dot"></span>
-          <span>D1 NETWORK LIVE</span>
+          <span>LIVE DATA STREAM</span>
         </div>
       </div>
 
       <div class="nav-actions">
         <div class="luxury-select-wrap">
-          <span class="select-label">PERSONA</span>
-          <select id="agentModeSelect">
-            <option value="DISCOUNT_STRATEGIST" selected>Commercial Strategist (Margin Defense)</option>
-            <option value="STORE_AUDITOR">Store Space Auditor (Decongestion)</option>
-            <option value="RULE_COMPILER">Policy Compiler (D1 Governance)</option>
+          <span class="select-label">ROLE</span>
+          <select id="agentModeSelect" class="luxury-select">
+            <option value="DISCOUNT_STRATEGIST" data-icon="💎" data-title="Commercial Strategist" data-sub="Margin Defense &amp; Yield Optimization" selected>Commercial Strategist</option>
+            <option value="STORE_AUDITOR" data-icon="🏬" data-title="Store Space Auditor" data-sub="Physical Floor Decongestion &amp; Density">Store Space Auditor</option>
+            <option value="RULE_COMPILER" data-icon="⚖️" data-title="Commercial Governance Officer" data-sub="Catalog Compliance &amp; Discount Rules">Commercial Governance Officer</option>
           </select>
         </div>
 
         <div class="luxury-select-wrap">
-          <span class="select-label">AI CORE</span>
-          <select id="aiModelSelect">
-            <option value="auto" selected>⚡ Auto (Llama 3.3 70B / 3.2 3B)</option>
-            <optgroup label="Meta Llama Series">
-              <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B Fast (Flagship)</option>
-              <option value="@cf/meta/llama-3.1-70b-instruct">🦙 Llama 3.1 70B Instruct</option>
-              <option value="@cf/meta/llama-3.2-3b-instruct">🚀 Llama 3.2 3B Turbo (&lt;0.5s)</option>
-              <option value="@cf/meta/llama-3.2-1b-instruct">⚡ Llama 3.2 1B Micro</option>
+          <span class="select-label">STRATEGY AI</span>
+          <select id="aiModelSelect" class="luxury-select">
+            <optgroup label="Autonomous Strategic Core">
+              <option value="auto" data-icon="⚡" data-title="Intelligent Auto-Pilot" data-sub="Balanced Strategic Advisor (Recommended)" selected>Intelligent Auto-Pilot</option>
             </optgroup>
-            <optgroup label="DeepSeek AI Series">
-              <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">🔬 DeepSeek R1 32B (Reasoning)</option>
-              <option value="@cf/deepseek-ai/deepseek-v4-flash-0731">⚡ DeepSeek V4 Flash (High Speed MoE)</option>
-              <option value="@cf/deepseek-ai/deepseek-v4-pro-0813">🔮 DeepSeek V4 Pro (1M Context)</option>
+            <optgroup label="Strategic Leadership">
+              <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast" data-icon="🧠" data-title="Llama 3.3 Executive" data-sub="Flagship Commercial Strategy &amp; Margin Defense">Llama 3.3 Executive</option>
+              <option value="@cf/meta/llama-3.1-70b-instruct" data-icon="🦙" data-title="Llama 3.1 Director" data-sub="Assortment Governance &amp; Long-Term Policy">Llama 3.1 Director</option>
+              <option value="@cf/meta/llama-3.2-3b-instruct" data-icon="🚀" data-title="Llama 3.2 Speed" data-sub="Rapid Decision Support &amp; Real-Time Q&amp;A">Llama 3.2 Speed</option>
+              <option value="@cf/meta/llama-3.2-1b-instruct" data-icon="⚡" data-title="Llama 3.2 Micro" data-sub="Instant Price &amp; Floor Verification">Llama 3.2 Micro</option>
             </optgroup>
-            <optgroup label="Zhipu AI GLM Series (Workers AI Native)">
-              <option value="@cf/zai-org/glm-4.7-flash">🇨🇳 GLM-4.7 Flash (Native Edge)</option>
-              <option value="@cf/zai-org/glm-5.3-flash">🇨🇳 GLM-5.3 Flash (Native Edge)</option>
+            <optgroup label="Financial &amp; Margin Auditing">
+              <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b" data-icon="🔬" data-title="DeepSeek R1 Auditor" data-sub="Mathematical Margin Analysis &amp; Zero-Loss Proofs">DeepSeek R1 Auditor</option>
+              <option value="@cf/deepseek-ai/deepseek-v4-flash-0731" data-icon="⚡" data-title="DeepSeek V4 Dynamic" data-sub="High-Velocity Promotional Yield Modeling">DeepSeek V4 Dynamic</option>
+              <option value="@cf/deepseek-ai/deepseek-v4-pro-0813" data-icon="🔮" data-title="DeepSeek V4 Sovereign" data-sub="Full-Assortment Strategic Planning">DeepSeek V4 Sovereign</option>
             </optgroup>
-            <optgroup label="OpenAI Open Weights">
-              <option value="@cf/openai/gpt-oss-120b">🌐 OpenAI GPT-OSS 120B</option>
-              <option value="@cf/openai/gpt-oss-20b">⚡ OpenAI GPT-OSS 20B</option>
+            <optgroup label="Commercial Intelligence">
+              <option value="@cf/zai-org/glm-4.7-flash" data-icon="✨" data-title="GLM 4.7 Strategist" data-sub="Stock Velocity &amp; Clearance Acceleration">GLM 4.7 Strategist</option>
+              <option value="@cf/zai-org/glm-5.3-flash" data-icon="🌟" data-title="GLM 5.3 Specialist" data-sub="Deep Assortment Dynamics &amp; Category Balancing">GLM 5.3 Specialist</option>
             </optgroup>
-            <optgroup label="Alibaba Qwen Series">
-              <option value="@cf/qwen/qwen3.8-27b">🌟 Qwen 3.8 27B Instruct</option>
-              <option value="@cf/qwen/qwen3-30b-a3b-fp8">💫 Qwen 3 30B MoE FP8</option>
-              <option value="@cf/qwen/qwen2.5-coder-32b-instruct">💻 Qwen 2.5 Coder 32B</option>
+            <optgroup label="Enterprise Assortment">
+              <option value="@cf/openai/gpt-oss-120b" data-icon="🌐" data-title="OpenAI Enterprise" data-sub="Macro Assortment &amp; Turnover Optimization">OpenAI Enterprise</option>
+              <option value="@cf/openai/gpt-oss-20b" data-icon="⚡" data-title="OpenAI Streamline" data-sub="Agile Promotional Structuring">OpenAI Streamline</option>
+              <option value="@cf/qwen/qwen3.8-27b" data-icon="💫" data-title="Qwen 3.8 Merchandiser" data-sub="Category Depth, Size Curves &amp; Inventory Health">Qwen 3.8 Merchandiser</option>
+              <option value="@cf/qwen/qwen3-30b-a3b-fp8" data-icon="💫" data-title="Qwen 3 Coordinator" data-sub="Store-Level Liquidation Strategy">Qwen 3 Coordinator</option>
+              <option value="@cf/qwen/qwen2.5-coder-32b-instruct" data-icon="💻" data-title="Qwen 2.5 Quantitative" data-sub="Commercial Metrics &amp; Pricing Tables">Qwen 2.5 Quantitative</option>
             </optgroup>
-            <optgroup label="Google Gemma Series">
-              <option value="@cf/google/gemma-7b-it-lora">🎯 Google Gemma 7B IT</option>
-              <option value="@cf/google/gemma-2b-it-lora">📱 Google Gemma 2B IT</option>
-            </optgroup>
-            <optgroup label="Mistral &amp; Moonshot">
-              <option value="@cf/mistral/mistral-7b-instruct-v0.1">🌪️ Mistral 7B Instruct</option>
-              <option value="@cf/moonshotai/kimi-k2.7-code">🌙 Kimi K2.7 Code</option>
+            <optgroup label="Specialized Advisors">
+              <option value="@cf/google/gemma-7b-it-lora" data-icon="🎯" data-title="Google Gemma Advisor" data-sub="Campaign Promotion Structuring">Google Gemma Advisor</option>
+              <option value="@cf/google/gemma-2b-it-lora" data-icon="📱" data-title="Google Gemma Compact" data-sub="Store Quick Guidance &amp; Lookups">Google Gemma Compact</option>
+              <option value="@cf/mistral/mistral-7b-instruct-v0.1" data-icon="🌪️" data-title="Mistral 7B Strategist" data-sub="Agile Pricing &amp; Discount Governance">Mistral 7B Strategist</option>
+              <option value="@cf/moonshotai/kimi-k2.7-code" data-icon="🌙" data-title="Kimi 2.7 Specialist" data-sub="Catalog Health &amp; Assortment Auditing">Kimi 2.7 Specialist</option>
             </optgroup>
           </select>
         </div>
@@ -103,7 +101,7 @@
       <div class="hero-badge">CAMPAIGN GOVERNANCE &bull; KSA WHITE FRIDAY &amp; WINTER AW26</div>
       <h1 class="hero-title">Autonomous Promotion Architecture &amp; Lifecycle Optimizer</h1>
       <p class="hero-lead">
-        Protecting gross margin across 53,999 physical inventory units in Jeddah and Taif through deterministic algorithmic pricing, legal zero-loss enforcement, and real-time store space physics.
+        Protecting gross margin across 53,999 physical inventory units in Jeddah and Taif through deterministic margin protection, KSA VAT compliance, and real-time store inventory liquidation.
       </p>
 
       <!-- Category Mood Highlights -->
@@ -461,10 +459,10 @@
               <th>Physical Stock</th>
               <th>Store Allocation</th>
               <th>STR %</th>
-              <th>ROS (8-wk)</th>
+              <th>Sales Velocity</th>
               <th>Size Curve</th>
               <th>Unit Cost</th>
-              <th>VAT Floor</th>
+              <th>Legal Floor (15% VAT)</th>
               <th>Ticket Price</th>
               <th>Recommended Offer</th>
               <th>Discount</th>
@@ -478,7 +476,7 @@
               <td colspan="17" class="loading-cell">
                 <div class="table-spinner-wrap">
                   <span class="luxury-spinner"></span>
-                  <span>Synchronizing live assortment intelligence from Cloudflare D1...</span>
+                  <span>Synchronizing live assortment and pricing intelligence...</span>
                 </div>
               </td>
             </tr>
@@ -510,40 +508,38 @@
     </div>
 
     <div class="drawer-model-bar">
-      <span>AI ENGINE MODEL:</span>
-      <select id="drawerModelSelect">
-            <option value="auto" selected>⚡ Auto (Llama 3.3 70B / 3.2 3B)</option>
-            <optgroup label="Meta Llama Series">
-              <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B Fast (Flagship)</option>
-              <option value="@cf/meta/llama-3.1-70b-instruct">🦙 Llama 3.1 70B Instruct</option>
-              <option value="@cf/meta/llama-3.2-3b-instruct">🚀 Llama 3.2 3B Turbo (&lt;0.5s)</option>
-              <option value="@cf/meta/llama-3.2-1b-instruct">⚡ Llama 3.2 1B Micro</option>
+      <span>STRATEGY ENGINE:</span>
+      <select id="drawerModelSelect" class="luxury-select">
+            <optgroup label="Autonomous Strategic Core">
+              <option value="auto" data-icon="⚡" data-title="Intelligent Auto-Pilot" data-sub="Balanced Strategic Advisor (Recommended)" selected>Intelligent Auto-Pilot</option>
             </optgroup>
-            <optgroup label="DeepSeek AI Series">
-              <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">🔬 DeepSeek R1 32B (Reasoning)</option>
-              <option value="@cf/deepseek-ai/deepseek-v4-flash-0731">⚡ DeepSeek V4 Flash (High Speed MoE)</option>
-              <option value="@cf/deepseek-ai/deepseek-v4-pro-0813">🔮 DeepSeek V4 Pro (1M Context)</option>
+            <optgroup label="Strategic Leadership">
+              <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast" data-icon="🧠" data-title="Llama 3.3 Executive" data-sub="Flagship Commercial Strategy &amp; Margin Defense">Llama 3.3 Executive</option>
+              <option value="@cf/meta/llama-3.1-70b-instruct" data-icon="🦙" data-title="Llama 3.1 Director" data-sub="Assortment Governance &amp; Long-Term Policy">Llama 3.1 Director</option>
+              <option value="@cf/meta/llama-3.2-3b-instruct" data-icon="🚀" data-title="Llama 3.2 Speed" data-sub="Rapid Decision Support &amp; Real-Time Q&amp;A">Llama 3.2 Speed</option>
+              <option value="@cf/meta/llama-3.2-1b-instruct" data-icon="⚡" data-title="Llama 3.2 Micro" data-sub="Instant Price &amp; Floor Verification">Llama 3.2 Micro</option>
             </optgroup>
-            <optgroup label="Zhipu AI GLM Series (Workers AI Native)">
-              <option value="@cf/zai-org/glm-4.7-flash">🇨🇳 GLM-4.7 Flash (Native Edge)</option>
-              <option value="@cf/zai-org/glm-5.3-flash">🇨🇳 GLM-5.3 Flash (Native Edge)</option>
+            <optgroup label="Financial &amp; Margin Auditing">
+              <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b" data-icon="🔬" data-title="DeepSeek R1 Auditor" data-sub="Mathematical Margin Analysis &amp; Zero-Loss Proofs">DeepSeek R1 Auditor</option>
+              <option value="@cf/deepseek-ai/deepseek-v4-flash-0731" data-icon="⚡" data-title="DeepSeek V4 Dynamic" data-sub="High-Velocity Promotional Yield Modeling">DeepSeek V4 Dynamic</option>
+              <option value="@cf/deepseek-ai/deepseek-v4-pro-0813" data-icon="🔮" data-title="DeepSeek V4 Sovereign" data-sub="Full-Assortment Strategic Planning">DeepSeek V4 Sovereign</option>
             </optgroup>
-            <optgroup label="OpenAI Open Weights">
-              <option value="@cf/openai/gpt-oss-120b">🌐 OpenAI GPT-OSS 120B</option>
-              <option value="@cf/openai/gpt-oss-20b">⚡ OpenAI GPT-OSS 20B</option>
+            <optgroup label="Commercial Intelligence">
+              <option value="@cf/zai-org/glm-4.7-flash" data-icon="✨" data-title="GLM 4.7 Strategist" data-sub="Stock Velocity &amp; Clearance Acceleration">GLM 4.7 Strategist</option>
+              <option value="@cf/zai-org/glm-5.3-flash" data-icon="🌟" data-title="GLM 5.3 Specialist" data-sub="Deep Assortment Dynamics &amp; Category Balancing">GLM 5.3 Specialist</option>
             </optgroup>
-            <optgroup label="Alibaba Qwen Series">
-              <option value="@cf/qwen/qwen3.8-27b">🌟 Qwen 3.8 27B Instruct</option>
-              <option value="@cf/qwen/qwen3-30b-a3b-fp8">💫 Qwen 3 30B MoE FP8</option>
-              <option value="@cf/qwen/qwen2.5-coder-32b-instruct">💻 Qwen 2.5 Coder 32B</option>
+            <optgroup label="Enterprise Assortment">
+              <option value="@cf/openai/gpt-oss-120b" data-icon="🌐" data-title="OpenAI Enterprise" data-sub="Macro Assortment &amp; Turnover Optimization">OpenAI Enterprise</option>
+              <option value="@cf/openai/gpt-oss-20b" data-icon="⚡" data-title="OpenAI Streamline" data-sub="Agile Promotional Structuring">OpenAI Streamline</option>
+              <option value="@cf/qwen/qwen3.8-27b" data-icon="💫" data-title="Qwen 3.8 Merchandiser" data-sub="Category Depth, Size Curves &amp; Inventory Health">Qwen 3.8 Merchandiser</option>
+              <option value="@cf/qwen/qwen3-30b-a3b-fp8" data-icon="💫" data-title="Qwen 3 Coordinator" data-sub="Store-Level Liquidation Strategy">Qwen 3 Coordinator</option>
+              <option value="@cf/qwen/qwen2.5-coder-32b-instruct" data-icon="💻" data-title="Qwen 2.5 Quantitative" data-sub="Commercial Metrics &amp; Pricing Tables">Qwen 2.5 Quantitative</option>
             </optgroup>
-            <optgroup label="Google Gemma Series">
-              <option value="@cf/google/gemma-7b-it-lora">🎯 Google Gemma 7B IT</option>
-              <option value="@cf/google/gemma-2b-it-lora">📱 Google Gemma 2B IT</option>
-            </optgroup>
-            <optgroup label="Mistral &amp; Moonshot">
-              <option value="@cf/mistral/mistral-7b-instruct-v0.1">🌪️ Mistral 7B Instruct</option>
-              <option value="@cf/moonshotai/kimi-k2.7-code">🌙 Kimi K2.7 Code</option>
+            <optgroup label="Specialized Advisors">
+              <option value="@cf/google/gemma-7b-it-lora" data-icon="🎯" data-title="Google Gemma Advisor" data-sub="Campaign Promotion Structuring">Google Gemma Advisor</option>
+              <option value="@cf/google/gemma-2b-it-lora" data-icon="📱" data-title="Google Gemma Compact" data-sub="Store Quick Guidance &amp; Lookups">Google Gemma Compact</option>
+              <option value="@cf/mistral/mistral-7b-instruct-v0.1" data-icon="🌪️" data-title="Mistral 7B Strategist" data-sub="Agile Pricing &amp; Discount Governance">Mistral 7B Strategist</option>
+              <option value="@cf/moonshotai/kimi-k2.7-code" data-icon="🌙" data-title="Kimi 2.7 Specialist" data-sub="Catalog Health &amp; Assortment Auditing">Kimi 2.7 Specialist</option>
             </optgroup>
       </select>
     </div>
@@ -587,7 +583,7 @@
         </div>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">These active policies govern all automated price and offer calculations deterministically across Cloudflare D1.</p>
+        <p class="modal-desc">Active commercial policies governing automated price promotions, discount ceilings, and margin protections.</p>
         <div class="rules-list" id="activeRulesList">
           <!-- Populated dynamically -->
         </div>
@@ -613,7 +609,7 @@
             </select>
             <input type="text" id="ruleValue" placeholder="Value (e.g. 20.0)" required>
           </div>
-          <button type="submit" class="btn btn-luxury-gold">Activate Rule in D1</button>
+          <button type="submit" class="btn btn-luxury-gold">Activate Policy</button>
         </form>
       </div>
     </div>

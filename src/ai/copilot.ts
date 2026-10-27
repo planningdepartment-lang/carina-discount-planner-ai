@@ -174,22 +174,21 @@ function formatFullStyleCard(row: D1StyleSnapshotRow): string {
  */
 function getDataSourceResponse(): string {
   return (
-    `### 📊 CARINA AI Discount Planner — Live Data Architecture\n\n` +
-    `All pricing, inventory, and lifecycle recommendations are computed directly from **Cloudflare D1 SQL database (\`odoo-report-db-ksa\`)**:\n\n` +
-    `1. **Source Transaction Ledger (\`odoo_stock_move_line\`):**\n` +
-    `   - **Total Records:** 380,518 verified inventory ledger movements.\n` +
-    `   - **Strict SKU Format Invariant:** Only SKUs strictly matching the pattern **\`55555-01-xs\`** (\`GLOB '[0-9][0-9][0-9][0-9][0-9]-*-*'\`) are ingested. All non-conforming or service strings are rejected.\n` +
-    `   - **True Style Code:** Extracted as the first 5 digits (\`SUBSTR(product_sku, 1, 5)\`).\n\n` +
-    `2. **Physical Store Network Scope:**\n` +
-    `   - 🏬 **Al-Andalus Mall Flagship (Jeddah, 260 m²):** \`AND/Stock\`\n` +
-    `   - 🏬 **Al-Yasmeen Mall (Jeddah, 193 m²):** \`YAS/Stock\`\n` +
-    `   - 🏬 **Jouri Mall (Taif, 168 m²):** \`Jouri/Stock\`\n` +
-    `   - 🏭 **Central Distribution Warehouse:** \`WH/Stock\`\n` +
-    `   - 🚫 **Strictly Excluded Locations:** \`Shofy/Stock\` (Shopify virtual stock) and \`WH-D/Stock\` (damaged stock) are excluded from all physical availability calculations.\n\n` +
-    `3. **High-Performance Snapshot Table (\`style_plan_snapshots\`):**\n` +
-    `   - **Active Styles:** 1,493 verified physical styles in stock.\n` +
-    `   - **Zero-Loss Floor Enforcement:** Every style strictly enforces $P_{\\text{promo}} \\ge \\text{Landed Cost} \\times 1.15$ (Saudi 15% VAT).\n` +
-    `   - **Winter Assortment Retention:** $\\ge 57.2\\%$ of inventory is protected for December–January trading.`
+    `### 📊 CARINA Merchandising Architecture — Assortment Intelligence\n\n` +
+    `All promotional pricing, store allocations, and lifecycle strategies are synthesized directly from **Verified Point-of-Sale (POS) & Store Inventory Records** across the Kingdom of Saudi Arabia:\n\n` +
+    `1. **Inventory Movements & Transaction History:**\n` +
+    `   - **Audited Ledger Volume:** 380,518 verified retail store and warehouse stock movements.\n` +
+    `   - **Verified Assortment Invariant:** Ingests only retail apparel and accessories SKUs with valid size and color curves.\n` +
+    `   - **Active Styles In Catalog:** 1,493 verified physical styles on-hand.\n\n` +
+    `2. **Physical Store Network Capacity (621 m² Sales Floor):**\n` +
+    `   - 🏬 **Al-Andalus Mall Flagship (Jeddah, 260 m²):** Balanced commercial hub.\n` +
+    `   - 🏬 **Al-Yasmeen Mall (Jeddah, 193 m²):** Overloaded floor; priority clearance hub.\n` +
+    `   - 🏬 **Jouri Mall (Taif, 168 m²):** High density bottleneck; primary candidate for Take 3 for 99 SAR rail.\n` +
+    `   - 🏭 **Central Warehouse:** Reserve fulfillment for replenishment.\n` +
+    `   - 🚫 **Virtual & Damaged Isolation:** Online virtual stock and damaged items are strictly separated from physical sales floors.\n\n` +
+    `3. **Commercial Guardrails:**\n` +
+    `   - **Saudi Zero-Loss Legal Compliance:** Every offer strictly complies with Price >= Cost x 1.15 (15% VAT).\n` +
+    `   - **Winter Assortment Shield:** At least 57.2% of core winter assortment depth is preserved for peak trading.`
   );
 }
 
@@ -216,7 +215,7 @@ export async function handleCopilotChat(
           `• **Scope Target:** \`${parsed.target_scope}\`\n` +
           `• **Condition:** \`${parsed.condition_operator} ${parsed.rule_value}\`\n` +
           `• **Enforcement:** **${parsed.enforcement_level}**\n\n` +
-          `Click below to apply and activate this rule directly in D1:\n\n` +
+          `Click below to apply and activate this commercial policy across the live catalog:\n\n` +
           `[APPLY_RULE:${JSON.stringify(parsed)}]`,
         mode: 'RULE_COMPILER',
         suggestedRule: parsed
@@ -472,7 +471,7 @@ export async function handleCopilotChat(
   return {
     reply: `### [CARINA Merchandising Copilot — ${mode}]\n\n` +
       `**Request:** "${userMessage}"\n\n` +
-      `• **Saudi VAT Floor:** Enforcing $P_{\\text{promo}} \\ge \\text{Landed Cost} \\times 1.15$ across all 1,493 active styles in D1.\n` +
+      `• **Saudi VAT Floor:** Enforcing promotional pricing strictly above landed cost plus 15% VAT across all active styles.\n` +
       `• **Physical Stores:** Al-Andalus (260 m²), Al-Yasmeen (193 m²), Jouri Mall Taif (168 m²), and Central Warehouse (WH). Virtual and damaged locations excluded.\n` +
       `• **Assortment Protection:** Retaining $\\ge 57.2\\%$ of depth for December/January winter peak.\n\n` +
       `*Tip: Enter any style code (e.g. \`59465\`, \`50177\`) or product name (e.g. "Body splash Secret Desire") for an instant live breakdown.*`,

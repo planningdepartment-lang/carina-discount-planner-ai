@@ -625,18 +625,22 @@ async function runSimulation() {
     if (!res.ok) return;
     const sim = await res.json();
 
-    const grossRev = sim.projectedGrossRevenue || 0;
-    const netProfit = sim.projectedNetProfit ?? sim.projectedGrossProfit ?? 0;
-    const realizedMargin = sim.realizedMarginPct ?? sim.realizedNetMarginPct ?? 48.0;
-    const retainedStock = sim.retainedStockUnits ?? sim.retainedWinterUnits ?? 30182;
-    const retainedPct = sim.retainedStockPct ?? sim.retainedWinterPct ?? 57.2;
+    const grossRev = Number(sim.projectedGrossRevenue) || 0;
+    const netProfit = Number(sim.projectedNetProfit ?? sim.projectedGrossProfit) || 0;
+    const rawMargin = Number(sim.realizedMarginPct ?? sim.realizedNetMarginPct);
+    const realizedMargin = isNaN(rawMargin) ? 48.0 : rawMargin;
+    const rawStock = Number(sim.retainedStockUnits ?? sim.retainedWinterUnits);
+    const retainedStock = isNaN(rawStock) ? 30182 : rawStock;
+    const rawPct = Number(sim.retainedStockPct ?? sim.retainedWinterPct);
+    const retainedPct = isNaN(rawPct) ? 57.2 : rawPct;
 
     document.getElementById('simGrossRev').textContent = Math.round(grossRev).toLocaleString() + ' SAR';
     document.getElementById('simNetProfit').textContent = (netProfit >= 0 ? '+' : '') + Math.round(netProfit).toLocaleString() + ' SAR';
     document.getElementById('simRealizedMargin').textContent = realizedMargin.toFixed(1) + '%';
     document.getElementById('simRetainedStock').textContent = `${retainedStock.toLocaleString()} Units (${retainedPct.toFixed(1)}%)`;
 
-    const jouriDensity = sim.postEventDensities ? sim.postEventDensities.jouriDensity : (sim.postEventJouriDensity ?? 35.4);
+    const rawJouri = Number(sim.postEventDensities ? sim.postEventDensities.jouriDensity : (sim.postEventJouriDensity ?? 35.4));
+    const jouriDensity = isNaN(rawJouri) ? 35.4 : rawJouri;
     const jouriStatus = sim.jouriStatus ?? (jouriDensity <= 40 ? 'Clean' : 'Bottleneck');
     const jouriVal = document.getElementById('simJouriPostDensity');
     jouriVal.textContent = `${jouriDensity.toFixed(1)} u/m² (${jouriStatus})`;
@@ -698,7 +702,7 @@ async function submitCopilotChat(message) {
           const buttonHtml = `
             <div class="chat-rule-action">
               <button class="btn btn-luxury-gold btn-apply-rule" data-rule='${escapeHtml(JSON.stringify(ruleObj))}'>
-                ⚡ Apply & Activate Policy in D1
+                ✨ Apply & Activate Policy
               </button>
             </div>
           `;
@@ -717,7 +721,7 @@ async function submitCopilotChat(message) {
       btn.addEventListener('click', async () => {
         const ruleData = JSON.parse(btn.getAttribute('data-rule'));
         btn.disabled = true;
-        btn.textContent = 'Activating in D1...';
+        btn.textContent = 'Activating Policy...';
 
         try {
           const ruleRes = await fetch('/api/rules', {
@@ -727,7 +731,7 @@ async function submitCopilotChat(message) {
           });
 
           if (ruleRes.ok) {
-            btn.textContent = '✅ Policy Active in D1';
+            btn.textContent = '✅ Policy Active';
             btn.className = 'btn btn-secondary';
             loadStyles();
             loadSummary();
@@ -855,4 +859,215 @@ function formatMarkdown(text) {
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\n\n/g, '<div style="height: 8px;"></div>')
     .replace(/\n/g, '<br>');
+}
+
+
+/**
+ * Custom Bespoke Glassmorphic Select Component
+ * Eliminates OS native white bars and provides executive luxury aesthetics
+ */
+function initCustomLuxurySelects() {
+  document.querySelectorAll('select.luxury-select').forEach(select => {
+    if (select.dataset.customized === 'true') return;
+    select.dataset.customized = 'true';
+
+    // Hide native select visually
+    select.style.display = 'none';
+
+    // Build custom dropdown wrapper
+    const wrap = document.createElement('div');
+    wrap.className = 'luxury-custom-select';
+    select.parentNode.insertBefore(wrap, select.nextSibling);
+
+    // Selected option info
+    function getSelectedData() {
+      const opt = select.options[select.selectedIndex] || select.options[0];
+      if (!opt) return { val: '', icon: '⚡', title: 'Select...', sub: '' };
+      return {
+        val: opt.value,
+        icon: opt.dataset.icon || '✨',
+        title: opt.dataset.title || opt.textContent.trim(),
+        sub: opt.dataset.sub || ''
+      };
+    }
+
+    const cur = getSelectedData();
+
+    // Trigger button
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'luxury-trigger';
+    trigger.innerHTML = `
+      <span class="trigger-icon">${cur.icon}</span>
+      <span class="trigger-text">
+        <span class="trigger-title">${escapeHtml(cur.title)}</span>
+      </span>
+      <span class="trigger-chevron">▾</span>
+    `;
+    wrap.appendChild(trigger);
+
+    // Dropdown menu
+    const menu = document.createElement('div');
+    menu.className = 'luxury-dropdown-menu';
+
+    // Optional Search bar if options count > 6
+    const totalOptions = select.options.length;
+    let searchInput = null;
+    if (totalOptions > 6) {
+      const searchBox = document.createElement('div');
+      searchBox.className = 'luxury-dropdown-search';
+      searchBox.innerHTML = `
+        <span class="luxury-search-icon">🔍</span>
+        <input type="text" class="luxury-search-input" placeholder="Filter strategy options..." autocomplete="off">
+      `;
+      menu.appendChild(searchBox);
+      searchInput = searchBox.querySelector('input');
+    }
+
+    // Scroll list
+    const list = document.createElement('div');
+    list.className = 'luxury-dropdown-list';
+    menu.appendChild(list);
+
+    // Populate items from optgroups and options
+    Array.from(select.children).forEach(child => {
+      if (child.tagName === 'OPTGROUP') {
+        const groupTitle = document.createElement('div');
+        groupTitle.className = 'luxury-optgroup-title';
+        groupTitle.textContent = child.label;
+        list.appendChild(groupTitle);
+
+        Array.from(child.children).forEach(opt => {
+          renderOptionRow(opt, list);
+        });
+      } else if (child.tagName === 'OPTION') {
+        renderOptionRow(child, list);
+      }
+    });
+
+    function renderOptionRow(opt, container) {
+      const val = opt.value;
+      const icon = opt.dataset.icon || '✨';
+      const title = opt.dataset.title || opt.textContent.trim();
+      const sub = opt.dataset.sub || '';
+      const isSelected = opt.selected;
+
+      const row = document.createElement('div');
+      row.className = `luxury-option-row ${isSelected ? 'selected' : ''}`;
+      row.dataset.val = val;
+      row.innerHTML = `
+        <span class="opt-icon">${icon}</span>
+        <div class="opt-text">
+          <div class="opt-title">${escapeHtml(title)}</div>
+          ${sub ? `<div class="opt-sub">${escapeHtml(sub)}</div>` : ''}
+        </div>
+        <span class="opt-check">✓</span>
+      `;
+
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        select.value = val;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        closeMenu();
+      });
+
+      container.appendChild(row);
+    }
+
+    wrap.appendChild(menu);
+
+    function updateTriggerAndSelected() {
+      const selected = getSelectedData();
+      trigger.querySelector('.trigger-icon').textContent = selected.icon;
+      trigger.querySelector('.trigger-title').textContent = selected.title;
+
+      list.querySelectorAll('.luxury-option-row').forEach(row => {
+        if (row.dataset.val === select.value) {
+          row.classList.add('selected');
+        } else {
+          row.classList.remove('selected');
+        }
+      });
+    }
+
+    // Listen to external value changes
+    select.addEventListener('change', updateTriggerAndSelected);
+
+    function openMenu() {
+      // Close all other custom dropdowns first
+      document.querySelectorAll('.luxury-dropdown-menu.open').forEach(m => {
+        if (m !== menu) {
+          m.classList.remove('open');
+          m.previousElementSibling?.classList.remove('open');
+        }
+      });
+      menu.classList.add('open');
+      trigger.classList.add('open');
+      if (searchInput) {
+        searchInput.value = '';
+        filterList('');
+        setTimeout(() => searchInput.focus(), 50);
+      }
+    }
+
+    function closeMenu() {
+      menu.classList.remove('open');
+      trigger.classList.remove('open');
+    }
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (menu.classList.contains('open')) {
+        closeMenu();
+      } else {
+        openMenu();
+      }
+    });
+
+    // Filter functionality
+    function filterList(q) {
+      const term = q.toLowerCase().trim();
+      let lastGroupTitle = null;
+      let groupHasMatches = false;
+
+      Array.from(list.children).forEach(el => {
+        if (el.classList.contains('luxury-optgroup-title')) {
+          if (lastGroupTitle) {
+            lastGroupTitle.style.display = groupHasMatches ? '' : 'none';
+          }
+          lastGroupTitle = el;
+          groupHasMatches = false;
+        } else if (el.classList.contains('luxury-option-row')) {
+          const txt = el.textContent.toLowerCase();
+          const match = !term || txt.includes(term);
+          el.style.display = match ? '' : 'none';
+          if (match) groupHasMatches = true;
+        }
+      });
+      if (lastGroupTitle) {
+        lastGroupTitle.style.display = groupHasMatches ? '' : 'none';
+      }
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        filterList(e.target.value);
+      });
+      searchInput.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    // Click outside closes menu
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) {
+        closeMenu();
+      }
+    });
+
+    // Escape closes menu
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeMenu();
+      }
+    });
+  });
 }
