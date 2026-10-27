@@ -201,12 +201,17 @@ export default {
 
       // 3. POST /api/simulate
       if (pathname === '/api/simulate' && request.method === 'POST') {
-        const body = (await request.json()) as SimulationParams;
+        const body = (await request.json()) as any;
+        const targetUnits = body.targetLiquidationUnits || body.targetLiquidation || 22550;
+        const marginFloor = body.minimumNetMarginFloorPct || body.marginFloor || 48.0;
         const records = await getOrComputeStylePlan(env.DB);
         
         const styles = records.map(r => r.metrics);
         const recs = records.map(r => r.recommendation);
-        const result = runWhatIfSimulation(styles, recs, body);
+        const result = runWhatIfSimulation(styles, recs, {
+          targetLiquidationUnits: targetUnits,
+          minimumNetMarginFloorPct: marginFloor
+        });
 
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

@@ -1411,17 +1411,55 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .calc-popover {
   position: absolute;
   z-index: 200;
-  width: 410px;
-  background: rgba(12, 16, 26, 0.97);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: rgba(10, 14, 24, 0.98);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--gold-primary);
-  border-radius: 12px;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.85), 0 0 20px var(--gold-glow);
-  padding: 1.35rem;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 25px var(--gold-glow);
+  padding: 1.4rem;
   font-size: 0.825rem;
   color: var(--text-main);
   animation: popoverFadeIn 0.2s ease-out;
+}
+
+.popover-section.rationale-section {
+  border-left-color: var(--gold-primary);
+  background: rgba(212, 175, 55, 0.05);
+}
+
+.popover-section.meta-section {
+  border-left-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.popover-section.economics-section {
+  border-left-color: #34d399;
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.popover-section.leverage-section {
+  border-left-color: #f43f5e;
+  background: rgba(244, 63, 94, 0.05);
+}
+
+.pop-row.highlight-warn {
+  background: rgba(244, 63, 94, 0.1);
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+
+.pop-note {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 0.4rem;
+  padding-top: 0.3rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
 }
 
 @keyframes popoverFadeIn {
