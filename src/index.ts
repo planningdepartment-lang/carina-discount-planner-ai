@@ -4,7 +4,9 @@ import {
   saveBusinessRule, 
   fetchStylePlanSnapshots, 
   saveStylePlanSnapshots, 
-  aggregateStylesDirectFromD1 
+  aggregateStylesDirectFromD1, 
+  deleteBusinessRule, 
+  clearAllBusinessRules 
 } from './db/queries';
 import { classifyStyleAndRecommend, StyleMetrics, RecommendationResult } from './engine/lifecycleClassifier';
 import { applyBusinessRules, BusinessRuleRecord } from './engine/rulePipeline';
@@ -21,7 +23,7 @@ export default {
     // CORS headers for cross-origin and local testing
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     };
 
@@ -30,6 +32,23 @@ export default {
     }
 
     try {
+      // Test AI endpoint
+      if (pathname === '/api/test-ai') {
+        const m = url.searchParams.get('model') || '@cf/meta/llama-3.1-8b-instruct';
+        try {
+          const res = await env.AI.run(m, {
+            messages: [{ role: 'user', content: 'Say hello in 3 words' }]
+          });
+          return new Response(JSON.stringify({ success: true, model: m, result: res }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        } catch (e: any) {
+          return new Response(JSON.stringify({ success: false, model: m, error: e?.message || String(e), stack: e?.stack }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
       // 1. GET /api/metrics/summary
       if (pathname === '/api/metrics/summary' && request.method === 'GET') {
         const records = await getOrComputeStylePlan(env.DB);
@@ -224,7 +243,7 @@ export default {
         });
       }
 
-      // 4. GET /api/rules & POST /api/rules
+      // 4. GET /api/rules, POST /api/rules, DELETE /api/rules
       if (pathname === '/api/rules') {
         if (request.method === 'GET') {
           const rules = await fetchBusinessRules(env.DB);
@@ -235,6 +254,26 @@ export default {
         if (request.method === 'POST') {
           const ruleBody = (await request.json()) as BusinessRuleRecord;
           const ok = await saveBusinessRule(env.DB, ruleBody);
+          return new Response(JSON.stringify({ success: ok }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        if (request.method === 'DELETE') {
+          const ruleId = url.searchParams.get('rule_id');
+          const isClearAll = url.searchParams.get('all') === 'true';
+          let ok = false;
+          if (isClearAll) {
+            ok = await clearAllBusinessRules(env.DB);
+          } else if (ruleId) {
+            ok = await deleteBusinessRule(env.DB, ruleId);
+          } else {
+            const body = await request.json().catch(() => ({})) as any;
+            if (body.clearAll) {
+              ok = await clearAllBusinessRules(env.DB);
+            } else if (body.rule_id) {
+              ok = await deleteBusinessRule(env.DB, body.rule_id);
+            }
+          }
           return new Response(JSON.stringify({ success: ok }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });

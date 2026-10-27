@@ -60,6 +60,32 @@ export async function saveBusinessRule(db: D1Database, rule: BusinessRuleRecord)
 }
 
 /**
+ * Deletes a specific governance rule by rule_id from D1.
+ */
+export async function deleteBusinessRule(db: D1Database, ruleId: string): Promise<boolean> {
+  try {
+    await db.prepare('DELETE FROM business_rules WHERE rule_id = ?').bind(ruleId).run();
+    return true;
+  } catch (err) {
+    console.error('Error deleting business rule from D1:', err);
+    return false;
+  }
+}
+
+/**
+ * Removes all custom governance rules from D1.
+ */
+export async function clearAllBusinessRules(db: D1Database): Promise<boolean> {
+  try {
+    await db.prepare('DELETE FROM business_rules').run();
+    return true;
+  } catch (err) {
+    console.error('Error clearing business rules from D1:', err);
+    return false;
+  }
+}
+
+/**
  * Reads pre-computed style snapshots from D1 (<10ms fast load).
  */
 export async function fetchStylePlanSnapshots(db: D1Database): Promise<StylePlanRecord[]> {

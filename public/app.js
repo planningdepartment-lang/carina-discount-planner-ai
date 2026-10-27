@@ -757,27 +757,82 @@ async function loadRules() {
 
     container.innerHTML = '';
     if (rules.length === 0) {
-      container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted);">No dynamic governance rules registered. Standard Zero-Loss logic applies.</p>';
+      container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); padding: 8px 0;">No dynamic governance rules registered. Standard Zero-Loss logic applies.</p>';
       return;
     }
 
     rules.forEach(r => {
       const div = document.createElement('div');
       div.className = 'rule-item';
+      div.style.display = 'flex';
+      div.style.alignItems = 'center';
+      div.style.justifyContent = 'space-between';
+      div.style.gap = '12px';
+      div.style.padding = '8px 12px';
+      div.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+
       div.innerHTML = `
-        <div>
-          <strong>${r.rule_name}</strong>
-          <span style="display:block; font-size: 0.75rem; color: var(--text-muted);">
-            Scope: <code>${r.target_scope}</code> | Operator: <code>${r.condition_operator}</code> | Value: <code>${r.rule_value}</code>
+        <div style="flex: 1;">
+          <strong>${escapeHtml(r.rule_name)}</strong>
+          <span style="display:block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+            Scope: <code>${escapeHtml(r.target_scope)}</code> | Operator: <code>${escapeHtml(r.condition_operator)}</code> | Value: <code>${escapeHtml(r.rule_value)}</code>
           </span>
         </div>
-        <span class="badge ${r.enforcement_level === 'HARD_BLOCK' ? 'badge-flag' : 'badge-yes'}">${r.enforcement_level}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="badge ${r.enforcement_level === 'HARD_BLOCK' ? 'badge-flag' : 'badge-yes'}">${r.enforcement_level}</span>
+          <button class="btn-delete-rule" data-id="${escapeHtml(r.rule_id)}" title="Delete this rule" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.75rem; transition: all 0.2s;">
+            🗑️ Remove
+          </button>
+        </div>
       `;
       container.appendChild(div);
     });
+
+    // Attach delete listeners to each individual rule
+    container.querySelectorAll('.btn-delete-rule').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ruleId = btn.getAttribute('data-id');
+        if (!confirm('Are you sure you want to remove this governance rule?')) return;
+        btn.disabled = true;
+        btn.textContent = 'Removing...';
+        try {
+          const delRes = await fetch('/api/rules?rule_id=' + encodeURIComponent(ruleId), { method: 'DELETE' });
+          if (delRes.ok) {
+            await loadRules();
+            loadStyles(); // Immediately refresh styles with updated rule evaluation
+          }
+        } catch (err) {
+          console.error('Error deleting rule:', err);
+        }
+      });
+    });
+
   } catch (err) {
     console.error('Rules load error:', err);
   }
+}
+
+// Clear All Rules button listener
+const clearAllBtn = document.getElementById('clearAllRulesBtn');
+if (clearAllBtn) {
+  clearAllBtn.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to delete ALL custom governance rules? This will restore standard baseline pricing.')) return;
+    clearAllBtn.disabled = true;
+    clearAllBtn.textContent = 'Clearing...';
+    try {
+      const delRes = await fetch('/api/rules?all=true', { method: 'DELETE' });
+      if (delRes.ok) {
+        await loadRules();
+        loadStyles();
+      }
+    } catch (err) {
+      console.error('Error clearing rules:', err);
+    } finally {
+      clearAllBtn.disabled = false;
+      clearAllBtn.textContent = '🗑️ Clear All Rules';
+    }
+  });
 }
 
 function escapeHtml(str) {

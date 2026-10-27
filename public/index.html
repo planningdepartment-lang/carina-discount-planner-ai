@@ -41,14 +41,16 @@
         <div class="luxury-select-wrap">
           <span class="select-label">AI CORE</span>
           <select id="aiModelSelect">
-            <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
-            <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
-            <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
-            <option value="@cf/mistral/mistral-7b-instruct-v0.2">⚡ Mistral 7B Instruct</option>
-            <option value="@cf/qwen/qwen1.5-14b-chat-awq">📊 Qwen 1.5 14B Chat</option>
-            <option value="@cf/google/gemma-7b-it">🎯 Google Gemma 7B IT</option>
-            <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
-          </select>
+            <option value="auto" selected>⚡ Auto (Llama 3.3 70B / 3.2 3B)</option>
+            <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Flagship Deep Reasoning)</option>
+            <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">🔬 DeepSeek R1 32B (Math &amp; Reasoning)</option>
+            <option value="@cf/meta/llama-3.2-3b-instruct">🚀 Llama 3.2 3B (Ultra Fast &lt;0.8s)</option>
+            <option value="@cf/meta/llama-3.2-1b-instruct">⚡ Llama 3.2 1B (Edge Micro)</option>
+            <option value="@cf/mistral/mistral-7b-instruct-v0.1">🌪️ Mistral 7B Instruct</option>
+            <option value="@cf/google/gemma-7b-it-lora">🎯 Google Gemma 7B IT</option>
+            <option value="gateway/zhipuai/glm-4">🌐 Zhipu AI GLM-4 (Gateway)</option>
+            <option value="gateway/google/gemini-4-argon">💎 Google Gemini 4 Argon (Gateway)</option>
+</select>
         </div>
 
         <button id="rulesBtn" class="btn btn-luxury-secondary">
@@ -486,14 +488,16 @@
     <div class="drawer-model-bar">
       <span>AI ENGINE MODEL:</span>
       <select id="drawerModelSelect">
-        <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
-        <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
-        <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
-        <option value="@cf/mistral/mistral-7b-instruct-v0.2">⚡ Mistral 7B Instruct</option>
-        <option value="@cf/qwen/qwen1.5-14b-chat-awq">📊 Qwen 1.5 14B Chat</option>
-        <option value="@cf/google/gemma-7b-it">🎯 Google Gemma 7B IT</option>
-        <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
-      </select>
+            <option value="auto" selected>⚡ Auto (Llama 3.3 70B / 3.2 3B)</option>
+            <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Flagship Deep Reasoning)</option>
+            <option value="@cf/deepseek-ai/deepseek-r1-distill-qwen-32b">🔬 DeepSeek R1 32B (Math &amp; Reasoning)</option>
+            <option value="@cf/meta/llama-3.2-3b-instruct">🚀 Llama 3.2 3B (Ultra Fast &lt;0.8s)</option>
+            <option value="@cf/meta/llama-3.2-1b-instruct">⚡ Llama 3.2 1B (Edge Micro)</option>
+            <option value="@cf/mistral/mistral-7b-instruct-v0.1">🌪️ Mistral 7B Instruct</option>
+            <option value="@cf/google/gemma-7b-it-lora">🎯 Google Gemma 7B IT</option>
+            <option value="gateway/zhipuai/glm-4">🌐 Zhipu AI GLM-4 (Gateway)</option>
+            <option value="gateway/google/gemini-4-argon">💎 Google Gemini 4 Argon (Gateway)</option>
+</select>
     </div>
 
     <div class="drawer-body">
@@ -529,7 +533,10 @@
           <span class="modal-icon">⚖️</span>
           <h3>Active Commercial Governance Policies &amp; Rules</h3>
         </div>
-        <button id="closeRulesBtn" class="btn-close">&times;</button>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+          <button id="clearAllRulesBtn" class="btn btn-luxury-outline" style="font-size: 0.75rem; padding: 4px 10px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">🗑️ Clear All Rules</button>
+          <button id="closeRulesBtn" class="btn-close">&times;</button>
+        </div>
       </div>
       <div class="modal-body">
         <p class="modal-desc">These active policies govern all automated price and offer calculations deterministically across Cloudflare D1.</p>
