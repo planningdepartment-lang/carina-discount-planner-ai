@@ -793,9 +793,11 @@ function escapeHtml(str) {
 function formatMarkdown(text) {
   if (!text) return '';
   return text
+    .replace(/^### (.*$)/gim, '<h4 style="margin: 6px 0 10px 0; color: #f59e0b; font-family: \'Cinzel\', serif; font-size: 0.95rem; letter-spacing: 0.04em;">$1</h4>')
+    .replace(/^## (.*$)/gim, '<h3 style="margin: 8px 0 12px 0; color: #f59e0b; font-family: \'Cinzel\', serif;">$1</h3>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n\n/g, '<div style="height: 8px;"></div>')
     .replace(/\n/g, '<br>');
 }

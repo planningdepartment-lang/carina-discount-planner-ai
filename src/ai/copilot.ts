@@ -241,64 +241,98 @@ export async function handleCopilotChat(
   const lowerMsg = userMessage.toLowerCase();
   
   // Specific Intent Filters:
-  const asksForIdentity = /what is that|what is this|what is it|what is this item|what is that item|what is the item|tell me about|what kind of|what category|what product|what model|name of this|name\b/i.test(lowerMsg);
-  const asksForOffer = /offer|best offer|promo|discount|recommend|deal|rail|white friday|black friday|markdown/i.test(lowerMsg);
-  const asksForStock = /how many|stock|inventory|units|quantity|wh|store|andalus|yasmeen|jouri/i.test(lowerMsg) && !asksForIdentity && !asksForOffer;
-  const asksForPrice = /price|cost|margin|vat|floor|ticket/i.test(lowerMsg) && !asksForIdentity && !asksForOffer;
+  const asksForPerformance = /performance|sales|sell[\s-]?through|str\b|ros\b|velocity|movement|traction|how (is it|are they) selling|sold|units sold|turnover|demand/i.test(lowerMsg);
+  const asksForIdentity = /what is that|what is this|what is it|what is this item|what is that item|what is the item|tell me about|what kind of|what category|what product|what model|name of this|name\b/i.test(lowerMsg) && !asksForPerformance;
+  const asksForOffer = /offer|best offer|promo|discount|recommend|deal|rail|white friday|black friday|markdown/i.test(lowerMsg) && !asksForPerformance;
+  const asksForStock = /how many|stock|inventory|units\b|quantity|wh\b|warehouse|store|allocation|distribution|where.*stock|andalus|yasmeen|jouri/i.test(lowerMsg) && !asksForIdentity && !asksForOffer && !asksForPerformance;
+  const asksForPrice = /price|cost|cogs|margin|markup|imu|vat|floor|ticket/i.test(lowerMsg) && !asksForIdentity && !asksForOffer && !asksForPerformance;
   const asksForFullDetails = /detail|breakdown|all|everything|full|overview|card/i.test(lowerMsg) || /^\d{5}$/.test(userMessage);
 
   // If a specific style was matched
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
 
-    // Priority 1: Answer product identity/description directly
-    if (asksForIdentity && !asksForOffer && !asksForStock && !asksForFullDetails) {
+    // Priority 1: Answer Sales Performance directly
+    if (asksForPerformance && !asksForFullDetails) {
+      const paceLabel = style.cumulative_str_pct >= 60 ? 'High-Velocity Seller' : 
+                        (style.cumulative_str_pct >= 30 ? 'Steady Active Performer' : 'Slow Mover / Aging Stock');
+      const wosVal = style.weekly_ros > 0 ? (style.total_physical_stock / style.weekly_ros).toFixed(1) : '999';
+
       return {
-        reply: `Style **${style.style_code}** is **${style.product_name}** — a **${style.category}** product in the **${style.season}** collection.`,
+        reply: `### 📊 Sales Performance — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `• 🎯 **Sell-Through Rate (STR):** **${style.cumulative_str_pct}%** (${paceLabel})\n` +
+          `• ⚡ **Sales Velocity (8-Week ROS):** **${style.weekly_ros} units/week**\n` +
+          `• 📦 **Physical Inventory On-Hand:** **${style.total_physical_stock} units** (${style.sar_curve_health})\n` +
+          `• ⏳ **Store Runway:** **${wosVal} Weeks of Supply (WOS)**\n` +
+          `• 🎯 **Campaign Clearance Forecast:** **${style.forecast_sold} units** (${Math.round((style.forecast_sold / style.total_physical_stock) * 100)}% liquidation rate)\n` +
+          `• 💰 **Projected Campaign Net Margin:** **+${style.forecast_profit.toLocaleString()} SAR**\n` +
+          `• 🏷️ **Commercial Action:** **${style.recommended_offer}** (${style.discount_pct}% off) to maintain inventory rotation.`,
         mode,
         activeStyleCode: style.style_code
       };
     }
 
-    // Priority 2: Answer promotional offer / White Friday recommendations directly
+    // Priority 2: Answer product identity/description directly
+    if (asksForIdentity && !asksForOffer && !asksForStock && !asksForFullDetails) {
+      return {
+        reply: `### 🏷️ Product Information — Style **${style.style_code}**\n\n` +
+          `• **Product Name:** **${style.product_name}**\n` +
+          `• **Assortment Category:** \`${style.category}\` | **Season Collection:** \`${style.season}\`\n` +
+          `• **Catalog Pricing:** Ticket **${style.ticket_price.toFixed(2)} SAR** | Landed Cost **${style.unit_cost.toFixed(2)} SAR** (IMU: ${(((style.ticket_price - style.unit_cost) / style.ticket_price) * 100).toFixed(1)}%)\n` +
+          `• **Current Stock:** **${style.total_physical_stock} physical units** available across store physical network.`,
+        mode,
+        activeStyleCode: style.style_code
+      };
+    }
+
+    // Priority 3: Answer promotional offer / White Friday recommendations directly
     if (asksForOffer && !asksForFullDetails) {
       return {
-        reply: `Recommended promotion for Style **${style.style_code}** (*${style.product_name}*):\n\n` +
-          `• 🏷️ **Primary Clearance Offer:** **${style.recommended_offer}** at **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off ticket price of ${style.ticket_price.toFixed(2)} SAR)\n` +
+        reply: `### 🏷️ Recommended Commercial Offer — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `• 🏷️ **Primary Clearance Offer:** **${style.recommended_offer}** at **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
           `• 🛡️ **Alternative Margin Defense Offer:** **Spend 250 Save 50 (Multi-Buy Basket Pack)** to preserve full price margin while driving units.\n` +
-          `• ⚖️ **Zero-Loss Legal Compliance:** **${style.zero_loss_status}** (Promo ${style.promotional_price.toFixed(2)} SAR >= Legal Cost Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
+          `• ⚖️ **Zero-Loss Legal Compliance:** **${style.zero_loss_status}** (Promo ${style.promotional_price.toFixed(2)} SAR >= Legal Floor ${style.cost_plus_vat.toFixed(2)} SAR)\n` +
           `• 💡 **Commercial Strategy:** ${style.commercial_rationale}`,
         mode,
         activeStyleCode: style.style_code
       };
     }
 
-    // Priority 3: Answer physical inventory/stock questions
+    // Priority 4: Answer physical inventory/stock questions
     if (asksForStock && !asksForFullDetails) {
       return {
-        reply: `Style **${style.style_code}** (*${style.product_name}*) has **${style.total_physical_stock} physical units** in stock:\n` +
-          `• 🏭 Central WH: **${style.stock_wh} units**\n` +
-          `• 🏬 Al-Andalus Mall Flagship: **${style.stock_andalus} units**\n` +
-          `• 🏬 Al-Yasmeen Mall: **${style.stock_yasmeen} units**\n` +
-          `• 🏬 Jouri Mall (Taif): **${style.stock_jouri} units**`,
+        reply: `### 🏬 Physical Inventory Breakdown — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `**Total Physical Stock:** **${style.total_physical_stock} units** (${style.sar_curve_health})\n\n` +
+          `• 🏬 **Al-Andalus Mall Flagship (Jeddah):** **${style.stock_andalus} units** (${((style.stock_andalus / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `• 🏬 **Al-Yasmeen Mall (Jeddah):** **${style.stock_yasmeen} units** (${((style.stock_yasmeen / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `• 🏬 **Jouri Mall (Taif):** **${style.stock_jouri} units** (${((style.stock_jouri / style.total_physical_stock) * 100).toFixed(1)}%)\n` +
+          `• 🏭 **Central Warehouse (WH):** **${style.stock_wh} units** (${((style.stock_wh / style.total_physical_stock) * 100).toFixed(1)}%)`,
         mode,
         activeStyleCode: style.style_code
       };
     }
 
-    // Priority 4: Answer price, cost, or margin economics
+    // Priority 5: Answer price, cost, or margin economics
     if (asksForPrice && !asksForFullDetails) {
+      const imu = style.ticket_price > 0 ? (((style.ticket_price - style.unit_cost) / style.ticket_price) * 100).toFixed(1) : '0';
+      const netPromoRev = style.promotional_price / 1.15;
+      const promoMargin = netPromoRev - style.unit_cost;
+      const promoMarginPct = netPromoRev > 0 ? ((promoMargin / netPromoRev) * 100).toFixed(1) : '0';
+
       return {
-        reply: `Style **${style.style_code}** (*${style.product_name}*) Pricing Economics:\n` +
-          `• Unit Landed Cost: **${style.unit_cost.toFixed(2)} SAR**\n` +
-          `• Zero-Loss Legal Floor (Cost + 15% VAT): **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
-          `• Original Ticket Price: **${style.ticket_price.toFixed(2)} SAR**`,
+        reply: `### 💰 Pricing & Margin Economics — Style **${style.style_code}** (*${style.product_name}*)\n\n` +
+          `• 🏷️ **Original List Ticket Price:** **${style.ticket_price.toFixed(2)} SAR**\n` +
+          `• 📦 **Landed Unit Cost (COGS):** **${style.unit_cost.toFixed(2)} SAR**\n` +
+          `• ⚖️ **Saudi 15% VAT Legal Floor:** **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
+          `• 📈 **Initial Sales Markup (IMU):** **${imu}%**\n` +
+          `• 🏷️ **Recommended Promo Price:** **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
+          `• 💵 **Promo Unit Net Margin:** **+${promoMargin.toFixed(2)} SAR** (${promoMarginPct}% net margin)`,
         mode,
         activeStyleCode: style.style_code
       };
     }
 
-    // Priority 5: Full breakdown card if explicitly asked or bare 5-digit style code
+    // Priority 6: Full breakdown card if explicitly asked or bare 5-digit style code
     if (asksForFullDetails) {
       return {
         reply: formatFullStyleCard(style),
@@ -307,7 +341,7 @@ export async function handleCopilotChat(
       };
     }
 
-    // For open-ended questions about this style, run Workers AI
+    // For open-ended questions about this style, run Workers AI with complete context
     const userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.1-8b-instruct';
     if (env?.AI) {
       try {
@@ -316,16 +350,21 @@ export async function handleCopilotChat(
           `- Product Name: ${style.product_name}\n` +
           `- Category: ${style.category}\n` +
           `- Season: ${style.season}\n` +
+          `- Cumulative Sell-Through (STR): ${style.cumulative_str_pct}%\n` +
+          `- Weekly Rate of Sale (Velocity): ${style.weekly_ros} units/week\n` +
+          `- Active Size Curve: ${style.sar_curve_health}\n` +
           `- Total Physical Stock: ${style.total_physical_stock} units\n` +
-          `- Stock Breakdown: Andalus=${style.stock_andalus}, Yasmeen=${style.stock_yasmeen}, Jouri=${style.stock_jouri}, WH=${style.stock_wh}\n` +
+          `- Store Allocation: Andalus=${style.stock_andalus}, Yasmeen=${style.stock_yasmeen}, Jouri=${style.stock_jouri}, WH=${style.stock_wh}\n` +
           `- Landed Unit Cost: ${style.unit_cost.toFixed(2)} SAR\n` +
           `- Zero-Loss Floor (Cost + 15% VAT): ${style.cost_plus_vat.toFixed(2)} SAR\n` +
           `- Ticket Price: ${style.ticket_price.toFixed(2)} SAR\n` +
           `- Recommended Offer: ${style.recommended_offer}\n` +
-          `- Promotional Price: ${style.promotional_price.toFixed(2)} SAR (${style.discount_pct}% off)`;
+          `- Promotional Price: ${style.promotional_price.toFixed(2)} SAR (${style.discount_pct}% off)\n` +
+          `- Forecast Clearance: ${style.forecast_sold} units (Projected Margin: +${style.forecast_profit.toLocaleString()} SAR)\n` +
+          `- Commercial Strategy: ${style.commercial_rationale}`;
 
         const systemPrompt = `You are CARINA's Senior Merchandising Strategist in Saudi Arabia.\n` +
-          `CRITICAL INSTRUCTION: Answer ONLY what the user specifically asked using the context. Do not dump unrequested pricing tables, inventory breakdowns, or generic essays. Answer directly in 1-2 concise sentences.`;
+          `CRITICAL INSTRUCTION: Answer ONLY what the user specifically asked using the context. Keep your answer organized, professional, and directly related to the user's specific question.`;
 
         const aiPromise = env.AI.run(userModel, {
           messages: [
@@ -336,7 +375,7 @@ export async function handleCopilotChat(
           max_tokens: 250
         });
 
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 5000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 10000));
         const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
 
         if (aiResponse?.response) {
@@ -351,15 +390,20 @@ export async function handleCopilotChat(
       }
     }
 
-    // Default direct response
+    // Default organized overview card
     return {
-      reply: `Style **${style.style_code}** is **${style.product_name}** (${style.category}, ${style.season}). Total physical stock: **${style.total_physical_stock} units** (Ticket: ${style.ticket_price.toFixed(2)} SAR, Promo: ${style.promotional_price.toFixed(2)} SAR).`,
+      reply: `### 🏷️ Style **${style.style_code}** — *${style.product_name}*\n\n` +
+        `• **Assortment:** \`${style.category}\` | \`${style.season}\` | **${style.total_physical_stock} units** on-hand\n` +
+        `• **Sales Performance:** STR **${style.cumulative_str_pct}%** | Velocity **${style.weekly_ros} units/week** (${style.sar_curve_health})\n` +
+        `• **Economics:** Ticket **${style.ticket_price.toFixed(2)} SAR** | Landed Cost **${style.unit_cost.toFixed(2)} SAR** | Floor **${style.cost_plus_vat.toFixed(2)} SAR**\n` +
+        `• **Recommended Offer:** **${style.recommended_offer}** at **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n\n` +
+        `*Ask me specifically about: \`sales performance\`, \`stock breakdown\`, \`pricing\`, or \`commercial rationale\`.*\n`,
       mode,
       activeStyleCode: style.style_code
     };
   }
 
-  // 4. General assistant query (not a specific style)
+    // 4. General assistant query (not a specific style)
   if (isDataSourceQuery) {
     return {
       reply: getDataSourceResponse(),
