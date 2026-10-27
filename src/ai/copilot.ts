@@ -17,6 +17,7 @@ export interface CopilotChatResponse {
   reply: string;
   mode: AgentMode;
   activeStyleCode?: string;
+  activeStyleName?: string;
   suggestedRule?: any;
   activeModel?: string;
 }
@@ -292,13 +293,14 @@ export async function handleCopilotChat(
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
 
-    // Case A: Product or Style Lookup (e.g. user entered "50006", "59461", "Perfume Silk Dream 50ML", "i'm talking about this one Perfume Silk Dream 50ML")
-    const isAnalyticalQuery = /\b(why|how|calculate|calculation|formula|margin|cogs|vat|floor|imu|wos|runway|velocity|decongest|simulate|project)\b/i.test(lowerMsg);
-    if (!isAnalyticalQuery) {
+    // Case A: Pure Bare Style Code or Product Name Lookup (no question asked)
+    const isQuestionOrAnalysis = /\b(what|why|how|which|can|could|will|performance|selling|calculate|calculation|formula|margin|cogs|vat|floor|imu|wos|runway|velocity|decongest|simulate|project|evaluate|analyze|review)\b/i.test(lowerMsg);
+    if (!isQuestionOrAnalysis) {
       return {
         reply: formatFullStyleCard(style),
         mode,
-        activeStyleCode: style.style_code
+        activeStyleCode: style.style_code,
+        activeStyleName: style.product_name
       };
     }
 
@@ -380,6 +382,7 @@ export async function handleCopilotChat(
             reply: cleanReply,
             mode,
             activeStyleCode: style.style_code,
+            activeStyleName: style.product_name,
             activeModel: userModel
           };
         }
@@ -397,7 +400,8 @@ export async function handleCopilotChat(
               `• **Calculation:** ${style.total_physical_stock} units / ${style.weekly_ros} u/wk = **${wosVal} Weeks of Supply**\n` +
               `• **Runway Assessment:** At current sales velocity, on-hand inventory provides approximately **${(Number(wosVal) / 4.33).toFixed(1)} months** of retail coverage across store nodes without additional replenishment.`,
             mode,
-            activeStyleCode: style.style_code
+            activeStyleCode: style.style_code,
+            activeStyleName: style.product_name
           };
         }
 
@@ -416,7 +420,8 @@ export async function handleCopilotChat(
               `• **Recommended Promo Price:** **${style.promotional_price.toFixed(2)} SAR** (${style.discount_pct}% off)\n` +
               `• **Promo Unit Net Margin:** **+${promoMargin.toFixed(2)} SAR** (${promoMarginPct}% net margin)`,
             mode,
-            activeStyleCode: style.style_code
+            activeStyleCode: style.style_code,
+            activeStyleName: style.product_name
           };
         }
       }
@@ -426,18 +431,20 @@ export async function handleCopilotChat(
     return {
       reply: formatFullStyleCard(style),
       mode,
-      activeStyleCode: style.style_code
+      activeStyleCode: style.style_code,
+      activeStyleName: style.product_name
     };
   }
 
   // Case C: General assistant query (No specific style matched in context)
-  // If user asks for specific data about an unknown item without providing a code, ask for clarification
-  const asksForSpecificItem = /what is the price of this|how many.*this item|tell me about this product|what is this style|how is this selling/i.test(lowerMsg);
-  if (asksForSpecificItem) {
+  // If user asks about an unspecified style ("this style", "this item", "its performance"), ask for clarification!
+  const asksForUnspecifiedStyle = /\b(performance.*(this|the) (style|item)|(this|the) (style|item).*performance|what is the price of this|how many.*this item|tell me about this (product|style|item)|what is this style|how is this selling|evaluate this (style|item)|analyze this (style|item)|about this style|for this style)\b/i.test(lowerMsg);
+  if (asksForUnspecifiedStyle) {
     return {
       reply: `### Clarification Required\n\n` +
-        `• Please provide the 5-digit style code (e.g. \`59465\` or \`50177\`) or the exact product name.\n` +
-        `• Once specified, I will pull its physical stock across Jeddah and Taif, weekly velocity, margin economics, and zero-loss pricing rules for you.`,
+        `You asked about *"this style"*, but no specific style is currently in focus.\n\n` +
+        `• Please enter the **5-digit style code** (e.g., \`59465\`, \`50177\`, \`59461\`) or the **product name**.\n` +
+        `• Or click on any style code badge in the catalog table to immediately focus Copilot on that item.`,
       mode
     };
   }

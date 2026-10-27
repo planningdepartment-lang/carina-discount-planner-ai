@@ -1291,6 +1291,74 @@ input[type="range"]::-webkit-slider-thumb:hover {
   scroll-behavior: smooth;
 }
 
+.active-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+.active-context-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.active-context-tag {
+  font-family: var(--font-cinzel), serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.45rem;
+  background: rgba(212, 175, 55, 0.22);
+  color: var(--gold-primary);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.active-context-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-clear-context {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-clear-context:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.clickable-style-badge {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clickable-style-badge:hover {
+  background: var(--gold-primary) !important;
+  color: #0b0f19 !important;
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+
 .quick-prompts {
   display: flex;
   flex-direction: column;

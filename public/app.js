@@ -110,6 +110,19 @@ async function initApp() {
     copilotDrawer.classList.remove('open');
   });
 
+  // Active Style Context Bar & Clear
+  const activeContextBar = document.getElementById('activeContextBar');
+  const clearContextBtn = document.getElementById('clearContextBtn');
+  if (clearContextBtn) {
+    clearContextBtn.addEventListener('click', () => {
+      activeContextStyle = null;
+      if (activeContextBar) activeContextBar.style.display = 'none';
+      if (chatInput) {
+        chatInput.placeholder = 'Ask about styles, pricing, velocity, or commercial policies...';
+      }
+    });
+  }
+
   // Quick Prompt Pills
   const chatInput = document.getElementById('chatInput');
   const chatForm = document.getElementById('chatForm');
@@ -271,7 +284,7 @@ async function loadStyles() {
       const breakdown = `<span class="store-chip chip-and">AND ${metrics.stockAndalus}</span> <span class="store-chip chip-yas">YAS ${metrics.stockYasmeen}</span> <span class="store-chip chip-jou">JOU ${metrics.stockJouri}</span>`;
 
       tr.innerHTML = `
-        <td><span class="style-code-badge">${metrics.styleCode}</span></td>
+        <td><span class="style-code-badge clickable-style-badge" data-style="${metrics.styleCode}" data-name="${escapeHtml(metrics.productName)}" title="Focus Copilot on Style ${metrics.styleCode}">${metrics.styleCode}</span></td>
         <td>${metrics.productName}</td>
         <td>${metrics.category}</td>
         <td>${metrics.season}</td>
@@ -536,6 +549,38 @@ function attachTableActionListeners() {
       openOverrideModal(styleCode, name, cost, ticket, promo, offer);
     });
   });
+
+  // Style Badge -> Focus Copilot
+  document.querySelectorAll('.clickable-style-badge').forEach(badge => {
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const code = badge.getAttribute('data-style');
+      const name = badge.getAttribute('data-name');
+      focusStyleInCopilot(code, name);
+    });
+  });
+}
+
+/**
+ * Focuses the Copilot drawer on a specific style.
+ */
+function focusStyleInCopilot(code, name) {
+  activeContextStyle = code;
+  const bar = document.getElementById('activeContextBar');
+  const nameEl = document.getElementById('activeContextName');
+  if (bar && nameEl) {
+    nameEl.textContent = `Style ${code} — ${name}`;
+    bar.style.display = 'flex';
+  }
+  const drawer = document.getElementById('copilotDrawer');
+  if (drawer && !drawer.classList.contains('open')) {
+    drawer.classList.add('open');
+  }
+  const chatInput = document.getElementById('chatInput');
+  if (chatInput) {
+    chatInput.focus();
+    chatInput.placeholder = `Ask about Style ${code} (${name})...`;
+  }
 }
 
 /**
@@ -724,6 +769,18 @@ async function submitCopilotChat(message) {
 
     // Track active style code across conversation turns (or reset if not returned)
     activeContextStyle = data.activeStyleCode || null;
+    const bar = document.getElementById('activeContextBar');
+    const nameEl = document.getElementById('activeContextName');
+    if (activeContextStyle && data.activeStyleName) {
+      if (nameEl) nameEl.textContent = `Style ${activeContextStyle} — ${data.activeStyleName}`;
+      if (bar) bar.style.display = 'flex';
+      const chatInput = document.getElementById('chatInput');
+      if (chatInput) chatInput.placeholder = `Ask about Style ${activeContextStyle} (${data.activeStyleName})...`;
+    } else if (!activeContextStyle) {
+      if (bar) bar.style.display = 'none';
+      const chatInput = document.getElementById('chatInput');
+      if (chatInput) chatInput.placeholder = 'Ask about styles, pricing, velocity, or commercial policies...';
+    }
 
     // Process reply and render interactive rule execution buttons if present
     let formattedReply = formatMarkdown(data.reply);

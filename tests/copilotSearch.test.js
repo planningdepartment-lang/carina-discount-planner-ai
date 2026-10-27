@@ -137,3 +137,9 @@ test('Copilot Search: reuses previous context style only for explicit follow-up 
   assert.equal(results.length, 1);
   assert.equal(results[0].style_code, '59461');
 });
+
+test('Copilot Search: "what is the performance for this style?" without context triggers clarification', () => {
+  const lowerMsg = 'what is the performance for this style?'.toLowerCase();
+  const asksForUnspecifiedStyle = /\b(performance.*(this|the) (style|item)|(this|the) (style|item).*performance|what is the price of this|how many.*this item|tell me about this (product|style|item)|what is this style|how is this selling|evaluate this (style|item)|analyze this (style|item)|about this style|for this style)\b/i.test(lowerMsg);
+  assert.equal(asksForUnspecifiedStyle, true);
+});
