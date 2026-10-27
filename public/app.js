@@ -231,10 +231,10 @@ async function loadStyles() {
         ? '<span class="badge badge-yes">PASS</span>'
         : '<span class="badge badge-flag">FLAGGED</span>';
 
-      const breakdown = `AND:${metrics.stockAndalus} | YAS:${metrics.stockYasmeen} | JOU:${metrics.stockJouri}`;
+      const breakdown = `<span class="store-chip chip-and">AND ${metrics.stockAndalus}</span> <span class="store-chip chip-yas">YAS ${metrics.stockYasmeen}</span> <span class="store-chip chip-jou">JOU ${metrics.stockJouri}</span>`;
 
       tr.innerHTML = `
-        <td><strong>${metrics.styleCode}</strong></td>
+        <td><span class="style-code-badge">${metrics.styleCode}</span></td>
         <td>${metrics.productName}</td>
         <td>${metrics.category}</td>
         <td>${metrics.season}</td>

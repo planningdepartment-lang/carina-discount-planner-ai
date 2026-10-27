@@ -3,244 +3,389 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CARINA | Style Lifecycle Monitor & Strategic Discount Planner</title>
+  <title>CARINA | Autonomous Merchandising Radar & Strategic Discount Planner</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Global Application Header -->
+  <!-- Ambient Cosmic Grid & Glow Backdrop -->
+  <div class="cyber-ambient-bg"></div>
+
+  <!-- Global Application Futuristic Header -->
   <header class="app-header">
-    <div class="brand-group">
-      <div class="brand-logo">CARINA</div>
-      <div class="brand-titles">
-        <h1>Autonomous Style Lifecycle Monitor & Strategic Discount Planner</h1>
-        <span class="sub-text">KSA Physical Retail Store Network &bull; Live Merchandising Strategy Radar</span>
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-badge-wrap">
+          <div class="brand-logo">CARINA</div>
+          <div class="radar-status-chip">
+            <span class="radar-pulse-dot"></span>
+            <span class="radar-text">KSA RADAR LIVE // 24/7 AI</span>
+          </div>
+        </div>
+        <div class="brand-titles">
+          <h1>Autonomous Style Lifecycle Monitor &amp; Strategic Discount Planner</h1>
+          <div class="sub-text">
+            <span>KSA Physical Store Network (621 m²)</span>
+            <span class="divider-dot">&bull;</span>
+            <span class="tech-tag">QUANTUM MERCHANDISING ENGINE V2.4</span>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="nav-actions">
-      <div class="mode-select-wrap">
-        <label for="agentModeSelect">Persona:</label>
-        <select id="agentModeSelect">
-          <option value="DISCOUNT_STRATEGIST" selected>Commercial Strategist (Margin Defense)</option>
-          <option value="STORE_AUDITOR">Store Space Auditor (Decongestion)</option>
-          <option value="RULE_COMPILER">Policy Compiler (D1 Governance)</option>
-        </select>
+
+      <div class="nav-actions">
+        <div class="cyber-select-capsule">
+          <label for="agentModeSelect">PERSONA:</label>
+          <select id="agentModeSelect">
+            <option value="DISCOUNT_STRATEGIST" selected>Commercial Strategist (Margin Defense)</option>
+            <option value="STORE_AUDITOR">Store Space Auditor (Decongestion)</option>
+            <option value="RULE_COMPILER">Policy Compiler (D1 Governance)</option>
+          </select>
+        </div>
+
+        <div class="cyber-select-capsule">
+          <label for="aiModelSelect">AI CORE:</label>
+          <select id="aiModelSelect">
+            <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
+            <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
+            <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
+            <option value="@cf/mistral/mistral-7b-instruct-v0.2">⚡ Mistral 7B Instruct</option>
+            <option value="@cf/qwen/qwen1.5-14b-chat-awq">📊 Qwen 1.5 14B Chat</option>
+            <option value="@cf/google/gemma-7b-it">🎯 Google Gemma 7B IT</option>
+            <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
+          </select>
+        </div>
+
+        <button id="rulesBtn" class="btn btn-cyber-secondary">
+          <span class="btn-icon">⚖️</span>
+          <span>Governance Rules</span>
+        </button>
+
+        <button id="exportCsvBtn" class="btn btn-cyber-cyan">
+          <span class="btn-icon">📥</span>
+          <span>Export POS CSV</span>
+        </button>
+
+        <button id="toggleCopilotBtn" class="btn btn-cyber-violet">
+          <span class="btn-icon">💬</span>
+          <span>Ask Copilot</span>
+          <span class="btn-neon-spark"></span>
+        </button>
       </div>
-      <div class="mode-select-wrap">
-        <label for="aiModelSelect">AI Model:</label>
-        <select id="aiModelSelect">
-          <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
-          <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
-          <option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast">🧠 Llama 3.3 70B (Deep Reasoning)</option>
-          <option value="@cf/mistral/mistral-7b-instruct-v0.2">⚡ Mistral 7B Instruct</option>
-          <option value="@cf/qwen/qwen1.5-14b-chat-awq">📊 Qwen 1.5 14B Chat</option>
-          <option value="@cf/google/gemma-7b-it">🎯 Google Gemma 7B IT</option>
-          <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
-        </select>
-      </div>
-      <button id="rulesBtn" class="btn btn-secondary">
-        <span class="icon">⚖️</span> Governance Rules
-      </button>
-      <button id="exportCsvBtn" class="btn btn-primary">
-        <span class="icon">📥</span> Export Odoo POS CSV
-      </button>
-      <button id="toggleCopilotBtn" class="btn btn-accent">
-        <span class="icon">💬</span> Ask Copilot
-      </button>
     </div>
   </header>
 
   <main class="dashboard-container">
-    <!-- Executive 6-Card KPI Ribbon -->
+    <!-- Executive 6-Card Holographic KPI Ribbon -->
     <section class="kpi-ribbon">
       <div class="kpi-card card-cyan">
+        <div class="card-corner-tag">SYS.01 // ON-HAND</div>
         <div class="kpi-label">Total Physical Stock</div>
         <div class="kpi-value" id="kpiTotalStock">53,999</div>
         <div class="kpi-sub">Units across 4 Physical Nodes (excl. Shopify)</div>
+        <div class="card-progress-bar"><div class="fill-cyan" style="width: 82%;"></div></div>
       </div>
+
       <div class="kpi-card card-purple">
+        <div class="card-corner-tag">SYS.02 // CAPITAL</div>
         <div class="kpi-label">Cost Capital at Risk</div>
         <div class="kpi-value" id="kpiTotalCost">2,526,907 SAR</div>
         <div class="kpi-sub">Total Inventory Asset Landed Valuation</div>
+        <div class="card-progress-bar"><div class="fill-purple" style="width: 76%;"></div></div>
       </div>
+
       <div class="kpi-card card-emerald">
+        <div class="card-corner-tag">SYS.03 // YIELD</div>
         <div class="kpi-label">Projected Cash Recovery</div>
-        <div class="kpi-value" id="kpiRetailValue">1,180,450 SAR</div>
+        <div class="kpi-value" id="kpiRetailValue">3,268,517 SAR</div>
         <div class="kpi-sub">Gross Clearance Yield at Recommended Offers</div>
+        <div class="card-progress-bar"><div class="fill-emerald" style="width: 65%;"></div></div>
       </div>
+
       <div class="kpi-card card-blue">
+        <div class="card-corner-tag">SYS.04 // BENCHMARK</div>
         <div class="kpi-label">Blended Initial Markup</div>
         <div class="kpi-value" id="kpiBlendedIMU">49.7%</div>
         <div class="kpi-sub">Catalog Benchmark Baseline</div>
+        <div class="card-progress-bar"><div class="fill-blue" style="width: 49.7%;"></div></div>
       </div>
+
       <div class="kpi-card card-amber">
+        <div class="card-corner-tag">SYS.05 // RETENTION</div>
         <div class="kpi-label">Winter Reserve Protected</div>
         <div class="kpi-value" id="kpiCurveHealth">57.8%</div>
         <div class="kpi-sub">Target &ge; 57.2% Assortment Retention (Pass)</div>
+        <div class="card-progress-bar"><div class="fill-amber" style="width: 57.8%;"></div></div>
       </div>
+
       <div class="kpi-card card-green">
+        <div class="card-corner-tag">SYS.06 // LAW COMPLIANCE</div>
         <div class="kpi-label">Zero-Loss Guard Compliance</div>
         <div class="kpi-value" id="kpiZeroLoss">100% PASS</div>
         <div class="kpi-sub">0 Violations of Saudi 15% VAT Legal Floor</div>
+        <div class="card-progress-bar"><div class="fill-green" style="width: 100%;"></div></div>
       </div>
     </section>
 
-    <!-- Physical Store Density Health Cards -->
-    <section class="section-block">
+    <!-- Physical Store Space Physics (621 m² Sales Floor Network) -->
+    <section class="section-block cyber-glass-panel">
       <div class="section-header">
-        <h2>Physical Store Space Physics (621 m² Sales Floor Network)</h2>
-        <span class="tag-live">Active Floor Density Monitor</span>
+        <div class="sec-title-wrap">
+          <span class="sec-icon">🛰️</span>
+          <div>
+            <h2>Physical Store Space Physics (621 m² Sales Floor Network)</h2>
+            <span class="sec-sub">Real-Time Floor Density Telemetry &amp; Bottleneck Diagnostics</span>
+          </div>
+        </div>
+        <span class="tag-live-pulse"><span class="pulse-dot"></span> LIVE TELEMETRY</span>
       </div>
+
       <div class="density-grid">
-        <div class="store-card" id="cardAndalus">
+        <!-- Store 1: Al-Andalus -->
+        <div class="store-card store-card-healthy" id="cardAndalus">
           <div class="store-head">
-            <h3>Al-Andalus Mall Flagship</h3>
+            <div>
+              <span class="store-tech-chip">NODE // JED-01</span>
+              <h3>Al-Andalus Mall Flagship</h3>
+            </div>
             <span class="city-pill">Jeddah &bull; 260 m²</span>
           </div>
+
+          <div class="store-gauge-block">
+            <div class="gauge-meta">
+              <span>Floor Space Saturation</span>
+              <strong>95.0% (47.5 / 50.0 u/m²)</strong>
+            </div>
+            <div class="gauge-track">
+              <div class="gauge-fill gauge-fill-healthy" style="width: 95%;"></div>
+            </div>
+          </div>
+
           <div class="store-body">
             <div class="metric-row">
-              <span>On-Hand Floor Stock:</span>
-              <strong id="stockAndalus">12,346 units</strong>
+              <span class="m-lbl">On-Hand Floor Stock:</span>
+              <strong id="stockAndalus" class="m-val">12,346 units</strong>
             </div>
             <div class="metric-row">
-              <span>Current Floor Density:</span>
+              <span class="m-lbl">Current Floor Density:</span>
               <strong id="densityAndalus" class="density-val">47.5 u/m²</strong>
             </div>
             <div class="metric-row">
-              <span>Target Benchmark:</span>
-              <span>&le; 50.0 u/m² (Commercial Volume Hub)</span>
+              <span class="m-lbl">Target Benchmark:</span>
+              <span class="m-sub">&le; 50.0 u/m² (Commercial Volume Hub)</span>
             </div>
           </div>
-          <div class="store-status status-healthy" id="statusAndalus">Balanced Hub</div>
+          <div class="store-status status-healthy" id="statusAndalus">
+            <span class="status-indicator"></span> Balanced Volume Hub
+          </div>
         </div>
 
-        <div class="store-card" id="cardYasmeen">
+        <!-- Store 2: Al-Yasmeen -->
+        <div class="store-card store-card-warning" id="cardYasmeen">
           <div class="store-head">
-            <h3>Al-Yasmeen Mall</h3>
+            <div>
+              <span class="store-tech-chip">NODE // JED-02</span>
+              <h3>Al-Yasmeen Mall</h3>
+            </div>
             <span class="city-pill">Jeddah &bull; 193 m²</span>
           </div>
+
+          <div class="store-gauge-block">
+            <div class="gauge-meta">
+              <span>Floor Space Saturation</span>
+              <strong class="text-amber">112.9% (62.1 / 55.0 u/m²)</strong>
+            </div>
+            <div class="gauge-track">
+              <div class="gauge-fill gauge-fill-warning" style="width: 100%;"></div>
+            </div>
+          </div>
+
           <div class="store-body">
             <div class="metric-row">
-              <span>On-Hand Floor Stock:</span>
-              <strong id="stockYasmeen">11,978 units</strong>
+              <span class="m-lbl">On-Hand Floor Stock:</span>
+              <strong id="stockYasmeen" class="m-val">11,978 units</strong>
             </div>
             <div class="metric-row">
-              <span>Current Floor Density:</span>
+              <span class="m-lbl">Current Floor Density:</span>
               <strong id="densityYasmeen" class="density-val choke">62.1 u/m²</strong>
             </div>
             <div class="metric-row">
-              <span>Target Benchmark:</span>
-              <span>&le; 55.0 u/m² (Severe Rack Choke)</span>
+              <span class="m-lbl">Target Benchmark:</span>
+              <span class="m-sub">&le; 55.0 u/m² (Severe Rack Choke)</span>
             </div>
           </div>
-          <div class="store-status status-warning" id="statusYasmeen">Requires Liquidation</div>
+          <div class="store-status status-warning" id="statusYasmeen">
+            <span class="status-indicator"></span> Requires Urgent Liquidation
+          </div>
         </div>
 
-        <div class="store-card" id="cardJouri">
+        <!-- Store 3: Jouri Mall -->
+        <div class="store-card store-card-danger" id="cardJouri">
           <div class="store-head">
-            <h3>Jouri Mall</h3>
+            <div>
+              <span class="store-tech-chip">NODE // TAI-01</span>
+              <h3>Jouri Mall Flagship</h3>
+            </div>
             <span class="city-pill">Taif &bull; 168 m²</span>
           </div>
+
+          <div class="store-gauge-block">
+            <div class="gauge-meta">
+              <span>Floor Space Saturation</span>
+              <strong class="text-danger">113.5% (68.1 / 60.0 u/m²)</strong>
+            </div>
+            <div class="gauge-track">
+              <div class="gauge-fill gauge-fill-danger" style="width: 100%;"></div>
+            </div>
+          </div>
+
           <div class="store-body">
             <div class="metric-row">
-              <span>On-Hand Floor Stock:</span>
-              <strong id="stockJouri">11,438 units</strong>
+              <span class="m-lbl">On-Hand Floor Stock:</span>
+              <strong id="stockJouri" class="m-val">11,438 units</strong>
             </div>
             <div class="metric-row">
-              <span>Current Floor Density:</span>
+              <span class="m-lbl">Current Floor Density:</span>
               <strong id="densityJouri" class="density-val choke">68.1 u/m²</strong>
             </div>
             <div class="metric-row">
-              <span>Target Benchmark:</span>
-              <span>&le; 60.0 u/m² (Critical Clearance Bottleneck)</span>
+              <span class="m-lbl">Target Benchmark:</span>
+              <span class="m-sub">&le; 60.0 u/m² (Critical Clearance Bottleneck)</span>
             </div>
           </div>
-          <div class="store-status status-danger" id="statusJouri">Critical Bottleneck</div>
+          <div class="store-status status-danger" id="statusJouri">
+            <span class="status-indicator"></span> Critical Clearance Bottleneck
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Interactive What-If Scenario Simulator -->
-    <section class="simulator-panel">
+    <!-- Interactive Dynamic What-If Scenario Simulator -->
+    <section class="simulator-panel cyber-glass-panel">
       <div class="sim-header">
-        <div>
-          <h2>⚡ Dynamic What-If Scenario Simulator</h2>
-          <p>Model financial yield, cash profits, and store rack density in real time.</p>
+        <div class="sim-title-wrap">
+          <span class="sim-icon">⚡</span>
+          <div>
+            <h2>Dynamic What-If Scenario Simulator Engine</h2>
+            <p>Model financial yield, gross clearance cash profits, and store rack density in real time.</p>
+          </div>
         </div>
-        <button id="resetSimBtn" class="btn btn-sm btn-outline">Reset to Baseline</button>
+        <button id="resetSimBtn" class="btn btn-cyber-outline">
+          <span>↺ Reset to Baseline</span>
+        </button>
       </div>
+
       <div class="sim-controls">
         <div class="slider-group">
           <div class="slider-label-row">
-            <label for="sliderLiquidation">Target Liquidation Volume:</label>
+            <span class="slider-title">TARGET LIQUIDATION VOLUME:</span>
             <span class="slider-display" id="valLiquidation">22,550 Units (42.8%)</span>
           </div>
-          <input type="range" id="sliderLiquidation" min="5000" max="40000" step="500" value="22550">
+          <div class="slider-track-wrap">
+            <input type="range" id="sliderLiquidation" min="5000" max="40000" step="500" value="22550">
+          </div>
+          <div class="slider-ticks">
+            <span>5K Units</span>
+            <span>22.5K Baseline</span>
+            <span>40K Max Clearance</span>
+          </div>
         </div>
+
         <div class="slider-group">
           <div class="slider-label-row">
-            <label for="sliderMarginFloor">Minimum Realized Net Margin Floor:</label>
+            <span class="slider-title">MINIMUM REALIZED NET MARGIN FLOOR:</span>
             <span class="slider-display" id="valMarginFloor">48.0%</span>
           </div>
-          <input type="range" id="sliderMarginFloor" min="30" max="65" step="1" value="48">
+          <div class="slider-track-wrap">
+            <input type="range" id="sliderMarginFloor" min="30" max="65" step="1" value="48">
+          </div>
+          <div class="slider-ticks">
+            <span>30% Minimum Floor</span>
+            <span>48% Baseline Target</span>
+            <span>65% Maximum Defense</span>
+          </div>
         </div>
       </div>
+
+      <!-- Telemetry Matrix Results Ribbon -->
       <div class="sim-results-ribbon">
         <div class="sim-result-box">
-          <span class="label">Projected Cash Register Gross:</span>
-          <strong id="simGrossRev">1,103,077 SAR</strong>
+          <span class="label">PROJECTED CASH REGISTER GROSS</span>
+          <strong id="simGrossRev" class="val-num">1,103,077 SAR</strong>
+          <span class="sub-chip">Gross Consumer Spend</span>
+        </div>
+        <div class="sim-result-box highlight-emerald">
+          <span class="label">PROJECTED CASH NET PROFIT</span>
+          <strong id="simNetProfit" class="val-num text-success">+471,919 SAR</strong>
+          <span class="sub-chip chip-success">Net Margin Realization</span>
+        </div>
+        <div class="sim-result-box highlight-cyan">
+          <span class="label">REALIZED NET MARGIN</span>
+          <strong id="simRealizedMargin" class="val-num text-cyan">49.2%</strong>
+          <span class="sub-chip chip-cyan">&gt; 48.0% Floor Constraint</span>
         </div>
         <div class="sim-result-box">
-          <span class="label">Projected Cash Net Profit:</span>
-          <strong id="simNetProfit" class="text-success">471,919 SAR</strong>
+          <span class="label">RETAINED WINTER ASSORTMENT</span>
+          <strong id="simRetainedStock" class="val-num">30,182 Units</strong>
+          <span class="sub-chip">57.2% Assortment Retention</span>
         </div>
-        <div class="sim-result-box">
-          <span class="label">Realized Net Margin:</span>
-          <strong id="simRealizedMargin">49.2%</strong>
-        </div>
-        <div class="sim-result-box">
-          <span class="label">Retained Winter Stock:</span>
-          <strong id="simRetainedStock">30,182 Units (57.2%)</strong>
-        </div>
-        <div class="sim-result-box">
-          <span class="label">Post-Event Jouri Density:</span>
-          <strong id="simJouriPostDensity" class="text-info">35.4 u/m² (Clean)</strong>
+        <div class="sim-result-box highlight-blue">
+          <span class="label">POST-EVENT JOURI DENSITY</span>
+          <strong id="simJouriPostDensity" class="val-num text-info">35.4 u/m²</strong>
+          <span class="sub-chip chip-info">Decongestion Achieved</span>
         </div>
       </div>
     </section>
 
-    <!-- Master Style Table Controls -->
-    <section class="section-block">
+    <!-- Master Style Merchandising Radar Table -->
+    <section class="section-block cyber-glass-panel">
+      <div class="table-header-bar">
+        <div class="sec-title-wrap">
+          <span class="sec-icon">📊</span>
+          <div>
+            <h2>Master Style Merchandising Radar</h2>
+            <span class="sec-sub">Continuous Algorithmic Pricing, Size Curves, &amp; Dual Offer Optimizations</span>
+          </div>
+        </div>
+      </div>
+
       <div class="table-controls-bar">
         <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
           <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 59465) or Product Name...">
+          <span class="search-shortcut">CTRL + K</span>
         </div>
         <div class="filter-group">
-          <select id="filterCategory">
-            <option value="ALL">All Categories</option>
-            <option value="Bra">Bras & Lingerie</option>
-            <option value="Pant">Pants & Leggings</option>
-            <option value="Top">Tops & T-Shirts</option>
-            <option value="Short">Shorts</option>
-            <option value="Pyjama">Pyjamas, Gowns & Robes</option>
-            <option value="Cosmetics">Cosmetics & Fragrance</option>
-            <option value="Brief">Briefs, Panties & Bikinis</option>
-            <option value="Set">Sets</option>
-            <option value="Socks">Socks</option>
-            <option value="Towel">Towels & Linens</option>
-          </select>
+          <div class="cyber-select-capsule">
+            <label for="filterCategory">CATEGORY:</label>
+            <select id="filterCategory">
+              <option value="ALL">All Categories</option>
+              <option value="Bra">Bras & Lingerie</option>
+              <option value="Pant">Pants & Leggings</option>
+              <option value="Top">Tops & T-Shirts</option>
+              <option value="Short">Shorts</option>
+              <option value="Pyjama">Pyjamas, Gowns & Robes</option>
+              <option value="Cosmetics">Cosmetics & Fragrance</option>
+              <option value="Brief">Briefs, Panties & Bikinis</option>
+              <option value="Set">Sets</option>
+              <option value="Socks">Socks</option>
+              <option value="Towel">Towels & Linens</option>
+            </select>
+          </div>
 
-          <select id="filterTier">
-            <option value="ALL">All Lifecycle Tiers</option>
-            <option value="STEADY_ACTIVE">Steady Active (Spend & Save)</option>
-            <option value="HERO_CORE">Hero Core (0% Off Margin Protect)</option>
-            <option value="MATURE_SUMMER_EXIT">Mature Summer (40% Off)</option>
-            <option value="CLEARANCE_50_PCT">Clearance (50% Off Rail)</option>
-            <option value="CLEARANCE_3_FOR_99">Clearance (3 for 99 SAR)</option>
-            <option value="FRESH_WINTER">Fresh Winter (AW26 Protected)</option>
-          </select>
+          <div class="cyber-select-capsule">
+            <label for="filterTier">TIER:</label>
+            <select id="filterTier">
+              <option value="ALL">All Lifecycle Tiers</option>
+              <option value="STEADY_ACTIVE">Steady Active (Spend & Save)</option>
+              <option value="HERO_CORE">Hero Core (0% Off Margin Protect)</option>
+              <option value="MATURE_SUMMER_EXIT">Mature Summer (40% Off)</option>
+              <option value="CLEARANCE_50_PCT">Clearance (50% Off Rail)</option>
+              <option value="CLEARANCE_3_FOR_99">Clearance (3 for 99 SAR)</option>
+              <option value="FRESH_WINTER">Fresh Winter (AW26 Protected)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -270,7 +415,12 @@
           </thead>
           <tbody id="stylesTableBody">
             <tr>
-              <td colspan="17" class="loading-cell">Loading style master records from Cloudflare D1...</td>
+              <td colspan="17" class="loading-cell">
+                <div class="table-loader-wrap">
+                  <span class="cyber-spinner"></span>
+                  <span>Synchronizing style telemetry from Cloudflare D1...</span>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -278,10 +428,10 @@
 
       <!-- Pagination -->
       <div class="pagination-bar">
-        <span id="pageInfo">Showing styles 1 to 50</span>
+        <span id="pageInfo" class="page-info-tag">Showing styles 1 to 50</span>
         <div class="page-btns">
-          <button id="prevPageBtn" class="btn btn-sm btn-outline">Previous</button>
-          <button id="nextPageBtn" class="btn btn-sm btn-outline">Next</button>
+          <button id="prevPageBtn" class="btn btn-cyber-sm">← Previous</button>
+          <button id="nextPageBtn" class="btn btn-cyber-sm">Next →</button>
         </div>
       </div>
     </section>
@@ -291,13 +441,17 @@
   <aside class="copilot-drawer" id="copilotDrawer">
     <div class="drawer-header">
       <div class="drawer-title">
-        <span class="icon">🤖</span>
-        <h3>CARINA Merchandising Copilot</h3>
+        <span class="ai-avatar-spark">⚡</span>
+        <div>
+          <h3>CARINA Merchandising Copilot</h3>
+          <span class="drawer-status-chip"><span class="chip-dot"></span> NEURAL STRATEGIST ACTIVE</span>
+        </div>
       </div>
       <button id="closeCopilotBtn" class="btn-close">&times;</button>
     </div>
+
     <div class="drawer-model-bar">
-      <span>AI Engine Model:</span>
+      <span>AI ENGINE MODEL:</span>
       <select id="drawerModelSelect">
         <option value="auto" selected>⚡ Auto (Fast Balanced)</option>
         <option value="@cf/meta/llama-3.1-8b-instruct">🚀 Llama 3.1 8B (Fast &lt;1.5s)</option>
@@ -308,43 +462,49 @@
         <option value="@cf/meta/llama-3-8b-instruct">⚙️ Llama 3 8B</option>
       </select>
     </div>
+
     <div class="drawer-body">
       <div class="quick-prompts">
-        <span class="quick-title">Quick Prompts:</span>
+        <span class="quick-title">EXECUTIVE QUICK PROMPTS:</span>
         <button class="pill-btn" data-prompt="What is the recommended offer for style 59465?">Offer for Style 59465?</button>
         <button class="pill-btn" data-prompt="How do we decongest Jouri Mall in Taif before December cold weather?">Decongest Jouri Mall</button>
         <button class="pill-btn" data-prompt="Exclude all fresh Winter AW26 styles from any promotion">Exclude AW26</button>
         <button class="pill-btn" data-prompt="Cap discount on bras at 25%">Cap Bra Discount at 25%</button>
       </div>
+
       <div class="chat-history" id="chatHistory">
         <div class="chat-bubble ai">
-          <strong>CARINA Merchandising Strategist:</strong>
+          <div class="chat-sender">CARINA Merchandising Strategist</div>
           <p>Hello! I am your CARINA Merchandising Strategist. Ask me about style pricing, store inventory in Jeddah and Taif, promotional recommendations, or submit commercial governance rules.</p>
         </div>
       </div>
     </div>
+
     <div class="drawer-footer">
       <form id="chatForm">
         <input type="text" id="chatInput" placeholder="Ask about styles, floor density, or add new rules..." autocomplete="off">
-        <button type="submit" class="btn btn-primary">Send</button>
+        <button type="submit" class="btn btn-cyber-primary">Send</button>
       </form>
     </div>
   </aside>
 
   <!-- Governance Rules Modal -->
   <div class="modal-overlay" id="rulesModal">
-    <div class="modal-dialog">
+    <div class="modal-dialog cyber-modal">
       <div class="modal-header">
-        <h3>⚖️ Active Governance Policies & Rules</h3>
+        <div class="modal-title-wrap">
+          <span class="modal-icon">⚖️</span>
+          <h3>Active Commercial Governance Policies &amp; Rules</h3>
+        </div>
         <button id="closeRulesBtn" class="btn-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-desc">These active policies govern all automated price and offer calculations deterministically.</p>
+        <p class="modal-desc">These active policies govern all automated price and offer calculations deterministically across Cloudflare D1.</p>
         <div class="rules-list" id="activeRulesList">
           <!-- Populated dynamically -->
         </div>
 
-        <hr>
+        <hr class="cyber-divider">
         <h4>Add New Dynamic Business Requirement</h4>
         <form id="newRuleForm" class="new-rule-form">
           <div class="form-row">
@@ -365,7 +525,7 @@
             </select>
             <input type="text" id="ruleValue" placeholder="Value (e.g. 20.0)" required>
           </div>
-          <button type="submit" class="btn btn-primary">Activate Rule in D1</button>
+          <button type="submit" class="btn btn-cyber-primary">Activate Rule in D1</button>
         </form>
       </div>
     </div>
@@ -373,9 +533,12 @@
 
   <!-- Offer Override Modal -->
   <div class="modal-overlay" id="overrideModal">
-    <div class="modal-dialog">
+    <div class="modal-dialog cyber-modal">
       <div class="modal-header">
-        <h3>✏️ Manual Offer Override</h3>
+        <div class="modal-title-wrap">
+          <span class="modal-icon">✏️</span>
+          <h3>Manual Offer Override &amp; POS Adjustment</h3>
+        </div>
         <button id="closeOverrideBtn" class="btn-close">&times;</button>
       </div>
       <div class="modal-body">
@@ -387,7 +550,7 @@
           <input type="hidden" id="overrideStyleCode">
           <div class="form-group" style="margin-bottom: 1rem;">
             <label for="overrideOfferSelect"><strong>Select Promotional Strategy:</strong></label>
-            <select id="overrideOfferSelect" class="form-select" style="width: 100%; padding: 0.5rem; margin-top: 0.3rem;">
+            <select id="overrideOfferSelect" class="form-select cyber-input" style="width: 100%; margin-top: 0.3rem;">
               <option value="Take 3 For 99 SAR Rail (33 SAR/u)">Take 3 For 99 SAR Rail (33.00 SAR/u)</option>
               <option value="50% Off Dedicated Clearance Rail">50% Off Dedicated Clearance Rail</option>
               <option value="Category Markdown 40% Off">Category Markdown 40% Off</option>
@@ -399,16 +562,16 @@
 
           <div class="form-group" style="margin-bottom: 1rem;">
             <label for="overridePriceInput"><strong>Promotional Price (SAR):</strong></label>
-            <input type="number" step="0.5" id="overridePriceInput" class="form-control" style="width: 100%; padding: 0.5rem; margin-top: 0.3rem;" required>
+            <input type="number" step="0.5" id="overridePriceInput" class="form-control cyber-input" style="width: 100%; margin-top: 0.3rem;" required>
           </div>
 
-          <div id="zeroLossAlert" class="alert-box" style="display: none; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
+          <div id="zeroLossAlert" class="alert-box" style="display: none; padding: 0.85rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
             <!-- Warning if price < Cost * 1.15 -->
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-            <button type="button" id="cancelOverrideBtn" class="btn btn-secondary">Cancel</button>
-            <button type="submit" id="saveOverrideBtn" class="btn btn-primary">Save & Apply to POS</button>
+          <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" id="cancelOverrideBtn" class="btn btn-cyber-secondary">Cancel</button>
+            <button type="submit" id="saveOverrideBtn" class="btn btn-cyber-primary">Save &amp; Apply to POS</button>
           </div>
         </form>
       </div>
