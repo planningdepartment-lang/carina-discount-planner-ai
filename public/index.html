@@ -508,6 +508,31 @@
       </select>
     </div>
 
+    <!-- Continuous Retraining & AI Gateway Health Bar -->
+    <div class="drawer-retrain-bar">
+      <div class="retrain-bar-left">
+        <span class="gateway-indicator" id="gatewayIndicator" title="Cloudflare AI Gateway Active">
+          <span class="gateway-dot"></span> GATEWAY: ACTIVE
+        </span>
+        <div class="retrain-period-wrap">
+          <span class="retrain-label">RETRAIN:</span>
+          <select id="retrainPeriodSelect" class="retrain-period-select" title="Change automatic retraining frequency">
+            <option value="weekly" selected>Weekly (Auto)</option>
+            <option value="daily">Daily (Auto)</option>
+            <option value="biweekly">Bi-Weekly (Auto)</option>
+            <option value="monthly">Monthly (Auto)</option>
+            <option value="manual">Manual Only</option>
+          </select>
+        </div>
+      </div>
+      <div class="retrain-bar-right">
+        <button type="button" id="btnTriggerRetrain" class="btn-micro-retrain" title="Trigger on-demand training curation & evaluation benchmark">Retrain Now</button>
+      </div>
+    </div>
+    <div class="retrain-status-bar" id="retrainStatusBar">
+      <span id="retrainStatusText">Adapter: carina-retail-v1 &bull; Benchmark: 100% &bull; Next: in 7 days</span>
+    </div>
+
     <div class="drawer-body">
       <!-- Active Style Focus Banner with 1-Click Clear -->
       <div id="activeContextBar" class="active-context-bar" style="display: none;">

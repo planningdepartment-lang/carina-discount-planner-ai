@@ -13,6 +13,11 @@ database_id = "7cf6d49e-e9cc-421b-8a80-b63af95bb063"
 [ai]
 binding = "AI"
 
+# Environment Variables & AI Gateway
+[vars]
+AI_GATEWAY_ID = "carina-ai-gateway"
+LORA_ADAPTER_NAME = "carina-retail-v1"
+
 # Static Assets for Pages Dashboard
 [assets]
 directory = "./public"
@@ -21,6 +26,10 @@ binding = "ASSETS"
 # Development Environment
 [env.dev]
 name = "carina-discount-planner-ai-dev"
+
+[env.dev.vars]
+AI_GATEWAY_ID = "carina-ai-gateway"
+LORA_ADAPTER_NAME = "carina-retail-v1"
 
 [[env.dev.d1_databases]]
 binding = "DB"

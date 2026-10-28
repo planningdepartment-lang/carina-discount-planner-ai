@@ -349,11 +349,22 @@ function sanitizeAiResponse(raw: string, style?: D1StyleSnapshotRow): string {
     text = `### Commercial Assessment — Style **${style.style_code}** (*${style.product_name}*)\n\n${text}`;
   }
 
+  // 5. Zero-Loss Regulatory Safety Clamp: Enforce Saudi 15% VAT minimum price invariant
+  if (style && style.cost_plus_vat > 0) {
+    const priceMatch = text.match(/(?:sell|price|promo|offer)\s*(?:at|for|to)?\s*(\d+(?:\.\d+)?)\s*SAR/i);
+    if (priceMatch) {
+      const proposedPrice = parseFloat(priceMatch[1]);
+      if (proposedPrice < style.cost_plus_vat && !/prohibited|violation|illegal|below floor/i.test(text)) {
+        text += `\n\n• **Prohibited Action Warning:** A promotional price of ${proposedPrice.toFixed(2)} SAR violates Saudi 15% VAT regulations (below landed cost + 15% VAT). Mandatory legal floor is **${style.cost_plus_vat.toFixed(2)} SAR**.`;
+      }
+    }
+  }
+
   return text.trim();
 }
 
 export async function handleCopilotChat(
-  env: { AI?: any; DB?: D1Database },
+  env: { AI?: any; DB?: D1Database; AI_GATEWAY_ID?: string; LORA_ADAPTER_NAME?: string },
   request: CopilotChatRequest
 ): Promise<CopilotChatResponse> {
   const mode = request.mode || 'DISCOUNT_STRATEGIST';
@@ -493,7 +504,14 @@ export async function handleCopilotChat(
     }
 
     // Case C: Analytical, reasoning, or calculation questions routed to Workers AI
-    let userModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+    const isMathOrAudit = /\b(formula|calculate|derivation|math|break-even|breakeven|runway|wos|str|ros|imu|margin|floor|vat|proof|zero-loss)\b/i.test(lowerMsg);
+
+    let userModel = request.model && request.model !== 'auto' ? request.model : undefined;
+    if (!userModel) {
+      userModel = isMathOrAudit 
+        ? '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b' 
+        : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+    }
 
     if (env?.AI) {
       try {
@@ -549,17 +567,48 @@ export async function handleCopilotChat(
           `2. STRICT TOPIC RELEVANCE: Answer ONLY what is asked. Do not over-expose unrequested telemetry.\n` +
           `3. PROHIBITED ACTIONS: If the user proposes a price or action that violates Saudi regulations (Price < Cost x 1.15) or commercial governance, explicitly state that it is PROHIBITED, explain why with exact numbers, and give the compliant alternative.`;
 
-        const aiPromise = env.AI.run(userModel, {
+        const aiPayload: any = {
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: `${styleContext}\n\nUser Question: "${userMessage}"` }
           ],
-          temperature: 0.15,
-          max_tokens: 220
-        });
+          temperature: isMathOrAudit ? 0.08 : 0.15,
+          top_p: 0.90,
+          top_k: 40,
+          repetition_penalty: 1.15,
+          seed: 42,
+          max_tokens: isMathOrAudit ? 160 : 250
+        };
+
+        if (env?.LORA_ADAPTER_NAME) {
+          aiPayload.lora = env.LORA_ADAPTER_NAME;
+        }
+
+        const gatewayOptions = env?.AI_GATEWAY_ID ? {
+          gateway: {
+            id: env.AI_GATEWAY_ID,
+            skipCache: false,
+            cacheTtl: 3600
+          }
+        } : undefined;
+
+        const executeAiRun = async () => {
+          if (gatewayOptions) {
+            try {
+              return await env.AI.run(userModel, aiPayload, gatewayOptions);
+            } catch (gwErr: any) {
+              if (gwErr?.message?.includes('AI Gateway') || gwErr?.message?.includes('2001')) {
+                console.warn('AI Gateway not active in dashboard, falling back to direct Workers AI:', gwErr?.message);
+                return await env.AI.run(userModel, aiPayload);
+              }
+              throw gwErr;
+            }
+          }
+          return await env.AI.run(userModel, aiPayload);
+        };
 
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));
-        const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
+        const aiResponse: any = await Promise.race([executeAiRun(), timeoutPromise]);
 
         const textReply = aiResponse?.response || 
                           aiResponse?.choices?.[0]?.message?.content || 
@@ -656,7 +705,14 @@ export async function handleCopilotChat(
 
   // For any general retail question, calculation, methodology, or commercial check:
   // RUN WORKERS AI WITH GENERAL RETAIL TELEMETRY!
-  let genModel = request.model && request.model !== 'auto' ? request.model : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+  const isGeneralMath = /\b(formula|calculate|math|proof|vat|floor|derivation)\b/i.test(lowerMsg);
+  let genModel = request.model && request.model !== 'auto' ? request.model : undefined;
+  if (!genModel) {
+    genModel = isGeneralMath 
+      ? '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b' 
+      : '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+  }
+
   if (env?.AI) {
     try {
       const generalContext = `[CARINA Commercial & Retail Architecture Telemetry]:\n` +
@@ -702,17 +758,48 @@ export async function handleCopilotChat(
         `4. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
         `5. STRICT EXECUTIVE ORGANIZATION: Always structure your response with a clean Markdown title header and organized bullet points (•) with bold category labels. NEVER output a continuous unformatted block of text. Under 180 words. Strictly NO emojis or unicode icons in your output.`;
 
-      const aiPromise = env.AI.run(genModel, {
+      const genPayload: any = {
         messages: [
           { role: 'system', content: generalSystemPrompt },
           { role: 'user', content: `${generalContext}\n\nUser Question: "${userMessage}"` }
         ],
-        temperature: 0.15,
-        max_tokens: 220
-      });
+        temperature: isGeneralMath ? 0.08 : 0.15,
+        top_p: 0.90,
+        top_k: 40,
+        repetition_penalty: 1.15,
+        seed: 42,
+        max_tokens: isGeneralMath ? 180 : 280
+      };
+
+      if (env?.LORA_ADAPTER_NAME) {
+        genPayload.lora = env.LORA_ADAPTER_NAME;
+      }
+
+      const gatewayOptions = env?.AI_GATEWAY_ID ? {
+        gateway: {
+          id: env.AI_GATEWAY_ID,
+          skipCache: false,
+          cacheTtl: 3600
+        }
+      } : undefined;
+
+      const executeGenRun = async () => {
+        if (gatewayOptions) {
+          try {
+            return await env.AI.run(genModel, genPayload, gatewayOptions);
+          } catch (gwErr: any) {
+            if (gwErr?.message?.includes('AI Gateway') || gwErr?.message?.includes('2001')) {
+              console.warn('AI Gateway not active in dashboard, falling back to direct Workers AI:', gwErr?.message);
+              return await env.AI.run(genModel, genPayload);
+            }
+            throw gwErr;
+          }
+        }
+        return await env.AI.run(genModel, genPayload);
+      };
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));
-      const aiResponse: any = await Promise.race([aiPromise, timeoutPromise]);
+      const aiResponse: any = await Promise.race([executeGenRun(), timeoutPromise]);
 
       const textReply = aiResponse?.response || 
                         aiResponse?.choices?.[0]?.message?.content || 
