@@ -53,6 +53,12 @@
         <button id="toggleCopilotBtn" class="btn btn-luxury-ruby">
           <span>Ask Copilot</span>
         </button>
+
+        <div id="adminUserPill" class="admin-user-pill" style="display: none;">
+          <span class="admin-user-avatar">A</span>
+          <span id="adminUserEmail" class="admin-user-email">admin@carinawear.com</span>
+          <button id="logoutBtn" class="btn-logout" title="Log Out from Admin Portal">Log Out</button>
+        </div>
       </div>
     </div>
   </header>
@@ -407,6 +413,25 @@
               <option value="CLEARANCE_3_FOR_99">Clearance (3 for 99 SAR)</option>
               <option value="FRESH_WINTER">Fresh Winter (AW26 Protected)</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Table Controls Bar (Dual Pagination & Page Size) -->
+      <div class="table-top-bar">
+        <div class="table-page-size-wrap">
+          <span class="page-size-label">SHOW:</span>
+          <div class="page-size-btns">
+            <button class="btn-size-pill active" data-size="15">15 Styles</button>
+            <button class="btn-size-pill" data-size="25">25 Styles</button>
+            <button class="btn-size-pill" data-size="50">50 Styles</button>
+          </div>
+        </div>
+        <div class="top-pagination">
+          <span id="topPageInfo" class="page-info-pill">Showing styles 1 to 15 of 1,477</span>
+          <div class="page-controls">
+            <button id="topPrevPageBtn" class="btn btn-luxury-sm">&larr; Prev</button>
+            <button id="topNextPageBtn" class="btn btn-luxury-sm">Next &rarr;</button>
           </div>
         </div>
       </div>

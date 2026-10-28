@@ -18,10 +18,11 @@ binding = "AI"
 AI_GATEWAY_ID = "carina-ai-gateway"
 LORA_ADAPTER_NAME = "carina-retail-v1"
 
-# Static Assets for Pages Dashboard
+# Static Assets for Pages Dashboard with Worker Route Guard
 [assets]
 directory = "./public"
 binding = "ASSETS"
+run_worker_first = true
 
 # Development Environment
 [env.dev]
@@ -42,3 +43,4 @@ binding = "AI"
 [env.dev.assets]
 directory = "./public"
 binding = "ASSETS"
+run_worker_first = true

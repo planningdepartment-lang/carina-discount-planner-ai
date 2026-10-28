@@ -1,10 +1,41 @@
+// Global fetch interceptor to catch 401 Unauthorized and redirect to login
+const originalFetch = window.fetch;
+window.fetch = async function(...args) {
+  const response = await originalFetch.apply(this, args);
+  if (response.status === 401 && !window.location.pathname.endsWith('/login.html')) {
+    window.location.href = '/login.html';
+  }
+  return response;
+};
+
+async function checkAdminAuth() {
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok || !data.authenticated) {
+      window.location.href = '/login.html';
+      return false;
+    }
+    const pill = document.getElementById('adminUserPill');
+    const emailEl = document.getElementById('adminUserEmail');
+    if (pill && emailEl) {
+      emailEl.textContent = data.admin?.email || 'admin@carinawear.com';
+      pill.style.display = 'inline-flex';
+    }
+    return true;
+  } catch (err) {
+    console.error('Auth check error:', err);
+    return false;
+  }
+}
+
 /**
  * CARINA Autonomous Style Lifecycle Monitor & Strategic Discount Planner
  * Haute-Couture Merchandising Controller & Analytical Engine
  */
 
 let currentPage = 1;
-const pageSize = 50;
+let pageSize = 15;
 let debounceTimer = null;
 let activeContextStyle = null; // Session memory for Copilot multi-turn chat
 
@@ -13,6 +44,32 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initApp() {
+  const isAuthed = await checkAdminAuth();
+  if (!isAuthed) return;
+
+  // Logout button binding
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch (e) {}
+      window.location.href = '/login.html';
+    });
+  }
+
+  // Page Size selector buttons
+  document.querySelectorAll('.btn-size-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-size-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      pageSize = parseInt(btn.getAttribute('data-size')) || 15;
+      currentPage = 1;
+      loadStyles();
+      resetTableScroll();
+    });
+  });
+
   loadSummary();
   loadStyles();
   initRetrainingAndGateway();
@@ -28,17 +85,20 @@ async function initApp() {
     debounceTimer = setTimeout(() => {
       currentPage = 1;
       loadStyles();
+      resetTableScroll();
     }, 250);
   });
 
   filterCategory.addEventListener('change', () => {
     currentPage = 1;
     loadStyles();
+    resetTableScroll();
   });
 
   filterTier.addEventListener('change', () => {
     currentPage = 1;
     loadStyles();
+    resetTableScroll();
   });
 
   // Clear All Filters
@@ -52,17 +112,29 @@ async function initApp() {
     });
   }
 
-  // Pagination
-  document.getElementById('prevPageBtn').addEventListener('click', () => {
+  // Dual Pagination Controls (Top & Bottom synchronized)
+  function handlePrev() {
     if (currentPage > 1) {
       currentPage--;
       loadStyles();
+      resetTableScroll();
     }
-  });
+  }
 
-  document.getElementById('nextPageBtn').addEventListener('click', () => {
+  function handleNext() {
     currentPage++;
     loadStyles();
+    resetTableScroll();
+  }
+
+  ['prevPageBtn', 'topPrevPageBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', handlePrev);
+  });
+
+  ['nextPageBtn', 'topNextPageBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', handleNext);
   });
 
   // What-If Sliders
@@ -367,7 +439,25 @@ async function loadStyles() {
 
     const startIdx = (currentPage - 1) * pageSize + 1;
     const endIdx = Math.min(result.total, currentPage * pageSize);
-    document.getElementById('pageInfo').textContent = `Showing styles ${startIdx} to ${endIdx} of ${result.total}`;
+    const pageText = `Showing styles ${startIdx} to ${endIdx} of ${result.total}`;
+    
+    const pageInfo = document.getElementById('pageInfo');
+    if (pageInfo) pageInfo.textContent = pageText;
+    const topPageInfo = document.getElementById('topPageInfo');
+    if (topPageInfo) topPageInfo.textContent = pageText;
+
+    const prevDisabled = currentPage <= 1;
+    const nextDisabled = endIdx >= result.total;
+
+    ['prevPageBtn', 'topPrevPageBtn'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.disabled = prevDisabled;
+    });
+
+    ['nextPageBtn', 'topNextPageBtn'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.disabled = nextDisabled;
+    });
 
     // Attach event listeners for calculation popovers and overrides
     attachTableActionListeners();
@@ -473,10 +563,12 @@ function attachTableActionListeners() {
         }
       }
 
-      // Financial & Leverage Economics Calculations
-      const imuPct = ticket > 0 ? (((ticket - cost) / ticket) * 100) : 0;
-      
+      // Financial & Leverage Economics Calculations (Strictly Ex-VAT)
       const origNetRev = ticket / 1.15;
+      const costMultiplier = cost > 0 ? (origNetRev / cost).toFixed(2) : '0.00';
+      const netMarkupPct = cost > 0 ? (((origNetRev - cost) / cost) * 100).toFixed(1) : '0.0';
+      const netImuPct = origNetRev > 0 ? (((origNetRev - cost) / origNetRev) * 100).toFixed(1) : '0.0';
+
       const origMargin = origNetRev - cost;
       const origMarginPct = origNetRev > 0 ? ((origMargin / origNetRev) * 100) : 0;
 
@@ -742,16 +834,18 @@ function attachTableActionListeners() {
             </div>
           </div>
 
-          <!-- Card 4: Cost Structure & Catalog Initial Markup (IMU) -->
+          <!-- Card 4: Cost Structure & Catalog Pricing (Strictly Ex-VAT) -->
           <div class="popover-card">
             <div class="popover-card-header">
               <span class="popover-card-title">[COST STRUCTURE & CATALOG PRICING]</span>
-              <span class="popover-criteria-badge badge-green">IMU: ${imuPct.toFixed(1)}%</span>
+              <span class="popover-criteria-badge badge-green">MARKUP: ${costMultiplier}x</span>
             </div>
             <div class="pop-row"><span>Landed Unit Cost (COGS):</span><strong>${cost.toFixed(2)} SAR</strong></div>
             <div class="pop-row"><span>Saudi 15% VAT Legal Floor:</span><strong>${floor.toFixed(2)} SAR</strong></div>
             <div class="pop-row"><span>Original List Ticket Price:</span><strong>${ticket.toFixed(2)} SAR</strong></div>
-            <div class="pop-row"><span>Initial Sales Markup (IMU):</span><strong class="text-gold">${imuPct.toFixed(1)}%</strong></div>
+            <div class="pop-row"><span>Net Selling Price (Ex-VAT):</span><strong>${origNetRev.toFixed(2)} SAR</strong></div>
+            <div class="pop-row"><span>Cost Markup Multiplier:</span><strong class="text-gold">${costMultiplier}x (+${netMarkupPct}% on cost)</strong></div>
+            <div class="pop-row"><span>Initial Net Margin (IMU):</span><strong class="text-gold">${netImuPct}% (ex-VAT Net Margin)</strong></div>
             <div class="pop-row highlight">
               <span>Recommended Promo Price:</span>
               <strong class="text-gold">${promo.toFixed(2)} SAR (${discount}% off)</strong>
@@ -1634,4 +1728,9 @@ async function initRetrainingAndGateway() {
   } catch (e) {
     // Graceful fallback
   }
+}
+
+function resetTableScroll() {
+  const container = document.querySelector('.table-container');
+  if (container) container.scrollTop = 0;
 }

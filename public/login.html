@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CARINA | Admin Authentication</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 20%, rgba(212, 175, 55, 0.08) 0%, rgba(8, 11, 20, 0.98) 70%);
+      padding: 1.5rem;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 440px;
+      background: rgba(14, 18, 30, 0.92);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid var(--border-gold);
+      border-radius: 16px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px var(--gold-glow);
+      padding: 2.5rem 2rem;
+      animation: popoverFadeIn 0.3s ease-out;
+    }
+
+    .login-brand {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .login-logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #be123c 0%, #d4af37 100%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(190, 18, 60, 0.4);
+      margin-bottom: 1rem;
+    }
+
+    .login-title {
+      font-family: var(--font-serif);
+      font-size: 1.45rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 0.35rem;
+    }
+
+    .login-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .form-group label {
+      font-size: 0.725rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--gold-champagne);
+    }
+
+    .form-input {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      color: #fff;
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: var(--gold-primary);
+      background: rgba(212, 175, 55, 0.05);
+      box-shadow: 0 0 12px var(--gold-glow);
+    }
+
+    .login-btn {
+      background: linear-gradient(135deg, var(--gold-primary) 0%, var(--gold-champagne) 100%);
+      color: #0b0f19;
+      border: none;
+      border-radius: 8px;
+      padding: 0.85rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 0.5rem;
+    }
+
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+    }
+
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .login-error {
+      display: none;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      border-radius: 6px;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.8rem;
+      color: #f87171;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .login-footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-brand">
+      <div class="login-logo">C</div>
+      <h1 class="login-title">CARINA</h1>
+      <span class="login-sub">Admin Merchandising Intelligence</span>
+    </div>
+
+    <div id="loginError" class="login-error"></div>
+
+    <form id="loginForm" class="login-form">
+      <div class="form-group">
+        <label for="adminEmail">Corporate Email</label>
+        <input type="email" id="adminEmail" class="form-input" placeholder="admin@carinawear.com" required autocomplete="username" autofocus>
+      </div>
+
+      <div class="form-group">
+        <label for="adminPassword">Admin Password</label>
+        <input type="password" id="adminPassword" class="form-input" placeholder="••••••••••••" required autocomplete="current-password">
+      </div>
+
+      <button type="submit" id="submitBtn" class="login-btn">Authenticate &amp; Enter Dashboard</button>
+    </form>
+
+    <div class="login-footer">
+      <span>Protected by Enterprise Session Authentication &bull; Saudi KSA Network</span>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const emailInput = document.getElementById('adminEmail');
+    const passwordInput = document.getElementById('adminPassword');
+    const errorBox = document.getElementById('loginError');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Verifying credentials...';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: emailInput.value.trim(),
+            password: passwordInput.value
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          submitBtn.textContent = 'Authorized! Redirecting...';
+          window.location.href = '/';
+        } else {
+          errorBox.textContent = data.error || 'Authentication failed. Please verify credentials.';
+          errorBox.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Authenticate & Enter Dashboard';
+        }
+      } catch (err) {
+        errorBox.textContent = 'Connection error. Please try again.';
+        errorBox.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Authenticate & Enter Dashboard';
+      }
+    });
+  </script>
+</body>
+</html>

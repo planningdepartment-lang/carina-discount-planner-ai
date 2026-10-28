@@ -12,17 +12,21 @@ import {
   handleCopilotFeedback 
 } from './api/retrainingController';
 import { handleGatewayValidation } from './api/gatewayController';
+import { handleLogin, handleLogout, handleMe } from './api/authController';
+import { parseCookies, validateAdminSession, COOKIE_NAME } from './auth/adminAuth';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
 
-    // Standard CORS headers for cross-origin and local testing
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+    // Standard CORS headers supporting credentials
+    const origin = request.headers.get('Origin') || '';
+    const corsHeaders: Record<string, string> = {
+      'Access-Control-Allow-Origin': origin || '*',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true'
     };
 
     if (request.method === 'OPTIONS') {
@@ -30,6 +34,42 @@ export default {
     }
 
     try {
+      // 0. Public Authentication Endpoints
+      if (pathname === '/api/auth/login' && request.method === 'POST') {
+        return await handleLogin(request, env, corsHeaders);
+      }
+      if (pathname === '/api/auth/logout' && request.method === 'POST') {
+        return await handleLogout(request, env, corsHeaders);
+      }
+      if (pathname === '/api/auth/me' && request.method === 'GET') {
+        return await handleMe(request, env, corsHeaders);
+      }
+
+      // Check Admin Session Authentication
+      const cookies = parseCookies(request.headers.get('Cookie'));
+      const authHeader = request.headers.get('Authorization') || '';
+      const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      const sessionId = cookies[COOKIE_NAME] || bearerToken;
+
+      let isAuthenticated = false;
+      if (sessionId && env.DB) {
+        const sessionCheck = await validateAdminSession(env.DB, sessionId);
+        isAuthenticated = sessionCheck.isValid;
+      }
+
+      // Gatekeeper: Block unauthenticated requests to protected /api/* endpoints
+      if (pathname.startsWith('/api/')) {
+        if (!isAuthenticated) {
+          return new Response(JSON.stringify({ 
+            error: 'Unauthorized: Admin authentication required', 
+            authenticated: false 
+          }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+      }
+
       // 1. Diagnostic AI & AI Gateway validation endpoints
       if (pathname === '/api/gateway/validate' && request.method === 'GET') {
         return await handleGatewayValidation(request, env, corsHeaders);
@@ -102,8 +142,18 @@ export default {
         return await handleExportPosCsv(request, env, corsHeaders);
       }
 
-      // 9. Static Assets (UI Dashboard)
+      // 9. Static Assets & Dashboard UI Gatekeeper
       if (env.ASSETS) {
+        // If unauthenticated user accesses dashboard root -> Redirect to /login.html
+        if (!isAuthenticated && (pathname === '/' || pathname === '/index.html')) {
+          return Response.redirect(new URL('/login.html', request.url).toString(), 302);
+        }
+
+        // If authenticated user visits login page -> Redirect to dashboard root
+        if (isAuthenticated && pathname === '/login.html') {
+          return Response.redirect(new URL('/', request.url).toString(), 302);
+        }
+
         return await env.ASSETS.fetch(request);
       }
 
