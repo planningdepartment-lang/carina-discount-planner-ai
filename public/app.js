@@ -103,12 +103,29 @@ async function initApp() {
     });
   }
 
-  document.getElementById('toggleCopilotBtn').addEventListener('click', () => {
-    copilotDrawer.classList.toggle('open');
-  });
+  const toggleCopilotBtn = document.getElementById('toggleCopilotBtn');
+  if (toggleCopilotBtn && copilotDrawer) {
+    toggleCopilotBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copilotDrawer.classList.toggle('open');
+    });
+  }
 
-  document.getElementById('closeCopilotBtn').addEventListener('click', () => {
-    copilotDrawer.classList.remove('open');
+  const closeCopilotBtn = document.getElementById('closeCopilotBtn');
+  if (closeCopilotBtn && copilotDrawer) {
+    closeCopilotBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copilotDrawer.classList.remove('open');
+    });
+  }
+
+  // Close copilot drawer on outside click
+  document.addEventListener('click', (e) => {
+    if (copilotDrawer && copilotDrawer.classList.contains('open')) {
+      if (!copilotDrawer.contains(e.target) && !e.target.closest('#toggleCopilotBtn') && !e.target.closest('.clickable-style-badge')) {
+        copilotDrawer.classList.remove('open');
+      }
+    }
   });
 
   // Active Style Context Bar & Clear
