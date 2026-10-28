@@ -116,17 +116,23 @@ export function classifyCurveHealth(activeSizesWithStockGE2: number): {
 
 ## 2. Style Lifecycle State Machine (Classification Logic)
 
-Every style is deterministically classified into one of six mutually exclusive performance tiers:
+Every style is deterministically classified into one of seven mutually exclusive performance tiers via a 7-step decision cascade:
 
 ```mermaid
 flowchart TD
-    Start["Style Input (STR%, WOS, SAR, Season, Cost, Price)"] --> Q_Price{"Is Price < Cost * 1.15 at Ticket?"}
+    Start["Style Input (STR%, WOS, SAR, Season, Cost, Price, Category)"] --> Q_Price{"Is Price < Cost * 1.15 at Ticket?"}
     
     Q_Price -->|Yes| T_Flag["TIER 6: FLAGGED_PRICE_ERROR<br>Action: DO NOT DISCOUNT (0% Off)<br>Audit list price in Odoo"]
     Q_Price -->|No| Q_Winter{"Is Season Prefix AW26 or Launch < 14 Days?"}
     
     Q_Winter -->|Yes| T_Winter["TIER 0: FRESH_WINTER_NEW<br>Action: EXCLUDED (0% Off)<br>Protect 100% full ticket price"]
-    Q_Winter -->|No| Q_Hero{"STR >= 70% AND Curve Healthy?"}
+    Q_Winter -->|No| Q_Single{"Is Single-Size / Non-Sized?<br>(Cosmetics, Fragrance, Towels, One-Size)"}
+    
+    Q_Single -->|Yes: STR >= 50% or ROS >= 4.0| T_HeroSingle["TIER 1: HERO_CORE<br>Action: 0% Off (Full Margin)"]
+    Q_Single -->|Yes: Stock > 100| T_BasketSingle["TIER 7: VOLUME_MULTI_BUY<br>Spend 250 Save 50 (Basket Pack ~20% Off)"]
+    Q_Single -->|Yes: Stock <= 100| T_B2G1Single["TIER 7: VOLUME_MULTI_BUY<br>Beauty Multi-Buy (Buy 2 Get 1 Free)"]
+
+    Q_Single -->|No: Apparel| Q_Hero{"STR >= 70% AND Curve Healthy (>=3 Sizes)?"}
     
     Q_Hero -->|Yes| T_Hero["TIER 1: HERO_CORE<br>Action: FULL PRICE PROTECTION (0% Off)<br>Self-sustaining organic demand"]
     Q_Hero -->|No| Q_Summer{"Is Season SS26 (Past Summer)?"}
@@ -159,6 +165,7 @@ export interface StyleMetrics {
   cumulativeSTR: number;
   storeFloorWOS: number;
   activeSizeCount: number;
+  isSingleSize?: boolean;
 }
 
 export interface RecommendationResult {
@@ -168,6 +175,7 @@ export interface RecommendationResult {
   promotionalPriceSAR: number;
   expectedClearancePct: number;
   rationale: string;
+  zeroLossStatus: 'YES' | 'FLAGGED';
 }
 
 export function classifyStyleAndRecommend(metrics: StyleMetrics): RecommendationResult {
@@ -181,20 +189,70 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       discountPct: 0,
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 0,
-      rationale: `Ticket price (${metrics.ticketPrice} SAR) is below Landed Cost + 15% VAT (${costPlusVat} SAR). Audit Odoo pricelist.`
+      rationale: `Ticket price (${metrics.ticketPrice.toFixed(2)} SAR) is below Landed Cost + 15% VAT (${costPlusVat.toFixed(2)} SAR). Audit Odoo catalog.`,
+      zeroLossStatus: 'FLAGGED'
     };
   }
 
   // Guard 1: Fresh Winter 2026 arrivals entering peak demand
-  if (metrics.season.toUpperCase().includes('AW26') || metrics.season.toUpperCase().includes('WINTER 2026')) {
+  const seasonUpper = (metrics.season || '').toUpperCase();
+  if (seasonUpper.includes('AW26') || seasonUpper.includes('WINTER 2026')) {
     return {
       tier: 'FRESH_WINTER',
       recommendedOffer: '100% Full Ticket Price (0% Off)',
       discountPct: 0,
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 15,
-      rationale: 'Fresh Winter 2026 arrival entering peak season. Strictly protected at full price.'
+      rationale: 'Fresh Winter 2026 arrival entering peak weather window. Strictly protected at full price.',
+      zeroLossStatus: 'YES'
     };
+  }
+
+  // Single-Size / Non-Sized Category Detection (Cosmetics, Fragrances, Towels, Accessories)
+  const isSingleSize = metrics.isSingleSize ?? (
+    /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) ||
+    /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName)
+  );
+
+  // Single-Size / Beauty Promotional Mechanics
+  if (isSingleSize) {
+    if (metrics.cumulativeSTR >= 50.0 || metrics.weeklyROS >= 4.0) {
+      return {
+        tier: 'HERO_CORE',
+        recommendedOffer: 'Full Price Margin Protection (0% Off)',
+        discountPct: 0,
+        promotionalPriceSAR: metrics.ticketPrice,
+        expectedClearancePct: 25,
+        rationale: 'Core single-size product with healthy sell-through. Organic demand protects full ticket margin.',
+        zeroLossStatus: 'YES'
+      };
+    }
+
+    if (metrics.totalPhysicalStock > 100) {
+      const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.80 * 100) / 100);
+      const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (promoPrice / metrics.ticketPrice)) * 100) : 0;
+      return {
+        tier: 'VOLUME_MULTI_BUY',
+        recommendedOffer: 'Spend 250 Save 50 (Basket Pack)',
+        discountPct: discPct,
+        promotionalPriceSAR: promoPrice,
+        expectedClearancePct: 40,
+        rationale: 'High-margin non-sized cosmetic/accessory. Deployed as transaction basket booster rather than clearance rail.',
+        zeroLossStatus: 'YES'
+      };
+    } else {
+      const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.67 * 100) / 100);
+      const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (promoPrice / metrics.ticketPrice)) * 100) : 0;
+      return {
+        tier: 'VOLUME_MULTI_BUY',
+        recommendedOffer: 'Beauty Multi-Buy (Buy 2 Get 1 Free)',
+        discountPct: discPct,
+        promotionalPriceSAR: promoPrice,
+        expectedClearancePct: 45,
+        rationale: 'Single-size beauty item. Multi-buy incentive drives transaction volume without single-unit oddment dumping.',
+        zeroLossStatus: 'YES'
+      };
+    }
   }
 
   // Tier 1: Hero Core (STR >= 70% with healthy curve)
@@ -205,74 +263,84 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       discountPct: 0,
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 20,
-      rationale: `Proven category captain (STR ${metrics.cumulativeSTR}%). Self-sustaining demand requires zero promotion.`
+      rationale: `Proven category captain (STR ${metrics.cumulativeSTR.toFixed(1)}%). Organic customer demand is self-sustaining.`,
+      zeroLossStatus: 'YES'
     };
   }
 
-  // Tier 3: Past Summer 2026 Exit
-  if (metrics.season.toUpperCase().includes('SS26') || metrics.season.toUpperCase().includes('SUMMER 2026')) {
-    const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.60 * 100) / 100);
-    const discPct = Math.round((1 - (promoPrice / metrics.ticketPrice)) * 100);
+  // Tier 3: Past Summer 2026 Exit (SS26)
+  if (seasonUpper.includes('SS26') || seasonUpper.includes('SUMMER 2026')) {
+    const rawPromo = Math.round(metrics.ticketPrice * 0.60 * 100) / 100;
+    const safePromo = Math.max(costPlusVat, rawPromo);
+    const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (safePromo / metrics.ticketPrice)) * 100) : 0;
     return {
       tier: 'MATURE_SUMMER_EXIT',
       recommendedOffer: 'Category Markdown 40% Off',
       discountPct: discPct,
-      promotionalPriceSAR: promoPrice,
+      promotionalPriceSAR: safePromo,
       expectedClearancePct: 45,
-      rationale: 'Summer 2026 collection exit before cold winter weather sets in Taif/Riyadh.'
+      rationale: 'Summer 2026 collection exit before cold winter weather sets in Taif and Western Province.',
+      zeroLossStatus: 'YES'
     };
   }
 
-  // Tier 4/5: Slow, Broken Curve or Zombie Clearance
-  if (metrics.cumulativeSTR < 10.0 || metrics.activeSizeCount <= 2 || metrics.storeFloorWOS > 40.0) {
-    // If ticket price is <= 40 SAR, bundle rail gives almost no discount; route to 50% off
+  // Tier 4/5: Slow Moving, Broken Curve, or Zombie Stock (Apparel Only)
+  if (!isSingleSize && (metrics.cumulativeSTR < 10.0 || metrics.activeSizeCount <= 2 || metrics.storeFloorWOS > 40.0)) {
     if (metrics.ticketPrice <= 40.0) {
       const halfPrice = Math.round(metrics.ticketPrice * 0.50 * 100) / 100;
       const safePromo = Math.max(costPlusVat, halfPrice);
+      const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (safePromo / metrics.ticketPrice)) * 100) : 0;
       return {
         tier: 'CLEARANCE_50_PCT',
         recommendedOffer: '50% Off Dedicated Clearance Rail',
-        discountPct: Math.round((1 - (safePromo / metrics.ticketPrice)) * 100),
+        discountPct: discPct,
         promotionalPriceSAR: safePromo,
         expectedClearancePct: 50,
-        rationale: `Broken size curve or stagnant turnover (WOS ${metrics.storeFloorWOS} wks). 50% discount liquidates floor space above cost floor.`
+        rationale: `Broken size curve or stagnant turnover (WOS ${metrics.storeFloorWOS.toFixed(1)} wks). 50% discount liquidates floor space above cost floor.`,
+        zeroLossStatus: 'YES'
       };
     } else {
-      // 3 for 99 SAR Rail (33 SAR/unit)
       const bundleUnit = 33.00;
       if (bundleUnit >= costPlusVat) {
+        const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (bundleUnit / metrics.ticketPrice)) * 100) : 0;
         return {
           tier: 'CLEARANCE_3_FOR_99',
           recommendedOffer: 'Take 3 For 99 SAR Rail (33 SAR/u)',
-          discountPct: Math.round((1 - (bundleUnit / metrics.ticketPrice)) * 100),
+          discountPct: discPct,
           promotionalPriceSAR: bundleUnit,
           expectedClearancePct: 55,
-          rationale: `Broken curve liquidation. 33 SAR bundle recovers capital above ${costPlusVat} SAR floor.`
+          rationale: `Broken curve liquidation. 33 SAR bundle recovers working capital safely above ${costPlusVat.toFixed(2)} SAR floor.`,
+          zeroLossStatus: 'YES'
         };
       } else {
-        // Fallback to 3 for 149 SAR (49.67 SAR/unit) or safe 40%
         const safePrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.60 * 100) / 100);
+        const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (safePrice / metrics.ticketPrice)) * 100) : 0;
         return {
           tier: 'CLEARANCE_PERCENT_SAFE',
           recommendedOffer: 'Clearance Rail (Safe Floor)',
-          discountPct: Math.round((1 - (safePrice / metrics.ticketPrice)) * 100),
+          discountPct: discPct,
           promotionalPriceSAR: safePrice,
           expectedClearancePct: 40,
-          rationale: 'Liquidates aged inventory while adhering strictly to landed cost + VAT floor.'
+          rationale: 'Liquidates aged inventory while adhering strictly to landed cost + VAT floor.',
+          zeroLossStatus: 'YES'
         };
       }
     }
   }
 
   // Tier 2: Default Steady Active (Spend & Save Multi-pack Driver)
-  const spendSavePrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.80 * 100) / 100);
+  const rawSpendSave = Math.round(metrics.ticketPrice * 0.80 * 100) / 100;
+  const spendSavePrice = Math.max(costPlusVat, rawSpendSave);
+  const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (spendSavePrice / metrics.ticketPrice)) * 100) : 0;
+
   return {
     tier: 'STEADY_ACTIVE',
     recommendedOffer: 'Spend & Save Eligible (~20% Off)',
-    discountPct: 20,
+    discountPct: discPct,
     promotionalPriceSAR: spendSavePrice,
     expectedClearancePct: 25,
-    rationale: 'Core continuity basic. Basket driver protects 75%+ stock for December/January winter trading.'
+    rationale: 'Core continuity basic pack. Basket driver protects 75%+ stock for December/January peak winter trading.',
+    zeroLossStatus: 'YES'
   };
 }
 ```

@@ -86,6 +86,101 @@ export async function clearAllBusinessRules(db: D1Database): Promise<boolean> {
 }
 
 /**
+ * Standard baseline commercial governance policies for CARINA retail.
+ */
+export const DEFAULT_BUSINESS_RULES: BusinessRuleRecord[] = [
+  {
+    rule_id: 'RULE_ZERO_LOSS_VAT',
+    rule_name: 'Saudi 15% VAT Zero-Loss Floor',
+    rule_category: 'MARGIN',
+    target_scope: 'GLOBAL',
+    condition_operator: 'MIN',
+    rule_value: '0.0',
+    enforcement_level: 'HARD_BLOCK',
+    is_active: 1
+  },
+  {
+    rule_id: 'RULE_EXCLUDE_AW26',
+    rule_name: 'Fresh Winter 2026 Exclusion',
+    rule_category: 'EXCLUSION',
+    target_scope: 'SEASON:AW26',
+    condition_operator: 'EXCLUDE',
+    rule_value: '1',
+    enforcement_level: 'HARD_BLOCK',
+    is_active: 1
+  },
+  {
+    rule_id: 'RULE_CAP_NOOS_DISCOUNT',
+    rule_name: 'Continuity Basic Discount Cap',
+    rule_category: 'DISCOUNT_CAP',
+    target_scope: 'SEASON:All Season 2018',
+    condition_operator: 'MAX',
+    rule_value: '25.0',
+    enforcement_level: 'HARD_BLOCK',
+    is_active: 1
+  },
+  {
+    rule_id: 'RULE_MIN_NET_MARGIN',
+    rule_name: 'Portfolio Net Margin Target Floor',
+    rule_category: 'MARGIN',
+    target_scope: 'GLOBAL',
+    condition_operator: 'MIN',
+    rule_value: '45.0',
+    enforcement_level: 'WARNING',
+    is_active: 1
+  },
+  {
+    rule_id: 'RULE_DECONGEST_JOURI',
+    rule_name: 'Taif Jouri Density Target',
+    rule_category: 'STOCK_TARGET',
+    target_scope: 'STORE:Jouri',
+    condition_operator: 'MAX',
+    rule_value: '36.0',
+    enforcement_level: 'WARNING',
+    is_active: 1
+  },
+  {
+    rule_id: 'RULE_DECONGEST_YASMEEN',
+    rule_name: 'Jeddah Yasmeen Density Target',
+    rule_category: 'STOCK_TARGET',
+    target_scope: 'STORE:Yasmeen',
+    condition_operator: 'MAX',
+    rule_value: '35.0',
+    enforcement_level: 'WARNING',
+    is_active: 1
+  }
+];
+
+/**
+ * Restores all baseline commercial governance policies into D1.
+ */
+export async function restoreDefaultBusinessRules(db: D1Database): Promise<boolean> {
+  try {
+    for (const rule of DEFAULT_BUSINESS_RULES) {
+      await saveBusinessRule(db, rule);
+    }
+    await clearStylePlanSnapshots(db);
+    return true;
+  } catch (err) {
+    console.error('Error restoring default business rules in D1:', err);
+    return false;
+  }
+}
+
+/**
+ * Clears style plan snapshots cache to force fresh re-computation with new rules.
+ */
+export async function clearStylePlanSnapshots(db: D1Database): Promise<boolean> {
+  try {
+    await db.prepare('DELETE FROM style_plan_snapshots').run();
+    return true;
+  } catch (err) {
+    console.error('Error clearing style plan snapshots from D1:', err);
+    return false;
+  }
+}
+
+/**
  * Reads pre-computed style snapshots from D1 (<10ms fast load).
  */
 export async function fetchStylePlanSnapshots(db: D1Database): Promise<StylePlanRecord[]> {

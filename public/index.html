@@ -608,6 +608,7 @@
           <h3>Active Commercial Governance Policies &amp; Rules</h3>
         </div>
         <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+          <button id="restoreDefaultRulesBtn" class="btn btn-luxury-outline" style="font-size: 0.75rem; padding: 4px 10px; color: var(--gold-light); border-color: rgba(212, 175, 55, 0.4);" title="Restore standard baseline CARINA governance policies">Restore Baseline</button>
           <button id="clearAllRulesBtn" class="btn btn-luxury-outline" style="font-size: 0.75rem; padding: 4px 10px; color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">Clear All Rules</button>
           <button id="closeRulesBtn" class="btn-close">&times;</button>
         </div>
@@ -615,7 +616,10 @@
       <div class="modal-body">
         <p class="modal-desc">Active commercial policies governing automated price promotions, discount ceilings, and margin protections.</p>
         <div class="rules-list" id="activeRulesList">
-          <!-- Populated dynamically -->
+          <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: var(--gold-light);">
+            <span class="luxury-spinner"></span>
+            <span style="font-size: 0.85rem;">Loading active commercial governance policies...</span>
+          </div>
         </div>
 
         <hr class="luxury-divider">

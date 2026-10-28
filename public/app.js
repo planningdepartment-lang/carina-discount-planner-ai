@@ -72,6 +72,7 @@ async function initApp() {
 
   loadSummary();
   loadStyles();
+  loadRules(); // Preload rules proactively so modal renders instantaneously
   initRetrainingAndGateway();
 
   // Search & Filter event bindings
@@ -259,6 +260,13 @@ async function initApp() {
 
   // Rules Modal
   const rulesModal = document.getElementById('rulesModal');
+  const restoreRulesBtn = document.getElementById('restoreDefaultRulesBtn');
+  if (restoreRulesBtn) {
+    restoreRulesBtn.addEventListener('click', async () => {
+      if (!confirm('Restore all 6 baseline CARINA commercial governance policies?')) return;
+      await restoreDefaultRules();
+    });
+  }
   document.getElementById('rulesBtn').addEventListener('click', () => {
     rulesModal.classList.add('open');
     loadRules();
@@ -1270,18 +1278,67 @@ async function submitCopilotChat(message) {
 }
 
 /**
- * Loads dynamic governance rules from D1.
+ * Loads dynamic governance rules from D1 with loading state, error resilience, and retry.
  */
 async function loadRules() {
   const container = document.getElementById('activeRulesList');
+  if (!container) return;
+
+  // Immediate loading state with luxury spinner
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: var(--gold-light);">
+      <span class="luxury-spinner"></span>
+      <span style="font-size: 0.85rem; letter-spacing: 0.02em;">Loading active commercial governance policies...</span>
+    </div>
+  `;
+
   try {
-    const res = await fetch('/api/rules');
-    if (!res.ok) return;
+    const res = await fetch('/api/rules?t=' + Date.now(), {
+      cache: 'no-store',
+      credentials: 'same-origin'
+    });
+
+    if (!res.ok) {
+      let errMsg = `Server returned HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson && errJson.error) errMsg = errJson.error;
+      } catch (e) {}
+
+      container.innerHTML = `
+        <div style="padding: 14px 16px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; color: #fca5a5; font-size: 0.85rem;">
+          <div style="font-weight: 600; color: #ef4444; margin-bottom: 4px;">Governance Engine Unavailable</div>
+          <div style="font-size: 0.75rem; margin-bottom: 10px;">${escapeHtml(errMsg)}</div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-luxury-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="loadRules()">
+              Retry
+            </button>
+            <button class="btn btn-luxury-gold" style="font-size: 0.75rem; padding: 4px 10px;" onclick="restoreDefaultRules()">
+              Restore Default Policies
+            </button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     const rules = await res.json();
+    if (!Array.isArray(rules)) {
+      throw new Error((rules && rules.error) ? rules.error : 'Unexpected response format from rules API');
+    }
 
     container.innerHTML = '';
     if (rules.length === 0) {
-      container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); padding: 8px 0;">No dynamic governance rules registered. Standard Zero-Loss logic applies.</p>';
+      container.innerHTML = `
+        <div style="padding: 16px; background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 6px; text-align: center;">
+          <p style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 12px;">
+            No active governance rules registered. Standard Zero-Loss logic applies.
+          </p>
+          <button class="btn btn-luxury-gold" style="font-size: 0.75rem; padding: 5px 14px;" onclick="restoreDefaultRules()">
+            Restore Standard CARINA Policies
+          </button>
+        </div>
+      `;
       return;
     }
 
@@ -1295,15 +1352,18 @@ async function loadRules() {
       div.style.padding = '8px 12px';
       div.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
 
+      const isBlock = r.enforcement_level === 'HARD_BLOCK';
       div.innerHTML = `
         <div style="flex: 1;">
-          <strong>${escapeHtml(r.rule_name)}</strong>
+          <strong style="color: #fff; font-size: 0.85rem;">${escapeHtml(r.rule_name)}</strong>
           <span style="display:block; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
-            Scope: <code>${escapeHtml(r.target_scope)}</code> | Operator: <code>${escapeHtml(r.condition_operator)}</code> | Value: <code>${escapeHtml(r.rule_value)}</code>
+            Scope: <code>${escapeHtml(r.target_scope)}</code> | Operator: <code>${escapeHtml(r.condition_operator)}</code> | Target: <code>${escapeHtml(r.rule_value)}</code>
           </span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="badge ${r.enforcement_level === 'HARD_BLOCK' ? 'badge-flag' : 'badge-yes'}">${r.enforcement_level}</span>
+          <span class="badge ${isBlock ? 'badge-flag' : 'badge-yes'}" style="font-size: 0.7rem; padding: 2px 6px;">
+            ${escapeHtml(r.enforcement_level || 'HARD_BLOCK')}
+          </span>
           <button class="btn-delete-rule" data-id="${escapeHtml(r.rule_id)}" title="Delete this rule" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.75rem; transition: all 0.2s;">
             Remove
           </button>
@@ -1321,19 +1381,73 @@ async function loadRules() {
         btn.disabled = true;
         btn.textContent = 'Removing...';
         try {
-          const delRes = await fetch('/api/rules?rule_id=' + encodeURIComponent(ruleId), { method: 'DELETE' });
+          const delRes = await fetch('/api/rules?rule_id=' + encodeURIComponent(ruleId), { 
+            method: 'DELETE',
+            credentials: 'same-origin'
+          });
           if (delRes.ok) {
             await loadRules();
             loadStyles(); // Immediately refresh styles with updated rule evaluation
+          } else {
+            alert('Failed to remove rule. Please retry.');
+            btn.disabled = false;
+            btn.textContent = 'Remove';
           }
         } catch (err) {
           console.error('Error deleting rule:', err);
+          btn.disabled = false;
+          btn.textContent = 'Remove';
         }
       });
     });
 
   } catch (err) {
     console.error('Rules load error:', err);
+    container.innerHTML = `
+      <div style="padding: 14px 16px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; color: #fca5a5; font-size: 0.85rem;">
+        <div style="font-weight: 600; color: #ef4444; margin-bottom: 4px;">Network Error Loading Rules</div>
+        <div style="font-size: 0.75rem; margin-bottom: 10px;">${escapeHtml(err.message || String(err))}</div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-luxury-secondary" style="font-size: 0.75rem; padding: 4px 10px;" onclick="loadRules()">
+            Retry
+          </button>
+          <button class="btn btn-luxury-gold" style="font-size: 0.75rem; padding: 4px 10px;" onclick="restoreDefaultRules()">
+            Restore Default Policies
+          </button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Restores baseline commercial governance policies into D1.
+ */
+async function restoreDefaultRules() {
+  const container = document.getElementById('activeRulesList');
+  if (container) {
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: var(--gold-light);">
+        <span class="luxury-spinner"></span>
+        <span style="font-size: 0.85rem;">Restoring standard CARINA governance policies...</span>
+      </div>
+    `;
+  }
+  try {
+    const res = await fetch('/api/rules?restore=true', {
+      method: 'POST',
+      credentials: 'same-origin'
+    });
+    if (res.ok) {
+      await loadRules();
+      loadStyles();
+    } else {
+      alert('Failed to restore default rules. Please check admin permissions.');
+      await loadRules();
+    }
+  } catch (err) {
+    console.error('Error restoring rules:', err);
+    await loadRules();
   }
 }
 
@@ -1345,7 +1459,10 @@ if (clearAllBtn) {
     clearAllBtn.disabled = true;
     clearAllBtn.textContent = 'Clearing...';
     try {
-      const delRes = await fetch('/api/rules?all=true', { method: 'DELETE' });
+      const delRes = await fetch('/api/rules?all=true', { 
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
       if (delRes.ok) {
         await loadRules();
         loadStyles();
@@ -1358,6 +1475,10 @@ if (clearAllBtn) {
     }
   });
 }
+
+// Expose functions globally for inline onclick handlers
+window.loadRules = loadRules;
+window.restoreDefaultRules = restoreDefaultRules;
 
 function escapeHtml(str) {
   if (!str) return '';

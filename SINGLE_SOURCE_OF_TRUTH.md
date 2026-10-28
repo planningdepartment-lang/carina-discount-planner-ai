@@ -59,16 +59,30 @@
 
 ---
 
-## 4. The 4 Style Judgement Dimensions & Formulas
+## 4. The 7 Style Judgement Dimensions & Offer Criteria
 
-1. **Velocity (ROS - Rate of Sale):**
+1. **Regulatory Zero-Loss Margin Floor:**
+   $$\text{Promotional Price (VAT-inclusive)} \ge \text{Landed Unit Cost} \times 1.15$$
+   *Strict hard barrier against selling below cost + 15% Saudi VAT.*
+2. **Velocity (ROS - Rate of Sale):**
    $$\text{Weekly ROS} = \frac{\text{Units Sold to Partners/Customers over past 56 days}}{8.0\text{ weeks}}$$
-2. **Lifecycle (Cumulative STR %):**
+   *Filters single-day flash distortions across an active 8-week baseline.*
+3. **Lifecycle Maturity (Cumulative STR % - NRF Standards):**
    $$\text{Cumulative STR \%} = \frac{\text{Lifetime Units Sold}}{\text{Starting Inventory Received (Physical Stock + Lifetime Sold)}} \times 100$$
-3. **Runway (Weeks of Supply - WOS):**
+   *$\text{STR} \ge 70\%$ (Hero Core / 0% Off), $40\%–70\%$ (Steady Continuity / Spend & Save), $10\%–40\%$ (Slow / 40% Off), $< 10\%$ (Clearance Rail).*
+4. **Runway (Weeks of Supply - WOS):**
    $$\text{Store Floor WOS} = \frac{\text{Stock}_{\text{Andalus}} + \text{Stock}_{\text{Yasmeen}} + \text{Stock}_{\text{Jouri}}}{\text{Weekly ROS}}$$
-4. **Size Curve Health (SAR):**
-   $$\text{Healthy} \ge 3\text{ active sizes with stock} \ge 2\text{ units} \quad \text{vs.} \quad \text{Broken} \le 2\text{ sizes}$$
+   *Measures physical sales floor rack congestion; $\text{WOS} > 40\text{ wks}$ triggers liquidation intervention.*
+5. **Size Availability Ratio (SAR) & Single-Size Distinction:**
+   *Apparel: Healthy ($\ge 3$ active sizes with stock $\ge 2$ units) vs. Broken ($\le 2$ sizes, clearance rail).*
+   *Single-Size / Volumetric (Cosmetics, Towels, One-Size): Immune to broken curve penalties; deployed as basket builders.*
+6. **Seasonality Window & Assortment Mandate:**
+   *Fresh Winter (`AW26`): 100% full ticket price protected (0% Off).*
+   *Past Summer (`SS26`): Category markdown (35%–40% Off) before cold weather.*
+   *Continuity NOOS basics (85% of catalog): Preserve $\ge 57.2\%$ of stock for peak winter trading.*
+7. **Physical Store Floor Space Decongestion:**
+   *Jouri ($66.2\text{ u/m}^2$) & Yasmeen ($62.4\text{ u/m}^2$) congestion relief vs. Al-Andalus ($46.1\text{ u/m}^2$) volume hub.*
+
 
 ---
 
