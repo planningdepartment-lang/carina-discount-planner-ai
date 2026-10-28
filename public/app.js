@@ -273,10 +273,18 @@ async function loadStyles() {
 
     result.data.forEach(({ metrics, recommendation }) => {
       const tr = document.createElement('tr');
-      const isHealthy = metrics.activeSizeCount >= 3;
-      const curveTag = isHealthy 
-        ? '<span class="badge badge-yes">Healthy (≥3 Sizes)</span>' 
-        : '<span class="badge badge-flag">Broken (≤2 Sizes)</span>';
+      const isSingleSize = metrics.isSingleSize || 
+        /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) || 
+        /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName);
+
+      let curveTag;
+      if (isSingleSize) {
+        curveTag = '<span class="badge badge-single-size">Single Size (Complete)</span>';
+      } else if (metrics.activeSizeCount >= 3) {
+        curveTag = '<span class="badge badge-yes">Healthy (≥3 Sizes)</span>';
+      } else {
+        curveTag = '<span class="badge badge-flag">Broken (≤2 Sizes)</span>';
+      }
 
       const zeroLossBadge = recommendation.zeroLossStatus === 'YES'
         ? '<span class="badge badge-yes">PASS</span>'
@@ -381,8 +389,12 @@ function attachTableActionListeners() {
       if (!rationale || rationale.includes('Extracted directly') || rationale.includes('Best offer is Category Markdown') || (cost * 1.15 > ticket)) {
         if (cost * 1.15 > ticket) {
           rationale = `Zero-Loss Guard Intervention: Catalog ticket price (${ticket.toFixed(2)} SAR) is below Landed Unit Cost (${cost.toFixed(2)} SAR). Promotional price is strictly clamped to the legal break-even floor of ${floor.toFixed(2)} SAR (15% VAT) to eliminate below-cost retail losses.`;
+        } else if (offer.includes('Spend 250') || offer.includes('Basket Pack')) {
+          rationale = `Spend 250 Save 50 (Multi-Buy Basket Pack) applied to core non-sized/single-size merchandise with ${stock} units on-hand. Drives transaction basket size rather than apparel clearance rail oddment discounting.`;
+        } else if (offer.includes('Beauty Multi-Buy') || offer.includes('Buy 2 Get 1')) {
+          rationale = `Beauty Multi-Buy (Buy 2 Get 1 Free) deployed for single-size merchandise. Incentivizes volume while maintaining net unit margin safely above ${(cost * 1.15).toFixed(2)} SAR legal floor.`;
         } else if (discount === 0 || offer.includes('0% Off')) {
-          rationale = `Best offer is Full Price Protection (0% Off) since STR is ${str.toFixed(1)}% with an unbroken healthy size curve (${sizes} active sizes). Strong self-sustaining consumer demand requires zero promotional discount.`;
+          rationale = `Best offer is Full Price Protection (0% Off) since STR is ${str.toFixed(1)}% with an unbroken healthy size curve. Strong self-sustaining consumer demand requires zero promotional discount.`;
         } else if (offer.includes('3 For 99') || offer.includes('99 SAR')) {
           rationale = `Best offer is Take 3 For 99 SAR Rail since size curve is broken with fragmented oddments (${sizes} sizes remaining) and STR is ${str.toFixed(1)}%. Liquidates stock rapidly into 3-unit baskets at 33.00 SAR/u while safely maintaining +${((33 / 1.15) - cost).toFixed(2)} SAR/u margin above legal floor.`;
         } else if (offer.includes('50% Off')) {
@@ -492,7 +504,7 @@ function attachTableActionListeners() {
             <strong>📊 Assortment Analysis & Velocity:</strong>
             <div class="pop-row"><span>Cumulative STR %:</span><strong>${str}%</strong></div>
             <div class="pop-row"><span>Weekly ROS (8-wk Velocity):</span><strong>${ros} units/week</strong></div>
-            <div class="pop-row"><span>Active Size Curve:</span><strong>${sizes >= 3 ? 'Healthy (≥3 Sizes Active)' : 'Broken Curve (≤2 Sizes)'}</strong></div>
+            <div class="pop-row"><span>Active Size Curve:</span><strong>${/cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(category) || /\b(\d+ml|free size|one size|os)\b/i.test(btn.getAttribute('data-name')) ? 'Single Size (Complete by Design)' : (sizes >= 3 ? 'Healthy (≥3 Sizes Active)' : 'Broken Curve (≤2 Sizes)')}</strong></div>
             <div class="pop-row"><span>Store Allocation:</span><span>AND: <b>${andalus}</b> | YAS: <b>${yasmeen}</b> | JOU: <b>${jouri}</b> | WH: <b>${wh}</b></span></div>
           </div>
 

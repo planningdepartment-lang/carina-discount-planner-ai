@@ -112,7 +112,8 @@ export async function fetchStylePlanSnapshots(db: D1Database): Promise<StylePlan
         weeklyROS: row.weekly_ros,
         cumulativeSTR: row.cumulative_str_pct,
         storeFloorWOS: row.store_floor_wos || 0,
-        activeSizeCount: row.sar_curve_health?.includes('>=3') ? 4 : 2
+        activeSizeCount: row.sar_curve_health?.includes('>=3') ? 4 : (row.sar_curve_health?.includes('Single') ? 1 : 2),
+        isSingleSize: row.sar_curve_health?.includes('Single') || false
       },
       recommendation: {
         tier: row.recommended_offer?.includes('Clearance') ? 'CLEARANCE' : 'ACTIVE',

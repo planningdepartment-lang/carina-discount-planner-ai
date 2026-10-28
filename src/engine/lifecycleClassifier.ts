@@ -17,6 +17,7 @@ export interface StyleMetrics {
   cumulativeSTR: number;
   storeFloorWOS: number;
   activeSizeCount: number;
+  isSingleSize?: boolean;
 }
 
 export interface RecommendationResult {
@@ -63,6 +64,53 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     };
   }
 
+  // Single-Size / Non-Sized Category Detection (Cosmetics, Fragrances, Towels, Accessories)
+  const isSingleSize = metrics.isSingleSize ?? (
+    /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) ||
+    /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName)
+  );
+
+  // Single-Size / Beauty Promotional Mechanics
+  if (isSingleSize) {
+    if (metrics.cumulativeSTR >= 50.0 || metrics.weeklyROS >= 4.0) {
+      return {
+        tier: LIFECYCLE_TIERS.HERO_CORE,
+        recommendedOffer: 'Full Price Margin Protection (0% Off)',
+        discountPct: 0,
+        promotionalPriceSAR: metrics.ticketPrice,
+        expectedClearancePct: 25,
+        rationale: 'Core single-size product with healthy sell-through. Organic demand protects full ticket margin.',
+        zeroLossStatus: 'YES'
+      };
+    }
+
+    if (metrics.totalPhysicalStock > 100) {
+      const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.80 * 100) / 100);
+      const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (promoPrice / metrics.ticketPrice)) * 100) : 0;
+      return {
+        tier: LIFECYCLE_TIERS.VOLUME_MULTI_BUY,
+        recommendedOffer: 'Spend 250 Save 50 (Basket Pack)',
+        discountPct: discPct,
+        promotionalPriceSAR: promoPrice,
+        expectedClearancePct: 40,
+        rationale: 'High-margin non-sized cosmetic/accessory. Deployed as transaction basket booster rather than clearance rail.',
+        zeroLossStatus: 'YES'
+      };
+    } else {
+      const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.67 * 100) / 100);
+      const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (promoPrice / metrics.ticketPrice)) * 100) : 0;
+      return {
+        tier: LIFECYCLE_TIERS.VOLUME_MULTI_BUY,
+        recommendedOffer: 'Beauty Multi-Buy (Buy 2 Get 1 Free)',
+        discountPct: discPct,
+        promotionalPriceSAR: promoPrice,
+        expectedClearancePct: 45,
+        rationale: 'Single-size beauty item. Multi-buy incentive drives transaction volume without single-unit oddment dumping.',
+        zeroLossStatus: 'YES'
+      };
+    }
+  }
+
   // Tier 1: Hero Core Category Captains (STR >= 70% with healthy unbroken curve)
   if (metrics.cumulativeSTR >= 70.0 && metrics.activeSizeCount >= 3) {
     return {
@@ -92,8 +140,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     };
   }
 
-  // Tier 4/5: Slow Moving, Broken Curve, or Zombie Stock
-  if (metrics.cumulativeSTR < 10.0 || metrics.activeSizeCount <= 2 || metrics.storeFloorWOS > 40.0) {
+  // Tier 4/5: Slow Moving, Broken Curve, or Zombie Stock (Apparel Only)
+  if (!isSingleSize && (metrics.cumulativeSTR < 10.0 || metrics.activeSizeCount <= 2 || metrics.storeFloorWOS > 40.0)) {
     // If ticket price is <= 40 SAR, bundle rail gives negligible discount; route to 50% Off
     if (metrics.ticketPrice <= 40.0) {
       const halfPrice = Math.round(metrics.ticketPrice * 0.50 * 100) / 100;

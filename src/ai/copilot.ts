@@ -722,11 +722,8 @@ export async function handleCopilotChat(
         `- Sales Performance & Velocity: Cumulative Sell-Through (STR) = 46.9% catalog average; Rolling 8-Week Velocity (ROS) = 0.66 units/week per active style.\n` +
         `- Portfolio Valuation: Total Retail Ticket Value = 3,745,210 SAR | Landed Cost Capital = 1,183,520 SAR | Blended Initial Markup (IMU) = 68.4%.\n` +
         `- Size Demand Hierarchy & Curve Dynamics (Saudi Retail Market):\n` +
-        `  * Core High-Demand Sizes (62% of Sales): Medium (M) and Large (L) represent the primary demand and velocity drivers across fashion categories in Jeddah and Taif.\n` +
-        `  * Secondary Sizes (34% of Sales): Small (S, ~20%) and X-Large (XL, ~14%).\n` +
-        `  * Peripheral / Oddment Sizes (4% of Sales): XS and XXL+ turn slowest and carry the highest broken-curve inventory risk.\n` +
-        `  * Broken Curve Bottlenecks: When core sizes (M/L) sell out first, remaining oddments form Broken Curves (<=2 sizes remaining), causing floor density bottlenecks in Al-Yasmeen and Jouri Mall.\n` +
-        `  * Decongestive Mechanics: Take 3 For 99 SAR multi-buys and 50% clearance rails target broken-curve oddments to restore sales floor space.\n` +
+        `  * Core Sized Apparel (Bras, Tops, Pyjamas, Dresses): Medium (M) and Large (L) represent 62% of fashion sales; Small (20%) and XL (14%) are secondary. Broken curves (<=2 sizes remaining) represent fragmented oddments that are cleared via 50% clearance rails or Take 3 For 99 SAR multi-buys.\n` +
+        `  * Non-Sized & Single-Size Assortments (Cosmetics, Body Splashes, Fragrances 100ML/50ML, Towels, Accessories): These products have exactly 1 complete size by design ('Single Size (Complete)'). They are NEVER broken oddments. They are merchandised as basket boosters ('Spend 250 Save 50' or 'Buy 2 Get 1 Free') or protected at full price, strictly preserving high cosmetics gross margins.\n` +
         `- Store Densities & Clearance Priorities:\n` +
         `  * Al-Andalus Mall Flagship (Jeddah, 260 m²): Balanced sales floor density.\n` +
         `  * Al-Yasmeen Mall (Jeddah, 193 m²): Overstocked floor (>55 units/m²), priority candidate for promotional markdown.\n` +
