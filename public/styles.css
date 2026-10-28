@@ -1192,7 +1192,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
   position: fixed;
   top: 0;
   right: -500px;
-  width: 480px;
+  width: 580px;
+  max-width: 95vw;
   height: 100vh;
   background: rgba(12, 16, 26, 0.96);
   backdrop-filter: blur(24px);
@@ -1613,6 +1614,173 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .btn-apply-rule:hover {
   background: linear-gradient(135deg, #e6ca65, #d4af37);
   transform: translateY(-1px);
+}
+
+
+/* ==========================================================================
+   Enhanced Popover & Modular Luxury Cards
+   ========================================================================== */
+.popover-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.85rem;
+  margin-bottom: 0.75rem;
+  transition: border-color 0.2s ease;
+}
+
+.popover-card:hover {
+  border-color: rgba(212, 175, 55, 0.35);
+}
+
+.popover-card.highlight-card {
+  background: rgba(212, 175, 55, 0.05);
+  border-color: rgba(212, 175, 55, 0.25);
+}
+
+.popover-card.alert-card {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.popover-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.popover-card-title {
+  font-size: 0.725rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.popover-criteria-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.popover-criteria-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+
+.popover-criteria-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.2rem;
+  font-size: 0.775rem;
+}
+
+.popover-criteria-name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.popover-criteria-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(212, 175, 55, 0.12);
+  color: var(--gold-champagne);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+}
+
+.popover-criteria-badge.badge-blue {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.popover-criteria-badge.badge-green {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.25);
+}
+
+.popover-criteria-badge.badge-amber {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.popover-criteria-badge.badge-rose {
+  background: rgba(244, 63, 94, 0.12);
+  color: #f43f5e;
+  border-color: rgba(244, 63, 94, 0.25);
+}
+
+.popover-criteria-desc {
+  font-size: 0.735rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.popover-density-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.popover-density-cell {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 0.4rem;
+  text-align: center;
+}
+
+.popover-density-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.popover-density-val {
+  font-family: var(--font-num);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.popover-density-sub {
+  font-size: 0.65rem;
+  color: var(--gold-champagne);
+  margin-top: 2px;
+}
+
+.popover-ratio-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0.5rem 0 0.3rem 0;
+}
+
+.popover-ratio-store {
+  background: var(--gold-primary);
+  height: 100%;
+}
+
+.popover-ratio-wh {
+  background: #38bdf8;
+  height: 100%;
 }
 
 /* ==========================================================================

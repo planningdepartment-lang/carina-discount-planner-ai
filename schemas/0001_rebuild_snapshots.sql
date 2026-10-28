@@ -2,6 +2,8 @@
 -- Rebuild style_plan_snapshots Directly from odoo_stock_move_line
 -- Categorizes Non-Sized / Single-Size items (Cosmetics, Towels, Accessories)
 -- as "Single Size (Complete)" instead of false-positive "Broken Curve".
+-- Uses validated 'done' moves only and true unit_cost / standard_price.
+-- Enforces Saudi Zero-Loss Floor & prevents promotional_price > ticket_price.
 -- ====================================================================
 
 DELETE FROM style_plan_snapshots;
@@ -63,7 +65,14 @@ WITH raw_agg AS (
     END) AS sold_8wk,
 
     COUNT(DISTINCT product_sku) AS size_count,
-    ROUND(MAX(COALESCE(cost, unit_cost, 10.0)), 2) AS unit_cost,
+    COALESCE(
+      ROUND(AVG(CASE 
+        WHEN CAST(unit_cost AS REAL) > 0 THEN CAST(unit_cost AS REAL)
+        WHEN CAST(standard_price AS REAL) > 0 THEN CAST(standard_price AS REAL)
+        WHEN CAST(cost AS REAL) > 0 AND quantity > 0 AND (CAST(cost AS REAL) / quantity) < COALESCE(sales_price, 9999) THEN CAST(cost AS REAL) / quantity
+      END), 2),
+      10.0
+    ) AS unit_cost,
     ROUND(MAX(CASE WHEN sales_price > 0 THEN sales_price ELSE 39.0 END), 2) AS ticket_price,
 
     -- Single Size / Non-Sized Identification:
@@ -84,11 +93,39 @@ WITH raw_agg AS (
 
   FROM odoo_stock_move_line
   WHERE product_sku GLOB '[0-9][0-9][0-9][0-9][0-9]-*-*'
+    AND state = 'done'
     AND location_dest_id_name != 'Shofy/Stock'
     AND location_id_name != 'Shofy/Stock'
     AND location_dest_id_name != 'WH-D/Stock'
+    AND location_id_name != 'WH-D/Stock'
   GROUP BY style_code
   HAVING total_physical_stock > 0
+),
+priced AS (
+  SELECT 
+    *,
+    ROUND(unit_cost * 1.15, 2) AS cost_plus_vat,
+    CASE WHEN ticket_price < ROUND(unit_cost * 1.15, 2) THEN 1 ELSE 0 END AS is_underwater,
+    ROUND(CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END, 1) AS cumulative_str_pct,
+    ROUND(sold_8wk / 8.0, 1) AS weekly_ros,
+    CASE 
+      WHEN is_single_size = 1 THEN 'Single Size (Complete)'
+      WHEN size_count >= 3 THEN 'Healthy Curve (>=3 Sizes)' 
+      ELSE 'Broken Curve (<=2 Sizes)' 
+    END AS sar_curve_health,
+    CASE 
+      -- Dynamic Expected Clearance Rates per Merchandising Tier:
+      WHEN (CASE WHEN ticket_price < ROUND(unit_cost * 1.15, 2) THEN 1 ELSE 0 END) = 1 THEN 0.05
+      WHEN UPPER(season) LIKE '%AW26%' OR UPPER(season) LIKE '%WINTER 2026%' THEN 0.15
+      WHEN is_single_size = 1 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 50.0 THEN 0.25
+      WHEN is_single_size = 1 AND total_physical_stock > 100 THEN 0.40
+      WHEN is_single_size = 1 THEN 0.45
+      WHEN size_count >= 3 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 70.0 THEN 0.20
+      WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN 0.45
+      WHEN is_single_size = 0 AND size_count <= 2 THEN (CASE WHEN ticket_price <= 40.0 THEN 0.50 ELSE 0.55 END)
+      ELSE 0.25
+    END AS expected_clearance_rate
+  FROM raw_agg
 )
 SELECT 
   style_code,
@@ -100,33 +137,28 @@ SELECT
   stock_yasmeen,
   stock_jouri,
   stock_wh,
-
-  ROUND(CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END, 1) AS cumulative_str_pct,
-  ROUND(sold_8wk / 8.0, 1) AS weekly_ros,
-  
-  -- SAR Curve Health:
-  CASE 
-    WHEN is_single_size = 1 THEN 'Single Size (Complete)'
-    WHEN size_count >= 3 THEN 'Healthy Curve (>=3 Sizes)' 
-    ELSE 'Broken Curve (<=2 Sizes)' 
-  END AS sar_curve_health,
-
+  cumulative_str_pct,
+  weekly_ros,
+  sar_curve_health,
   unit_cost,
-  ROUND(unit_cost * 1.15, 2) AS cost_plus_vat,
+  cost_plus_vat,
   ticket_price,
 
   -- Recommended Offer
   CASE 
+    -- 0. Guard against Catalog Price Error (Ticket < Landed Cost + 15% VAT)
+    WHEN is_underwater = 1 THEN 'FLAGGED: System Price Error (0% Off)'
+
     -- 1. Winter Assortment Protection
     WHEN UPPER(season) LIKE '%AW26%' OR UPPER(season) LIKE '%WINTER 2026%' THEN '100% Full Ticket Price (0% Off)'
     
     -- 2. Non-Sized / Single Size Mechanics (Cosmetics, Towels, Beauty)
-    WHEN is_single_size = 1 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 50.0 THEN 'Full Price Margin Protection (0% Off)'
+    WHEN is_single_size = 1 AND cumulative_str_pct >= 50.0 THEN 'Full Price Margin Protection (0% Off)'
     WHEN is_single_size = 1 AND total_physical_stock > 100 THEN 'Spend 250 Save 50 (Basket Pack)'
     WHEN is_single_size = 1 THEN 'Beauty Multi-Buy (Buy 2 Get 1 Free)'
     
     -- 3. Core Sized Apparel (Category Captains)
-    WHEN size_count >= 3 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 70.0 THEN 'Full Price Margin Protection (0% Off)'
+    WHEN size_count >= 3 AND cumulative_str_pct >= 70.0 THEN 'Full Price Margin Protection (0% Off)'
     
     -- 4. Summer Exit
     WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN 'Category Markdown 40% Off'
@@ -140,39 +172,54 @@ SELECT
 
   -- Promotional Price
   CASE 
+    WHEN is_underwater = 1 THEN ticket_price
     WHEN UPPER(season) LIKE '%AW26%' OR UPPER(season) LIKE '%WINTER 2026%' THEN ticket_price
-    WHEN is_single_size = 1 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 50.0 THEN ticket_price
-    WHEN is_single_size = 1 AND total_physical_stock > 100 THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.80, 2))
-    WHEN is_single_size = 1 THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.67, 2))
-    WHEN size_count >= 3 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 70.0 THEN ticket_price
-    WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.60, 2))
-    WHEN is_single_size = 0 AND size_count <= 2 THEN (CASE WHEN ticket_price <= 40.0 THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.50, 2)) ELSE (CASE WHEN 33.00 >= ROUND(unit_cost * 1.15, 2) THEN 33.00 ELSE ROUND(ticket_price * 0.60, 2) END) END)
-    ELSE MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.80, 2))
+    WHEN is_single_size = 1 AND cumulative_str_pct >= 50.0 THEN ticket_price
+    WHEN is_single_size = 1 AND total_physical_stock > 100 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.80, 2)))
+    WHEN is_single_size = 1 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.67, 2)))
+    WHEN size_count >= 3 AND cumulative_str_pct >= 70.0 THEN ticket_price
+    WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.60, 2)))
+    WHEN is_single_size = 0 AND size_count <= 2 THEN (CASE WHEN ticket_price <= 40.0 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.50, 2))) ELSE (CASE WHEN 33.00 >= cost_plus_vat AND 33.00 <= ticket_price THEN 33.00 ELSE MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.60, 2))) END) END)
+    ELSE MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.80, 2)))
   END AS promotional_price,
 
   -- Discount %
-  ROUND(CASE WHEN ticket_price > 0 THEN (1.0 - (
-    CASE 
+  ROUND(MAX(0.0, CASE WHEN ticket_price > 0 THEN (1.0 - (
+    (CASE 
+      WHEN is_underwater = 1 THEN ticket_price
       WHEN UPPER(season) LIKE '%AW26%' OR UPPER(season) LIKE '%WINTER 2026%' THEN ticket_price
-      WHEN is_single_size = 1 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 50.0 THEN ticket_price
-      WHEN is_single_size = 1 AND total_physical_stock > 100 THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.80, 2))
-      WHEN is_single_size = 1 THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.67, 2))
-      WHEN size_count >= 3 AND (CASE WHEN (lifetime_sold + total_physical_stock) > 0 THEN (lifetime_sold * 100.0 / (lifetime_sold + total_physical_stock)) ELSE 0.0 END) >= 70.0 THEN ticket_price
-      WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.60, 2))
-      WHEN is_single_size = 0 AND size_count <= 2 THEN (CASE WHEN ticket_price <= 40.0 THEN MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.50, 2)) ELSE (CASE WHEN 33.00 >= ROUND(unit_cost * 1.15, 2) THEN 33.00 ELSE ROUND(ticket_price * 0.60, 2) END) END)
-      ELSE MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.80, 2))
-    END / ticket_price
-  )) * 100.0 ELSE 0.0 END, 1) AS discount_pct,
+      WHEN is_single_size = 1 AND cumulative_str_pct >= 50.0 THEN ticket_price
+      WHEN is_single_size = 1 AND total_physical_stock > 100 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.80, 2)))
+      WHEN is_single_size = 1 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.67, 2)))
+      WHEN size_count >= 3 AND cumulative_str_pct >= 70.0 THEN ticket_price
+      WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.60, 2)))
+      WHEN is_single_size = 0 AND size_count <= 2 THEN (CASE WHEN ticket_price <= 40.0 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.50, 2))) ELSE (CASE WHEN 33.00 >= cost_plus_vat AND 33.00 <= ticket_price THEN 33.00 ELSE MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.60, 2))) END) END)
+      ELSE MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.80, 2)))
+    END) / ticket_price
+  )) * 100.0 ELSE 0.0 END), 1) AS discount_pct,
 
-  'YES' AS zero_loss_status,
-  CAST(ROUND(total_physical_stock * 0.40) AS INTEGER) AS forecast_sold,
-  ROUND((CAST(ROUND(total_physical_stock * 0.40) AS INTEGER) * ((MAX(ROUND(unit_cost * 1.15, 2), ROUND(ticket_price * 0.80, 2)) / 1.15) - unit_cost)), 2) AS forecast_profit,
-  CAST(ROUND(total_physical_stock * 0.60) AS INTEGER) AS post_event_stock,
+  CASE WHEN is_underwater = 1 THEN 'FLAGGED' ELSE 'YES' END AS zero_loss_status,
+  CAST(ROUND(total_physical_stock * expected_clearance_rate) AS INTEGER) AS forecast_sold,
+  ROUND((CAST(ROUND(total_physical_stock * expected_clearance_rate) AS INTEGER) * (((
+    CASE 
+      WHEN is_underwater = 1 THEN ticket_price
+      WHEN UPPER(season) LIKE '%AW26%' OR UPPER(season) LIKE '%WINTER 2026%' THEN ticket_price
+      WHEN is_single_size = 1 AND cumulative_str_pct >= 50.0 THEN ticket_price
+      WHEN is_single_size = 1 AND total_physical_stock > 100 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.80, 2)))
+      WHEN is_single_size = 1 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.67, 2)))
+      WHEN size_count >= 3 AND cumulative_str_pct >= 70.0 THEN ticket_price
+      WHEN UPPER(season) LIKE '%SS26%' OR UPPER(season) LIKE '%SUMMER 2026%' OR UPPER(season) LIKE '%SS 26%' THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.60, 2)))
+      WHEN is_single_size = 0 AND size_count <= 2 THEN (CASE WHEN ticket_price <= 40.0 THEN MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.50, 2))) ELSE (CASE WHEN 33.00 >= cost_plus_vat AND 33.00 <= ticket_price THEN 33.00 ELSE MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.60, 2))) END) END)
+      ELSE MIN(ticket_price, MAX(cost_plus_vat, ROUND(ticket_price * 0.80, 2)))
+    END
+  ) / 1.15) - unit_cost)), 2) AS forecast_profit,
+  CAST(ROUND(total_physical_stock * (1.0 - expected_clearance_rate)) AS INTEGER) AS post_event_stock,
   CASE 
+    WHEN is_underwater = 1 THEN 'Catalog Ticket Price is below Landed Unit Cost (15% VAT). Clamped to list ticket to prevent below-cost selling. Requires ERP catalog audit.'
     WHEN is_single_size = 1 THEN 'Core non-sized / volumetric merchandise. Merchandised as basket builder rather than broken-size oddment rail.'
     ELSE 'Assortment lifecycle strategy derived from store inventory, size curve health, and sales velocity.'
   END AS commercial_rationale,
   CURRENT_TIMESTAMP AS last_computed_at
 
-FROM raw_agg
+FROM priced
 ORDER BY total_physical_stock DESC;

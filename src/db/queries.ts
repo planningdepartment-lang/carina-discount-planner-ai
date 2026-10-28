@@ -236,6 +236,7 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
 
     FROM odoo_stock_move_line
     WHERE product_sku GLOB '[0-9][0-9][0-9][0-9][0-9]-*-*'
+      AND state = 'done'
       AND location_dest_id_name != 'Shofy/Stock' 
       AND location_id_name != 'Shofy/Stock'
       AND location_dest_id_name != 'WH-D/Stock' 
