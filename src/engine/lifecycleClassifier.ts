@@ -1,5 +1,6 @@
 import { calculateZeroLossFloor } from './metricsCalculator';
 import { LIFECYCLE_TIERS } from '../config/constants';
+import { computeDynamicBundle2 } from './dynamicOfferEngine';
 
 export interface StyleMetrics {
   styleCode: string;
@@ -28,11 +29,14 @@ export interface RecommendationResult {
   expectedClearancePct: number;
   rationale: string;
   zeroLossStatus: 'YES' | 'FLAGGED';
+  bundleQuantity?: number;
+  bundlePriceSAR?: number;
 }
 
 /**
- * 6-Tier Style Judgement Engine & Offer Classifier
- * Evaluates Velocity (ROS), Lifecycle (STR%), Runway (WOS), Curve (SAR), and Seasonality.
+ * 7-Tier Style Judgement Engine & Dynamic Offer Classifier
+ * Evaluates Velocity (ROS), Lifecycle (STR%), Runway (WOS), Curve (SAR), Category, and Seasonality.
+ * Dynamically computes "Bundle 2" pairs for healthy apparel curves and dedicated clearance for broken curves.
  */
 export function classifyStyleAndRecommend(metrics: StyleMetrics): RecommendationResult {
   const costPlusVat = calculateZeroLossFloor(metrics.unitCost);
@@ -46,7 +50,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 0,
       rationale: `Ticket price (${metrics.ticketPrice.toFixed(2)} SAR) is below Landed Cost + 15% VAT (${costPlusVat.toFixed(2)} SAR). Audit Odoo catalog.`,
-      zeroLossStatus: 'FLAGGED'
+      zeroLossStatus: 'FLAGGED',
+      bundleQuantity: 1,
+      bundlePriceSAR: metrics.ticketPrice
     };
   }
 
@@ -60,7 +66,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 15,
       rationale: 'Fresh Winter 2026 arrival entering peak weather window. Strictly protected at full price.',
-      zeroLossStatus: 'YES'
+      zeroLossStatus: 'YES',
+      bundleQuantity: 1,
+      bundlePriceSAR: metrics.ticketPrice
     };
   }
 
@@ -80,7 +88,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         promotionalPriceSAR: metrics.ticketPrice,
         expectedClearancePct: 25,
         rationale: 'Core single-size product with healthy sell-through. Organic demand protects full ticket margin.',
-        zeroLossStatus: 'YES'
+        zeroLossStatus: 'YES',
+        bundleQuantity: 1,
+        bundlePriceSAR: metrics.ticketPrice
       };
     }
 
@@ -94,7 +104,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         promotionalPriceSAR: promoPrice,
         expectedClearancePct: 40,
         rationale: 'High-margin non-sized cosmetic/accessory. Deployed as transaction basket booster rather than clearance rail.',
-        zeroLossStatus: 'YES'
+        zeroLossStatus: 'YES',
+        bundleQuantity: 1,
+        bundlePriceSAR: promoPrice
       };
     } else {
       const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.67 * 100) / 100);
@@ -106,7 +118,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         promotionalPriceSAR: promoPrice,
         expectedClearancePct: 45,
         rationale: 'Single-size beauty item. Multi-buy incentive drives transaction volume without single-unit oddment dumping.',
-        zeroLossStatus: 'YES'
+        zeroLossStatus: 'YES',
+        bundleQuantity: 3,
+        bundlePriceSAR: Math.round(metrics.ticketPrice * 2 * 100) / 100
       };
     }
   }
@@ -120,7 +134,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 20,
       rationale: `Proven category captain (STR ${metrics.cumulativeSTR.toFixed(1)}%). Organic customer demand is self-sustaining.`,
-      zeroLossStatus: 'YES'
+      zeroLossStatus: 'YES',
+      bundleQuantity: 1,
+      bundlePriceSAR: metrics.ticketPrice
     };
   }
 
@@ -136,7 +152,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       promotionalPriceSAR: safePromo,
       expectedClearancePct: 45,
       rationale: 'Summer 2026 collection exit before cold winter weather sets in Taif and Western Province.',
-      zeroLossStatus: 'YES'
+      zeroLossStatus: 'YES',
+      bundleQuantity: 1,
+      bundlePriceSAR: safePromo
     };
   }
 
@@ -154,7 +172,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         promotionalPriceSAR: safePromo,
         expectedClearancePct: 50,
         rationale: `Broken size curve or stagnant turnover (WOS ${metrics.storeFloorWOS.toFixed(1)} wks). 50% discount liquidates floor space above cost floor.`,
-        zeroLossStatus: 'YES'
+        zeroLossStatus: 'YES',
+        bundleQuantity: 1,
+        bundlePriceSAR: safePromo
       };
     } else {
       // 3 for 99 SAR Rail (33 SAR/unit)
@@ -168,7 +188,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
           promotionalPriceSAR: bundleUnit,
           expectedClearancePct: 55,
           rationale: `Broken curve liquidation. 33 SAR bundle recovers working capital safely above ${costPlusVat.toFixed(2)} SAR floor.`,
-          zeroLossStatus: 'YES'
+          zeroLossStatus: 'YES',
+          bundleQuantity: 3,
+          bundlePriceSAR: 99.00
         };
       } else {
         // Fallback for higher-cost items to safe clearance price
@@ -181,13 +203,33 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
           promotionalPriceSAR: safePrice,
           expectedClearancePct: 40,
           rationale: 'Liquidates aged inventory while adhering strictly to landed cost + VAT floor.',
-          zeroLossStatus: 'YES'
+          zeroLossStatus: 'YES',
+          bundleQuantity: 1,
+          bundlePriceSAR: safePrice
         };
       }
     }
   }
 
-  // Tier 2: Default Steady Active (Spend & Save Multi-pack Driver)
+  // Tier 2: Dynamic "Bundle 2" (Pairs) for Healthy Apparel Curves
+  if (!isSingleSize && metrics.activeSizeCount >= 3) {
+    const bundle2 = computeDynamicBundle2(metrics);
+    if (bundle2.isBundleApplicable) {
+      return {
+        tier: LIFECYCLE_TIERS.BUNDLE_2,
+        recommendedOffer: bundle2.bundleOfferLabel,
+        discountPct: bundle2.discountPct,
+        promotionalPriceSAR: bundle2.unitPromoPriceSAR,
+        expectedClearancePct: bundle2.expectedClearancePct,
+        rationale: bundle2.rationale,
+        zeroLossStatus: 'YES',
+        bundleQuantity: bundle2.bundleQuantity,
+        bundlePriceSAR: bundle2.bundlePriceSAR
+      };
+    }
+  }
+
+  // Fallback Steady Active (Spend & Save Multi-pack Driver)
   const rawSpendSave = Math.round(metrics.ticketPrice * 0.80 * 100) / 100;
   const spendSavePrice = Math.max(costPlusVat, rawSpendSave);
   const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (spendSavePrice / metrics.ticketPrice)) * 100) : 0;
@@ -199,6 +241,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     promotionalPriceSAR: spendSavePrice,
     expectedClearancePct: 25,
     rationale: 'Core continuity basic pack. Basket driver protects 75%+ stock for December/January peak winter trading.',
-    zeroLossStatus: 'YES'
+    zeroLossStatus: 'YES',
+    bundleQuantity: 1,
+    bundlePriceSAR: spendSavePrice
   };
 }

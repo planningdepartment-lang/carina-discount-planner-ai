@@ -328,7 +328,25 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     }
   }
 
-  // Tier 2: Default Steady Active (Spend & Save Multi-pack Driver)
+  // Tier 2: Dynamic "Bundle 2" (Pairs) for Healthy Apparel Curves
+  if (!isSingleSize && metrics.activeSizeCount >= 3) {
+    const bundle2 = computeDynamicBundle2(metrics);
+    if (bundle2.isBundleApplicable) {
+      return {
+        tier: LIFECYCLE_TIERS.BUNDLE_2,
+        recommendedOffer: bundle2.bundleOfferLabel,
+        discountPct: bundle2.discountPct,
+        promotionalPriceSAR: bundle2.unitPromoPriceSAR,
+        expectedClearancePct: bundle2.expectedClearancePct,
+        rationale: bundle2.rationale,
+        zeroLossStatus: 'YES',
+        bundleQuantity: bundle2.bundleQuantity,
+        bundlePriceSAR: bundle2.bundlePriceSAR
+      };
+    }
+  }
+
+  // Fallback Steady Active (Spend & Save Multi-pack Driver)
   const rawSpendSave = Math.round(metrics.ticketPrice * 0.80 * 100) / 100;
   const spendSavePrice = Math.max(costPlusVat, rawSpendSave);
   const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (spendSavePrice / metrics.ticketPrice)) * 100) : 0;
@@ -340,7 +358,9 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     promotionalPriceSAR: spendSavePrice,
     expectedClearancePct: 25,
     rationale: 'Core continuity basic pack. Basket driver protects 75%+ stock for December/January peak winter trading.',
-    zeroLossStatus: 'YES'
+    zeroLossStatus: 'YES',
+    bundleQuantity: 1,
+    bundlePriceSAR: spendSavePrice
   };
 }
 ```

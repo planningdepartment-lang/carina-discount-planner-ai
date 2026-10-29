@@ -40,6 +40,11 @@
 
         
 
+        <button id="campaignBriefingBtn" class="btn btn-luxury-secondary">
+          <span class="btn-icon">📋</span>
+          <span>Campaign Briefing</span>
+        </button>
+
         <button id="rulesBtn" class="btn btn-luxury-secondary">
           <span class="btn-icon">⚖️</span>
           <span>Governance Rules</span>
@@ -645,6 +650,33 @@
           </div>
           <button type="submit" class="btn btn-luxury-gold">Activate Policy</button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Universal Promotional Campaign & Executive Briefing Modal -->
+  <div class="modal-overlay" id="campaignBriefingModal">
+    <div class="modal-dialog luxury-modal" style="max-width: 920px; max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="flex-shrink: 0; padding-bottom: 0.75rem;">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">📋</span>
+          <h3 id="campaignModalHeading" style="font-size: 1.15rem;">Universal Campaign Strategy &amp; Executive Dossier</h3>
+        </div>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+          <select id="campaignEventSelect" class="luxury-select" style="font-size: 0.775rem; padding: 4px 8px; background: rgba(15,23,42,0.9); border: 1px solid var(--gold-primary); color: #fff; border-radius: 4px;">
+            <option value="WHITE_FRIDAY" selected>White Friday / Cyber Week</option>
+            <option value="NATIONAL_DAY">Saudi National Day (94th / 95th)</option>
+            <option value="FOUNDING_DAY">Saudi Founding Day</option>
+            <option value="RAMADAN_EID">Ramadan &amp; Eid Al-Fitr</option>
+            <option value="SEASONAL_EXIT">End-of-Season SS26 Clearance</option>
+            <option value="CONTINUOUS_DISCOUNT">Continuous Baseline Strategy</option>
+          </select>
+          <button id="copyBriefingBtn" class="btn btn-luxury-outline" style="font-size: 0.75rem; padding: 4px 10px; color: var(--gold-light); border-color: rgba(212,175,55,0.4);" title="Copy Executive Markdown">Copy Brief</button>
+          <button id="closeCampaignModalBtn" class="btn-close">&times;</button>
+        </div>
+      </div>
+      <div class="modal-body" id="campaignModalBody" style="overflow-y: auto; padding: 1.25rem 1.5rem; flex: 1;">
+        <!-- Populated dynamically -->
       </div>
     </div>
   </div>

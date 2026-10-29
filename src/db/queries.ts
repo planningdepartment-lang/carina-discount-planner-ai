@@ -253,7 +253,13 @@ export async function saveStylePlanSnapshots(db: D1Database, records: StylePlanR
         const postStock = Math.max(0, metrics.totalPhysicalStock - forecastSold);
         const netRev = (forecastSold * recommendation.promotionalPriceSAR) / 1.15;
         const forecastProfit = Math.round(netRev - (forecastSold * metrics.unitCost));
-        const curveLabel = metrics.activeSizeCount >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)';
+        const isSingleSize = metrics.isSingleSize || (
+          /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) ||
+          /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName)
+        );
+        const curveLabel = isSingleSize
+          ? 'Single Size (Complete)'
+          : (metrics.activeSizeCount >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)');
 
         return insertStmt.bind(
           metrics.styleCode,

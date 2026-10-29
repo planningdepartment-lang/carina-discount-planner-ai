@@ -36,7 +36,13 @@ export function generateMasterPlanCSV(records: StylePlanRecord[]): string {
   for (const { metrics, recommendation } of records) {
     const costPlusVat = calculateZeroLossFloor(metrics.unitCost);
     const breakdown = `AND:${metrics.stockAndalus} | YAS:${metrics.stockYasmeen} | JOU:${metrics.stockJouri} | WH:${metrics.stockWH}`;
-    const curveLabel = metrics.activeSizeCount >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)';
+    const isSingleSize = metrics.isSingleSize || (
+      /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) ||
+      /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName)
+    );
+    const curveLabel = isSingleSize
+      ? 'Single Size (Complete)'
+      : (metrics.activeSizeCount >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)');
 
     const row = [
       metrics.styleCode,
@@ -98,10 +104,19 @@ export function generateOdooPOSPricelistCSV(records: StylePlanRecord[]): string 
     let posRuleTag = 'RULE_SPEND_SAVE_20';
     if (recommendation.zeroLossStatus === 'FLAGGED' || (recommendation.tier || '').includes('FLAGGED') || metrics.ticketPrice < costPlusVat) {
       posRuleTag = 'RULE_FLAGGED_PRICE_ERROR_LOCKED';
-    } else if (recommendation.tier === 'CLEARANCE_50_PCT') posRuleTag = 'RULE_CLEAR_50_PCT';
-    else if (recommendation.tier === 'CLEARANCE_3_FOR_99') posRuleTag = 'RULE_CLEAR_3_FOR_99';
-    else if (recommendation.tier === 'MATURE_SUMMER_EXIT') posRuleTag = 'RULE_SUMMER_40_PCT';
-    else if (recommendation.tier === 'HERO_CORE' || recommendation.tier === 'FRESH_WINTER') posRuleTag = 'RULE_FULL_PRICE_PROTECTED';
+    } else if (recommendation.tier === 'CLEARANCE_50_PCT') {
+      posRuleTag = 'RULE_CLEAR_50_PCT';
+    } else if (recommendation.tier === 'CLEARANCE_3_FOR_99') {
+      posRuleTag = 'RULE_CLEAR_3_FOR_99';
+    } else if (recommendation.tier === 'MATURE_SUMMER_EXIT') {
+      posRuleTag = 'RULE_SUMMER_40_PCT';
+    } else if (recommendation.tier === 'HERO_CORE' || recommendation.tier === 'FRESH_WINTER') {
+      posRuleTag = 'RULE_FULL_PRICE_PROTECTED';
+    } else if (recommendation.tier === 'BUNDLE_2') {
+      posRuleTag = 'RULE_BUNDLE_2_PAIRS';
+    } else if (recommendation.tier === 'VOLUME_MULTI_BUY') {
+      posRuleTag = 'RULE_VOLUME_MULTI_BUY';
+    }
 
     const row = [
       metrics.styleCode,

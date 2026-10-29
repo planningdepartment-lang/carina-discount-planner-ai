@@ -38,6 +38,77 @@ let currentPage = 1;
 let pageSize = 15;
 let debounceTimer = null;
 let activeContextStyle = null; // Session memory for Copilot multi-turn chat
+let currentBriefingMarkdown = ''; // Memory for executive briefing markdown copy
+
+/**
+ * Computes multi-point price elasticity of demand and profit curve for a style.
+ */
+function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhysicalStock, cumulativeSTR = 40.0) {
+  const costPlusVat = unitCost > 0 ? Math.round(unitCost * 1.15 * 100) / 100 : 0;
+  const discountSteps = [0, 10, 20, 30, 40, 50];
+  const baseWeeklySales = Math.max(0.2, weeklyROS);
+  const baselineSales = Math.max(1, Math.round(baseWeeklySales * 4));
+
+  let priceElasticityCoeff = 1.6;
+  if (cumulativeSTR < 30) priceElasticityCoeff = 2.1;
+  else if (cumulativeSTR > 65) priceElasticityCoeff = 1.1;
+
+  const tiers = [];
+  let maxProfit = -Infinity;
+  let optimalIdx = 0;
+
+  discountSteps.forEach((discPct, idx) => {
+    const rawPrice = ticketPrice * (1 - discPct / 100);
+    const isZeroLossViolated = rawPrice < (costPlusVat - 0.01);
+    const promotionalPrice = isZeroLossViolated ? costPlusVat : Math.round(rawPrice * 100) / 100;
+
+    let demandMultiplier = 1.0;
+    if (discPct > 0) {
+      demandMultiplier = 1.0 + (priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8));
+    }
+
+    const uncappedDemand = Math.round(baselineSales * demandMultiplier);
+    const estimatedDemand = Math.min(totalPhysicalStock, Math.max(baselineSales, uncappedDemand));
+    const netPriceExVat = Math.round((promotionalPrice / 1.15) * 100) / 100;
+    const projectedNetRevenue = Math.round(estimatedDemand * netPriceExVat * 100) / 100;
+    const projectedCOGS = Math.round(estimatedDemand * unitCost * 100) / 100;
+    const projectedGrossProfit = Math.round((projectedNetRevenue - projectedCOGS) * 100) / 100;
+    const realizedMarginPct = projectedNetRevenue > 0 ? Math.round(((projectedNetRevenue - projectedCOGS) / projectedNetRevenue) * 1000) / 10 : 0;
+
+    const tierResult = {
+      discountPct: discPct,
+      promotionalPrice,
+      isZeroLossViolated,
+      estimatedDemand,
+      projectedNetRevenue,
+      projectedGrossProfit,
+      realizedMarginPct,
+      isOptimalProfitPeak: false
+    };
+
+    tiers.push(tierResult);
+    if (!isZeroLossViolated && projectedGrossProfit > maxProfit) {
+      maxProfit = projectedGrossProfit;
+      optimalIdx = idx;
+    }
+  });
+
+  if (tiers[optimalIdx]) {
+    tiers[optimalIdx].isOptimalProfitPeak = true;
+  }
+
+  const optimalTier = tiers[optimalIdx];
+  let commercialAdvice = '';
+  if (optimalTier.discountPct === 0) {
+    commercialAdvice = `Full price protection generates maximum profit (+${Math.round(optimalTier.projectedGrossProfit).toLocaleString()} SAR) due to strong organic consumer demand.`;
+  } else if (optimalTier.discountPct <= 25) {
+    commercialAdvice = `Optimal cash yield achieved at ${optimalTier.discountPct}% off (+${Math.round(optimalTier.projectedGrossProfit).toLocaleString()} SAR profit). Higher discounts clear units but sacrifice net dollar margin.`;
+  } else {
+    commercialAdvice = `A deeper markdown of ${optimalTier.discountPct}% off is mathematically required to accelerate velocity and recover +${Math.round(optimalTier.projectedGrossProfit).toLocaleString()} SAR working capital.`;
+  }
+
+  return { tiers, optimalDiscountPct: optimalTier.discountPct, commercialAdvice };
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -257,6 +328,42 @@ async function initApp() {
     chatInput.style.height = `${newHeight}px`;
     chatInput.style.overflowY = chatInput.scrollHeight > 160 ? 'auto' : 'hidden';
   });
+
+  // Campaign Briefing Modal & Controller
+  const campaignModal = document.getElementById('campaignBriefingModal');
+  const campaignBriefingBtn = document.getElementById('campaignBriefingBtn');
+  const closeCampaignModalBtn = document.getElementById('closeCampaignModalBtn');
+  const campaignEventSelect = document.getElementById('campaignEventSelect');
+  const copyBriefingBtn = document.getElementById('copyBriefingBtn');
+
+  if (campaignBriefingBtn && campaignModal) {
+    campaignBriefingBtn.addEventListener('click', () => {
+      campaignModal.classList.add('open');
+      loadCampaignBriefing(campaignEventSelect ? campaignEventSelect.value : 'WHITE_FRIDAY');
+    });
+  }
+
+  if (closeCampaignModalBtn && campaignModal) {
+    closeCampaignModalBtn.addEventListener('click', () => {
+      campaignModal.classList.remove('open');
+    });
+  }
+
+  if (campaignEventSelect) {
+    campaignEventSelect.addEventListener('change', () => {
+      loadCampaignBriefing(campaignEventSelect.value);
+    });
+  }
+
+  if (copyBriefingBtn) {
+    copyBriefingBtn.addEventListener('click', () => {
+      if (currentBriefingMarkdown) {
+        navigator.clipboard.writeText(currentBriefingMarkdown);
+        copyBriefingBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBriefingBtn.textContent = 'Copy Brief'; }, 2000);
+      }
+    });
+  }
 
   // Rules Modal
   const rulesModal = document.getElementById('rulesModal');
@@ -530,6 +637,8 @@ function attachTableActionListeners() {
           clearancePct = 45;
         } else if (offer.includes('50% Off')) {
           clearancePct = 50;
+        } else if (offer.includes('Buy 2 For')) {
+          clearancePct = 35;
         } else if (offer.includes('99 SAR') || offer.includes('3 For 99')) {
           clearancePct = 55;
         } else {
@@ -659,6 +768,27 @@ function attachTableActionListeners() {
       // Zero-Loss Headroom
       const floorHeadroom = promo - floor;
       const isUnderwater = origMargin < 0 || ticket < floor;
+
+      // Dynamic Price Elasticity Calculation for Popover
+      const elasticityCurve = computeClientElasticityCurve(ticket, cost, ros, stock, str);
+      const elasticityRowsHtml = elasticityCurve.tiers.map(t => {
+        const isRec = Math.abs(t.discountPct - discount) < 5;
+        const highlightStyle = t.isOptimalProfitPeak 
+          ? 'background: rgba(212,175,55,0.12); color: var(--gold-light); font-weight: 600;' 
+          : (isRec ? 'background: rgba(59,130,246,0.1); font-weight: 600;' : '');
+        const peakTag = t.isOptimalProfitPeak ? ' <span style="font-size:0.65rem; color:var(--gold-primary); font-weight:700;">[Peak]</span>' : '';
+        const clampTag = t.isZeroLossViolated ? ' <span style="font-size:0.65rem; color:#ef4444;">[Floor]</span>' : '';
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); ${highlightStyle}">
+            <td style="text-align: left; padding: 4px;">${t.discountPct}%${peakTag}${clampTag}</td>
+            <td style="padding: 4px;">${t.promotionalPrice.toFixed(2)}</td>
+            <td style="padding: 4px;">${t.estimatedDemand} u</td>
+            <td style="padding: 4px;">${Math.round(t.projectedNetRevenue).toLocaleString()} SAR</td>
+            <td style="padding: 4px; ${t.projectedGrossProfit >= 0 ? 'color:#10b981;' : 'color:#ef4444;'} font-weight:600;">+${Math.round(t.projectedGrossProfit).toLocaleString()} SAR</td>
+            <td style="padding: 4px;">${t.realizedMarginPct.toFixed(1)}%</td>
+          </tr>
+        `;
+      }).join('');
 
       // Section 5 HTML (Operating Leverage or Zero-Loss Protection Card)
       const leverageCardHtml = isUnderwater ? `
@@ -863,6 +993,37 @@ function attachTableActionListeners() {
 
           <!-- Card 5: Operating Leverage & Break-Even Lift Analysis -->
           ${leverageCardHtml}
+
+          <!-- Card 5b: Dynamic Price Elasticity & Multi-Point Revenue Curve -->
+          <div class="popover-card">
+            <div class="popover-card-header">
+              <span class="popover-card-title text-gold">[PRICE ELASTICITY & REVENUE OPTIMIZATION CURVE]</span>
+              <span class="popover-criteria-badge badge-blue">MULTI-TIER PROFIT MODEL</span>
+            </div>
+            <p style="font-size: 0.725rem; color: var(--text-muted); margin: 0 0 8px 0;">
+              Empirical price elasticity model evaluating expected demand expansion and net cash profit across candidate discount points:
+            </p>
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; font-size: 0.725rem; border-collapse: collapse; text-align: right;">
+                <thead>
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.12); color: var(--text-muted); font-size: 0.7rem;">
+                    <th style="text-align: left; padding: 4px;">Discount</th>
+                    <th style="padding: 4px;">Price</th>
+                    <th style="padding: 4px;">Demand</th>
+                    <th style="padding: 4px;">Net Sales</th>
+                    <th style="padding: 4px;">Gross Profit</th>
+                    <th style="padding: 4px;">Margin %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${elasticityRowsHtml}
+                </tbody>
+              </table>
+            </div>
+            <div class="pop-note" style="margin-top: 6px;">
+              <strong>Optimization Insight:</strong> ${elasticityCurve.commercialAdvice}
+            </div>
+          </div>
 
           <!-- Card 6: Dynamic Campaign Clearance Forecast & Cash Margin Yield -->
           <div class="popover-card highlight-card">
@@ -1854,4 +2015,148 @@ async function initRetrainingAndGateway() {
 function resetTableScroll() {
   const container = document.querySelector('.table-container');
   if (container) container.scrollTop = 0;
+}
+
+/**
+ * Loads and renders the Universal Campaign Strategy and Executive Dossier.
+ */
+async function loadCampaignBriefing(eventType = 'WHITE_FRIDAY') {
+  const container = document.getElementById('campaignModalBody');
+  const heading = document.getElementById('campaignModalHeading');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 48px; color: var(--gold-light);">
+      <span class="luxury-spinner"></span>
+      <span style="font-size: 0.9rem;">Synthesizing executive campaign strategy &amp; store physics...</span>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('/api/reports/campaign-briefing?event=' + encodeURIComponent(eventType) + '&t=' + Date.now(), {
+      cache: 'no-store',
+      credentials: 'same-origin'
+    });
+
+    if (!res.ok) {
+      container.innerHTML = `<div class="alert-box alert-danger" style="margin: 20px;">Failed to load campaign dossier. Please retry.</div>`;
+      return;
+    }
+
+    const data = await res.json();
+    currentBriefingMarkdown = data.executiveNarrativeMarkdown || '';
+
+    if (heading && data.eventTitle) {
+      heading.textContent = data.eventTitle;
+    }
+
+    const s = data.catalogSummary;
+    const l = data.projectedLiquidation;
+    const d = data.storeSpaceDecongestion;
+    const t = data.tierAllocations;
+
+    container.innerHTML = `
+      <!-- Event Strategic Directive -->
+      <div style="background: rgba(212,175,55,0.06); border: 1px solid rgba(212,175,55,0.25); border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <strong style="color: var(--gold-light); font-size: 0.95rem;">${escapeHtml(data.eventTitle)}</strong>
+          <span class="badge badge-yes" style="font-size: 0.7rem;">Saudi 15% VAT Compliant</span>
+        </div>
+        <p style="margin: 0; font-size: 0.8rem; color: #f1f5f9; line-height: 1.5;">${escapeHtml(data.strategicObjective)}</p>
+        <div style="margin-top: 8px; font-size: 0.775rem; color: var(--text-muted);">
+          <strong>Primary Promotional Mechanic:</strong> <span style="color: var(--gold-light);">${escapeHtml(data.recommendedMechanic)}</span>
+        </div>
+      </div>
+
+      <!-- 4 Key Financial Metrics -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+        <div style="background: rgba(22,28,44,0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Total Catalog Ticket</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-top: 2px;">${s.totalRetailTicketSAR.toLocaleString()} SAR</div>
+          <div style="font-size: 0.7rem; color: var(--gold-light); margin-top: 2px;">Cost: ${s.totalLandedCostSAR.toLocaleString()} SAR (${s.blendedIMUPct}% IMU)</div>
+        </div>
+        <div style="background: rgba(22,28,44,0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Projected Clearance</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-top: 2px;">${l.projectedUnitsSold.toLocaleString()} units</div>
+          <div style="font-size: 0.7rem; color: #10b981; margin-top: 2px;">${l.liquidationRatePct}% of active catalog</div>
+        </div>
+        <div style="background: rgba(22,28,44,0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Net Cash Profit</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: #10b981; margin-top: 2px;">+${Math.round(l.projectedNetCashProfitSAR).toLocaleString()} SAR</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Realized Margin: ${l.realizedNetMarginPct}%</div>
+        </div>
+        <div style="background: rgba(22,28,44,0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 12px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Assortment Shield</div>
+          <div style="font-size: 1.1rem; font-weight: 700; color: var(--gold-light); margin-top: 2px;">${t.heroCoreUnits.toLocaleString()} units</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">100% full price margin protected</div>
+        </div>
+      </div>
+
+      <!-- Store Rack Decongestion Grid -->
+      <div style="background: rgba(22,28,44,0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: #fff; margin-bottom: 8px;">Store Sales Floor Decongestion Targets (621 m² Footprint)</div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+          <div style="background: rgba(15,23,42,0.6); padding: 8px 10px; border-radius: 4px; border-left: 3px solid #3b82f6;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #fff;">Al-Andalus Flagship (260 m²)</div>
+            <div style="font-size: 0.725rem; color: var(--text-muted); margin-top: 2px;">Current: ${d.andalus.currentDensity} u/m² &rarr; Post-Event: <strong>${d.andalus.postEventDensity} u/m²</strong></div>
+            <span class="badge badge-yes" style="font-size: 0.65rem; margin-top: 4px;">${d.andalus.status}</span>
+          </div>
+          <div style="background: rgba(15,23,42,0.6); padding: 8px 10px; border-radius: 4px; border-left: 3px solid #10b981;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #fff;">Al-Yasmeen Mall (193 m²)</div>
+            <div style="font-size: 0.725rem; color: var(--text-muted); margin-top: 2px;">Current: ${d.yasmeen.currentDensity} u/m² &rarr; Post-Event: <strong>${d.yasmeen.postEventDensity} u/m²</strong></div>
+            <span class="badge badge-yes" style="font-size: 0.65rem; margin-top: 4px;">${d.yasmeen.status}</span>
+          </div>
+          <div style="background: rgba(15,23,42,0.6); padding: 8px 10px; border-radius: 4px; border-left: 3px solid var(--gold-primary);">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #fff;">Jouri Mall Taif (168 m²)</div>
+            <div style="font-size: 0.725rem; color: var(--text-muted); margin-top: 2px;">Current: ${d.jouri.currentDensity} u/m² &rarr; Post-Event: <strong>${d.jouri.postEventDensity} u/m²</strong></div>
+            <span class="badge badge-flag" style="font-size: 0.65rem; margin-top: 4px;">${d.jouri.status}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top 5 Liquidation Priorities -->
+      <div style="background: rgba(22,28,44,0.7); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;">
+        <div style="font-size: 0.8rem; font-weight: 600; color: #fff; margin-bottom: 8px;">Top Priority Liquidation Targets (High Working Capital at Risk)</div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; font-size: 0.75rem; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 0.7rem;">
+                <th style="text-align: left; padding: 4px;">Style Code</th>
+                <th style="text-align: left; padding: 4px;">Product Name</th>
+                <th style="padding: 4px;">Category</th>
+                <th style="text-align: right; padding: 4px;">Stock</th>
+                <th style="text-align: right; padding: 4px;">Runway (WOS)</th>
+                <th style="text-align: right; padding: 4px;">List Ticket</th>
+                <th style="text-align: left; padding: 4px;">Recommended Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.topPriorityClearanceStyles.slice(0, 5).map(s => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                  <td style="padding: 4px;"><span class="style-code-badge">${escapeHtml(s.styleCode)}</span></td>
+                  <td style="padding: 4px; font-weight: 500; color: #fff;">${escapeHtml(s.productName)}</td>
+                  <td style="padding: 4px; color: var(--text-muted);">${escapeHtml(s.category)}</td>
+                  <td style="text-align: right; padding: 4px; font-weight: 600;">${s.stock} u</td>
+                  <td style="text-align: right; padding: 4px; color: #ef4444; font-weight: 600;">${s.wos} wks</td>
+                  <td style="text-align: right; padding: 4px;">${s.ticketPrice.toFixed(2)} SAR</td>
+                  <td style="padding: 4px;"><strong style="color: var(--gold-light);">${escapeHtml(s.recommendedOffer)}</strong></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Formatted Markdown Brief View -->
+      <div style="background: rgba(15,23,42,0.9); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Executive Dossier Markdown (Ready for Leadership Briefing)</span>
+        </div>
+        <pre style="margin: 0; font-family: monospace; font-size: 0.725rem; color: #94a3b8; white-space: pre-wrap; line-height: 1.45; max-height: 220px; overflow-y: auto;">${escapeHtml(data.executiveNarrativeMarkdown)}</pre>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Error loading campaign briefing:', err);
+    container.innerHTML = `<div class="alert-box alert-danger" style="margin: 20px;">Network error loading campaign briefing.</div>`;
+  }
 }

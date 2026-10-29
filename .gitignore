@@ -7,3 +7,5 @@ dist/
 *.pickle
 .DS_Store
 Thumbs.db
+scratch/
+

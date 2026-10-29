@@ -12,6 +12,7 @@ import {
   handleCopilotFeedback 
 } from './api/retrainingController';
 import { handleGatewayValidation } from './api/gatewayController';
+import { handleCampaignBriefing } from './api/reportController';
 import { handleLogin, handleLogout, handleMe } from './api/authController';
 import { parseCookies, validateAdminSession, COOKIE_NAME } from './auth/adminAuth';
 
@@ -140,6 +141,11 @@ export default {
       // 8. Odoo POS Pricelist CSV Exporter API
       if (pathname === '/api/export/pos-csv' && request.method === 'GET') {
         return await handleExportPosCsv(request, env, corsHeaders);
+      }
+
+      // 8b. Universal Campaign & Executive Briefing API
+      if (pathname === '/api/reports/campaign-briefing' && request.method === 'GET') {
+        return await handleCampaignBriefing(request, env, corsHeaders);
       }
 
       // 9. Static Assets & Dashboard UI Gatekeeper

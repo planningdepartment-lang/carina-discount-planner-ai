@@ -7,7 +7,8 @@ const SYSTEM_PROMPT = `You are CARINA Senior Commercial Merchandising Strategist
   `1. Strictly NO emojis or unicode icons in your output.\n` +
   `2. NEVER volunteer promotional offers unless the user specifically asks for offers or markdowns.\n` +
   `3. MANDATORY STRUCTURE: Markdown title header followed by structured bullet points using bold metric titles.\n` +
-  `4. Enforce Saudi 15% VAT floor: Price >= Landed Cost x 1.15. Selling below cost is PROHIBITED.`;
+  `4. Enforce Saudi 15% VAT floor: Price >= Landed Cost x 1.15. Selling below cost is PROHIBITED.\n` +
+  `5. 4-LENS EVALUATION: When asked how an offer was evaluated, structure analysis across Cash Velocity Yield, Margin Preservation, Shopper Psychology (Bundle 2 / Pairs), and Curve Health Feasibility.`;
 
 function curateInstructionPairs(styles) {
   const dataset = [];
@@ -68,45 +69,25 @@ function curateInstructionPairs(styles) {
         }
       ]
     });
+
+    // Pair 4: 4-Lens AI Evaluation Trade-off Rationale
+    dataset.push({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `How did the AI evaluate the best offer for Style ${row.style_code}?` },
+        {
+          role: 'assistant',
+          content: `### 4-Lens Promotional Evaluation — Style **${row.style_code}** (*${row.product_name}*)\n\n` +
+            `• **1. Cash Velocity Yield vs Space Relief:** Evaluated runway of **${wos} WOS** across store sales floors. Offer accelerates inventory rotation to relieve floor density.\n` +
+            `• **2. Gross Margin Retention:** Evaluated Initial Markup of **${imu}% IMU**. Offer preserves positive unit net margin safely above the **${row.cost_plus_vat.toFixed(2)} SAR** Saudi VAT floor.\n` +
+            `• **3. Shopper Psychology & Basket Conversion:** Evaluated natural category purchase behavior. Recommends **${row.recommended_offer}** to incentivize multi-unit baskets without high single-item price resistance.\n` +
+            `• **4. Curve Health Feasibility:** Assessed size availability (${row.sar_curve_health}). Aligns offer mechanics with whether shoppers have complete size options or orphan oddments.`
+        }
+      ]
+    });
   }
 
   return dataset;
 }
 
 module.exports = { curateInstructionPairs };
-
-if (require.main === module) {
-  const sampleStyles = [
-    {
-      style_code: '59465',
-      product_name: 'High Neck Sleeveless Top (V)',
-      category: 'Top',
-      season: 'Continuity',
-      total_physical_stock: 180,
-      stock_andalus: 60,
-      stock_yasmeen: 50,
-      stock_jouri: 40,
-      stock_wh: 30,
-      cumulative_str_pct: 54.2,
-      weekly_ros: 3.2,
-      sar_curve_health: 'Healthy Curve (>=3 Sizes)',
-      unit_cost: 33.74,
-      cost_plus_vat: 38.80,
-      ticket_price: 119.0,
-      recommended_offer: 'Spend 250 Save 50 (Basket Pack)',
-      promotional_price: 95.20,
-      discount_pct: 20,
-      zero_loss_status: 'COMPLIANT_PROFITABLE',
-      forecast_sold: 90,
-      forecast_profit: 4410,
-      commercial_rationale: 'Core continuity style with healthy velocity.'
-    }
-  ];
-
-  const pairs = curateInstructionPairs(sampleStyles);
-  const outDir = path.resolve(__dirname, '../dist');
-  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, 'sample_training_dataset.jsonl');
-  fs.writeFileSync(outFile, pairs.map(p => JSON.stringify(p)).join('\n'), 'utf8');
-  console.log(`Generated ${pairs.length} training pairs in ${outFile}`);
-}

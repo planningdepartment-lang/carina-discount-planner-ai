@@ -12,7 +12,7 @@ export const COOKIE_NAME = 'carina_admin_session';
 /**
  * Converts ArrayBuffer to Hex String
  */
-function bufferToHex(buffer: ArrayBuffer): string {
+function bufferToHex(buffer: ArrayBufferLike): string {
   const bytes = new Uint8Array(buffer);
   let hex = '';
   for (let i = 0; i < bytes.length; i++) {

@@ -2,6 +2,8 @@ import { KSA_RETAIL_CONTEXT } from './skills/ksaRetailContext';
 import { COMPETITOR_PLAYBOOK } from './skills/competitorPlaybook';
 import { parseNaturalLanguageRule } from './skills/ruleParser';
 import { StyleMetrics } from '../engine/lifecycleClassifier';
+import { runWhatIfSimulation } from '../engine/simulator';
+import { getOrComputeStylePlan } from '../api/styleService';
 
 export type AgentMode = 'DISCOUNT_STRATEGIST' | 'STORE_AUDITOR' | 'RULE_COMPILER';
 
@@ -252,6 +254,36 @@ function formatOfferCard(row: D1StyleSnapshotRow): string {
  * Formats full style profile card (stock, velocity, and pricing economics).
  * Strictly omits promotional offers unless promotional recommendations are explicitly requested.
  */
+function formatSimulationCard(res: any, targetUnits: number, marginFloor: number): string {
+  const isHealthy = res.realizedNetMarginPct >= marginFloor;
+  const statusBadge = isHealthy ? 'HEALTHY_MARGIN_COMPLIANT' : 'MARGIN_DILUTION_WARNING';
+
+  let advice = '';
+  if (res.unitsSold >= 25000) {
+    advice = `Liquidating ${res.unitsSold.toLocaleString()} units successfully decongests Taif Jouri to ${res.postEventDensities.jouriDensity.toFixed(1)} u/m², yielding +${Math.round(res.projectedNetProfit).toLocaleString()} SAR net cash margin.`;
+  } else {
+    advice = `Liquidation pace protects ${res.retainedWinterPct.toFixed(1)}% of core winter assortment depth for peak winter trade while generating +${Math.round(res.projectedNetProfit).toLocaleString()} SAR net cash.`;
+  }
+
+  return (
+    `### Inventory Liquidation Scenario Simulation\n\n` +
+    `• **Target Parameters:** Target Liquidation: **${targetUnits.toLocaleString()} units** | Net Margin Floor: **${marginFloor.toFixed(1)}%**\n` +
+    `• **Liquidation Volume:** **${res.unitsSold.toLocaleString()} units** cleared (${res.clearanceSharePct.toFixed(1)}% clearance rate)\n` +
+    `• **Financial Impact (Net Cash Recovery):**\n` +
+    `  - **Projected Gross Revenue:** ${Math.round(res.projectedGrossRevenue).toLocaleString()} SAR\n` +
+    `  - **Projected Net Revenue (Ex-VAT):** ${Math.round(res.projectedNetRevenue).toLocaleString()} SAR\n` +
+    `  - **Total Cost of Goods Sold (COGS):** ${Math.round(res.projectedCOGS).toLocaleString()} SAR\n` +
+    `  - **Projected Net Cash Margin Contribution:** **+${Math.round(res.projectedNetProfit).toLocaleString()} SAR**\n` +
+    `  - **Realized Portfolio Net Margin:** **${res.realizedNetMarginPct.toFixed(1)}%** [${statusBadge}]\n` +
+    `• **Post-Event Store Rack Densities (621 m² Footprint):**\n` +
+    `  - **Al-Andalus Mall Flagship (Jeddah, 260 m²):** **${res.postEventDensities.andalusDensity.toFixed(1)} u/m²** (Balanced)\n` +
+    `  - **Al-Yasmeen Mall (Jeddah, 193 m²):** **${res.postEventDensities.yasmeenDensity.toFixed(1)} u/m²** (Relieved)\n` +
+    `  - **Jouri Mall (Taif, 168 m²):** **${res.postEventDensities.jouriDensity.toFixed(1)} u/m²** (${res.jouriStatus})\n` +
+    `• **Winter Assortment Shield:** **${res.retainedWinterUnits.toLocaleString()} units** preserved (${res.retainedWinterPct.toFixed(1)}% of winter depth strictly protected)\n` +
+    `• **Strategic Commercial Assessment:** ${advice}`
+  );
+}
+
 function formatFullStyleCard(row: D1StyleSnapshotRow): string {
   const wosVal = row.weekly_ros > 0 ? (row.total_physical_stock / row.weekly_ros).toFixed(1) : '999';
   const imuVal = row.ticket_price > 0 ? (((row.ticket_price - row.unit_cost) / row.ticket_price) * 100).toFixed(1) : '0';
@@ -407,6 +439,53 @@ export async function handleCopilotChat(
       reply: getDataSourceResponse(),
       mode
     };
+  }
+
+  // 3b. Detect Scenario Simulation / What-If Inquiries
+  const isSimulationQuery = /\b(what if.*(?:liquidat|clear|units?|margin|target|sales?)|simulate.*(?:liquidat|clear|units?|margin|scenario)|run.*simulation|what happens if we (?:liquidat|clear))\b/i.test(lowerMsg);
+
+  if (isSimulationQuery && matchedStyles.length === 0 && env?.DB) {
+    try {
+      let targetUnits = 22550;
+      const unitsMatch = lowerMsg.match(/(\d{1,3}(?:,\d{3})+|\d+)\s*(?:k\b|units?|items?|pcs)?/i);
+      if (unitsMatch) {
+        let rawUnits = unitsMatch[1].replace(/,/g, '');
+        let parsed = parseInt(rawUnits, 10);
+        if (lowerMsg.includes(unitsMatch[1] + 'k') || lowerMsg.includes(unitsMatch[1] + ' k')) {
+          parsed *= 1000;
+        }
+        if (parsed >= 1000 && parsed <= 60000) {
+          targetUnits = parsed;
+        }
+      }
+
+      let marginFloor = 48.0;
+      const marginMatch = lowerMsg.match(/(\d+(?:\.\d+)?)\s*(?:%|percent)\s*(?:margin|floor)?/i);
+      if (marginMatch) {
+        const parsedMargin = parseFloat(marginMatch[1]);
+        if (parsedMargin >= 10 && parsedMargin <= 80) {
+          marginFloor = parsedMargin;
+        }
+      }
+
+      const records = await getOrComputeStylePlan(env.DB);
+      if (records && records.length > 0) {
+        const styles = records.map(r => r.metrics);
+        const recs = records.map(r => r.recommendation);
+        const simResult = runWhatIfSimulation(styles, recs, {
+          targetLiquidationUnits: targetUnits,
+          minimumNetMarginFloorPct: marginFloor
+        });
+
+        const reply = formatSimulationCard(simResult, targetUnits, marginFloor);
+        return {
+          reply,
+          mode
+        };
+      }
+    } catch (err) {
+      console.error('Error running conversational simulation:', err);
+    }
   }
 
   // If a specific style was matched from the message or active conversation context
