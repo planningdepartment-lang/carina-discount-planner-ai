@@ -22,9 +22,9 @@
           <div class="brand-name">CARINA</div>
           <div class="brand-sub">HAUTE MERCHANDISING INTELLIGENCE &bull; KSA NETWORK</div>
         </div>
-        <div class="status-radar-pill">
+        <div class="status-radar-pill" title="Cloudflare Distributed Edge Telemetry">
           <span class="live-pulse-dot"></span>
-          <span>LIVE DATA STREAM</span>
+          <span class="radar-telemetry-text">LIVE EDGE STREAM &bull; 14ms LATENCY &bull; D1 QUANTUM SYNC</span>
         </div>
       </div>
 
@@ -40,23 +40,25 @@
 
         
 
-        <button id="campaignBriefingBtn" class="btn btn-luxury-secondary">
+        <button id="campaignBriefingBtn" class="btn btn-luxury-secondary hud-btn">
           <span class="btn-icon">📋</span>
           <span>Campaign Briefing</span>
+          <span class="key-shortcut-hint">B</span>
         </button>
 
-        <button id="rulesBtn" class="btn btn-luxury-secondary">
+        <button id="rulesBtn" class="btn btn-luxury-secondary hud-btn">
           <span class="btn-icon">⚖️</span>
           <span>Governance Rules</span>
         </button>
 
-        <button id="exportCsvBtn" class="btn btn-luxury-gold">
+        <button id="exportCsvBtn" class="btn btn-luxury-gold hud-btn">
           <span class="btn-icon">📥</span>
           <span>Export POS CSV</span>
         </button>
 
-        <button id="toggleCopilotBtn" class="btn btn-luxury-ruby">
+        <button id="toggleCopilotBtn" class="btn btn-luxury-ruby hud-btn">
           <span>Ask Copilot</span>
+          <span class="key-shortcut-hint">C</span>
         </button>
 
         <div id="adminUserPill" class="admin-user-pill" style="display: none;">
@@ -69,11 +71,14 @@
   </header>
 
   <!-- Editorial Hero Banner Section -->
-  <section class="editorial-hero">
+  <section class="editorial-hero hud-corner">
     <div class="hero-image-backdrop" style="background-image: url('images/hero-carina.jpg');"></div>
     <div class="hero-overlay-gradient"></div>
     <div class="hero-content">
-      <div class="hero-badge">CAMPAIGN GOVERNANCE &bull; KSA WHITE FRIDAY &amp; WINTER AW26</div>
+      <div class="hero-badge">
+        <span class="pulse-beacon"></span>
+        <span>CAMPAIGN TELEMETRY &bull; KSA MULTI-EVENT PROMOTIONAL ENGINE &bull; D1 ACCELERATED</span>
+      </div>
       <h1 class="hero-title">Autonomous Promotion Architecture &amp; Lifecycle Optimizer</h1>
       <p class="hero-lead">
         Protecting gross margin across 53,999 physical inventory units in Jeddah and Taif through deterministic margin protection, KSA VAT compliance, and real-time store inventory liquidation.
@@ -109,7 +114,7 @@
   <main class="dashboard-container">
     <!-- Executive 6-Card Financial KPI Ribbon -->
     <section class="kpi-ribbon">
-      <div class="kpi-card card-gold">
+      <div class="kpi-card card-gold hud-corner">
         <div class="kpi-header-row">
           <span class="kpi-tag">INVENTORY ASSET</span>
           <span class="kpi-icon">📦</span>
@@ -120,7 +125,7 @@
         <div class="kpi-accent-bar"><span style="width: 82%;"></span></div>
       </div>
 
-      <div class="kpi-card card-ruby">
+      <div class="kpi-card card-ruby hud-corner">
         <div class="kpi-header-row">
           <span class="kpi-tag">CAPITAL EXPOSURE</span>
           <span class="kpi-icon">💎</span>
@@ -131,7 +136,7 @@
         <div class="kpi-accent-bar"><span style="width: 76%;"></span></div>
       </div>
 
-      <div class="kpi-card card-emerald">
+      <div class="kpi-card card-emerald hud-corner">
         <div class="kpi-header-row">
           <span class="kpi-tag">PROJECTED REVENUE</span>
           <span class="kpi-icon">📈</span>
@@ -142,7 +147,7 @@
         <div class="kpi-accent-bar"><span style="width: 65%;"></span></div>
       </div>
 
-      <div class="kpi-card card-sapphire">
+      <div class="kpi-card card-sapphire hud-corner">
         <div class="kpi-header-row">
           <span class="kpi-tag">MARKUP BENCHMARK</span>
           <span class="kpi-icon">🏷️</span>
@@ -153,7 +158,7 @@
         <div class="kpi-accent-bar"><span style="width: 49.7%;"></span></div>
       </div>
 
-      <div class="kpi-card card-amber">
+      <div class="kpi-card card-amber hud-corner">
         <div class="kpi-header-row">
           <span class="kpi-tag">ASSORTMENT SHIELD</span>
           <span class="kpi-icon">❄️</span>
@@ -164,7 +169,7 @@
         <div class="kpi-accent-bar"><span style="width: 57.8%;"></span></div>
       </div>
 
-      <div class="kpi-card card-mint">
+      <div class="kpi-card card-mint hud-corner">
         <div class="kpi-header-row">
           <span class="kpi-tag">SAUDI VAT COMPLIANCE</span>
           <span class="kpi-icon">⚖️</span>
@@ -191,8 +196,10 @@
 
       <div class="store-grid">
         <!-- Store 1: Al-Andalus Flagship -->
-        <div class="store-photo-card" id="cardAndalus">
+        <div class="store-photo-card hud-corner" id="cardAndalus">
           <div class="store-img-bg" style="background-image: url('images/store-andalus.jpg');"></div>
+          <div class="store-radar-sweep"></div>
+          <div class="store-grid-wireframe"></div>
           <div class="store-scrim"></div>
           <div class="store-card-content">
             <div class="store-card-top">
@@ -229,8 +236,10 @@
         </div>
 
         <!-- Store 2: Al-Yasmeen Mall -->
-        <div class="store-photo-card" id="cardYasmeen">
+        <div class="store-photo-card hud-corner" id="cardYasmeen">
           <div class="store-img-bg" style="background-image: url('images/store-yasmeen.jpg');"></div>
+          <div class="store-radar-sweep"></div>
+          <div class="store-grid-wireframe"></div>
           <div class="store-scrim"></div>
           <div class="store-card-content">
             <div class="store-card-top">
@@ -267,8 +276,10 @@
         </div>
 
         <!-- Store 3: Jouri Mall Taif -->
-        <div class="store-photo-card" id="cardJouri">
+        <div class="store-photo-card hud-corner" id="cardJouri">
           <div class="store-img-bg" style="background-image: url('images/store-jouri.jpg');"></div>
+          <div class="store-radar-sweep"></div>
+          <div class="store-grid-wireframe"></div>
           <div class="store-scrim"></div>
           <div class="store-card-content">
             <div class="store-card-top">
@@ -307,13 +318,21 @@
     </section>
 
     <!-- Interactive Dynamic What-If Scenario Simulator -->
-    <section class="section-block luxury-panel">
+    <section class="section-block luxury-panel hud-corner">
       <div class="sim-header">
         <div>
           <h2 class="serif-title">Dynamic Promotional Yield Simulator</h2>
           <p class="section-subtext">Real-time simulation of cash register profits, margin retention, and store rack decongestion.</p>
         </div>
         <button id="resetSimBtn" class="btn btn-luxury-outline">↺ Reset to Baseline</button>
+      </div>
+
+      <!-- Quick Scenario Presets -->
+      <div class="sim-presets-bar">
+        <span class="sim-presets-label">SCENARIO PRESETS:</span>
+        <button type="button" class="btn-sim-preset" data-liq="10000" data-margin="55">Gentle Defense (10k u &bull; 55% Margin)</button>
+        <button type="button" class="btn-sim-preset active" data-liq="22550" data-margin="48">Balanced Baseline (22.5k u &bull; 48% Margin)</button>
+        <button type="button" class="btn-sim-preset" data-liq="35000" data-margin="38">Aggressive Clearance (35k u &bull; 38% Margin)</button>
       </div>
 
       <div class="sim-controls-grid">
@@ -345,27 +364,27 @@
       </div>
 
       <div class="sim-results-ribbon">
-        <div class="sim-metric-card">
+        <div class="sim-metric-card hud-corner">
           <span class="lbl">PROJECTED REGISTER GROSS</span>
           <strong id="simGrossRev" class="val">1,103,077 SAR</strong>
           <span class="sub">Gross Customer Turnover</span>
         </div>
-        <div class="sim-metric-card highlight-gold">
+        <div class="sim-metric-card highlight-gold hud-corner">
           <span class="lbl">PROJECTED CASH NET PROFIT</span>
           <strong id="simNetProfit" class="val text-gold">+471,919 SAR</strong>
           <span class="sub">Cash Flow Generation</span>
         </div>
-        <div class="sim-metric-card highlight-emerald">
+        <div class="sim-metric-card highlight-emerald hud-corner">
           <span class="lbl">REALIZED NET MARGIN</span>
           <strong id="simRealizedMargin" class="val text-emerald">49.2%</strong>
           <span class="sub">&ge; 48.0% Floor Preserved</span>
         </div>
-        <div class="sim-metric-card">
+        <div class="sim-metric-card hud-corner">
           <span class="lbl">RETAINED WINTER STOCK</span>
           <strong id="simRetainedStock" class="val">30,182 Units</strong>
           <span class="sub">57.2% Assortment Retention</span>
         </div>
-        <div class="sim-metric-card highlight-sapphire">
+        <div class="sim-metric-card highlight-sapphire hud-corner">
           <span class="lbl">POST-EVENT TAIF DENSITY</span>
           <strong id="simJouriPostDensity" class="val text-sapphire">35.4 u/m²</strong>
           <span class="sub">Clean Commercial Hub</span>
@@ -374,7 +393,7 @@
     </section>
 
     <!-- Master Style Assortment Merchandising Radar -->
-    <section class="section-block">
+    <section class="section-block hud-corner">
       <div class="table-headline-bar">
         <div>
           <h2 class="serif-title">Style Lifecycle Assortment Radar</h2>
@@ -386,6 +405,7 @@
         <div class="search-wrap">
           <span class="search-ico">🔍</span>
           <input type="text" id="searchInput" placeholder="Search by Style Code (e.g. 59465) or Product Description...">
+          <span class="search-kbd-hint">/</span>
         </div>
 
         <div class="filter-actions">
@@ -497,6 +517,9 @@
           <h3>CARINA Strategy Concierge</h3>
           <span class="drawer-sub">KSA MERCHANDISING ADVISOR</span>
         </div>
+      </div>
+      <div class="drawer-neural-wave" title="Neural Reasoning Engine Active">
+        <span></span><span></span><span></span><span></span><span></span>
       </div>
       <button id="closeCopilotBtn" class="btn-close">&times;</button>
     </div>
@@ -730,6 +753,17 @@
 
   <!-- Floating Mathematical Derivation Tooltip / Popover -->
   <div id="calcPopover" class="calc-popover" style="display: none;"></div>
+
+  <!-- Floating HUD Keyboard Shortcuts Pill -->
+  <div class="floating-hud-shortcuts" id="floatingHudShortcuts">
+    <span class="hud-shortcut-item"><kbd>/</kbd> Quick Search</span>
+    <span class="hud-shortcut-item"><kbd>C</kbd> AI Copilot</span>
+    <span class="hud-shortcut-item"><kbd>B</kbd> Campaign Brief</span>
+    <span class="hud-shortcut-item"><kbd>Esc</kbd> Dismiss</span>
+  </div>
+
+  <!-- Luxury Toast Notifications Container -->
+  <div id="luxuryToastContainer" class="luxury-toast-container"></div>
 
   <script src="app.js"></script>
 </body>

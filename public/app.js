@@ -145,6 +145,8 @@ async function initApp() {
   loadStyles();
   loadRules(); // Preload rules proactively so modal renders instantaneously
   initRetrainingAndGateway();
+  initAntigravitySpatialEngine();
+  initKeyboardShortcuts();
 
   // Search & Filter event bindings
   const searchInput = document.getElementById('searchInput');
@@ -230,7 +232,31 @@ async function initApp() {
     sliderMarginFloor.value = 48;
     document.getElementById('valLiquidation').textContent = '22,550 Units (42.8%)';
     document.getElementById('valMarginFloor').textContent = '48.0%';
+    document.querySelectorAll('.btn-sim-preset').forEach(b => b.classList.remove('active'));
+    const defPreset = document.querySelector('.btn-sim-preset[data-liq="22550"]');
+    if (defPreset) defPreset.classList.add('active');
     triggerSimulationDebounced();
+    showLuxuryToast('Simulation reset to baseline (22,550 units at 48% margin)', 'info');
+  });
+
+  // Simulation Scenario Presets Binding
+  document.querySelectorAll('.btn-sim-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-sim-preset').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const liq = parseInt(btn.getAttribute('data-liq')) || 22550;
+      const margin = parseInt(btn.getAttribute('data-margin')) || 48;
+
+      sliderLiquidation.value = liq;
+      sliderMarginFloor.value = margin;
+
+      const pct = ((liq / 53999) * 100).toFixed(1);
+      document.getElementById('valLiquidation').textContent = `${liq.toLocaleString()} Units (${pct}%)`;
+      document.getElementById('valMarginFloor').textContent = `${margin}.0%`;
+
+      triggerSimulationDebounced();
+      showLuxuryToast(`Activated preset: ${btn.textContent.trim()}`, 'success');
+    });
   });
 
   // Copilot Drawer & Model Selector Sync
@@ -360,6 +386,7 @@ async function initApp() {
       if (currentBriefingMarkdown) {
         navigator.clipboard.writeText(currentBriefingMarkdown);
         copyBriefingBtn.textContent = 'Copied!';
+        showLuxuryToast('Executive campaign briefing copied to clipboard', 'success');
         setTimeout(() => { copyBriefingBtn.textContent = 'Copy Brief'; }, 2000);
       }
     });
@@ -2159,4 +2186,150 @@ async function loadCampaignBriefing(eventType = 'WHITE_FRIDAY') {
     console.error('Error loading campaign briefing:', err);
     container.innerHTML = `<div class="alert-box alert-danger" style="margin: 20px;">Network error loading campaign briefing.</div>`;
   }
+}
+
+// ==========================================================================
+// Antigravity Spatial 3D Motion, Card Tilt & Keyboard Navigation Engine
+// ==========================================================================
+
+function showLuxuryToast(message, type = 'info') {
+  const container = document.getElementById('luxuryToastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `luxury-toast toast-${type}`;
+
+  let icon = '✦';
+  if (type === 'success') icon = '✓';
+  if (type === 'error') icon = '✕';
+  if (type === 'warning') icon = '⚠';
+
+  toast.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <span class="toast-msg">${escapeHtml(message)}</span>
+  `;
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.animation = 'toastSlideOut 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+    setTimeout(() => toast.remove(), 360);
+  }, 3500);
+}
+
+function initAntigravitySpatialEngine() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return;
+  }
+
+  const interactiveCards = document.querySelectorAll('.kpi-card, .store-photo-card, .sim-metric-card');
+
+  interactiveCards.forEach(card => {
+    let bounds = null;
+    let rafId = null;
+
+    function onMouseEnter() {
+      bounds = card.getBoundingClientRect();
+      card.style.transition = 'transform 0.1s ease-out, box-shadow 0.25s ease';
+    }
+
+    function onMouseMove(e) {
+      if (!bounds) bounds = card.getBoundingClientRect();
+      const mouseX = e.clientX - bounds.left;
+      const mouseY = e.clientY - bounds.top;
+      const centerX = bounds.width / 2;
+      const centerY = bounds.height / 2;
+
+      // Soft spatial tilt: max +/- 5.5 degrees for smooth weightless floating
+      const rotateX = ((mouseY - centerY) / centerY) * -5.5;
+      const rotateY = ((mouseX - centerX) / centerX) * 5.5;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        card.style.transform = `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(8px)`;
+        card.style.setProperty('--mouse-x', `${((mouseX / bounds.width) * 100).toFixed(1)}%`);
+        card.style.setProperty('--mouse-y', `${((mouseY / bounds.height) * 100).toFixed(1)}%`);
+      });
+    }
+
+    function onMouseLeave() {
+      if (rafId) cancelAnimationFrame(rafId);
+      card.style.transition = 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease';
+      card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px)';
+      card.style.removeProperty('--mouse-x');
+      card.style.removeProperty('--mouse-y');
+      bounds = null;
+    }
+
+    card.addEventListener('mouseenter', onMouseEnter, { passive: true });
+    card.addEventListener('mousemove', onMouseMove, { passive: true });
+    card.addEventListener('mouseleave', onMouseLeave, { passive: true });
+  });
+
+  // Stagger in entrance animation
+  document.querySelectorAll('.kpi-card').forEach((el, idx) => {
+    el.style.animationDelay = `${(idx * 0.08).toFixed(2)}s`;
+    el.classList.add('stagger-in');
+  });
+}
+
+function initKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+    const isInputFocused = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+
+    if (e.key === 'Escape') {
+      const rulesModal = document.getElementById('rulesModal');
+      const campaignModal = document.getElementById('campaignBriefingModal');
+      const overrideModal = document.getElementById('overrideModal');
+      const copilotDrawer = document.getElementById('copilotDrawer');
+      const calcPopover = document.getElementById('calcPopover');
+
+      let closedAny = false;
+      if (rulesModal && rulesModal.classList.contains('active')) {
+        rulesModal.classList.remove('active');
+        closedAny = true;
+      }
+      if (campaignModal && campaignModal.classList.contains('open')) {
+        campaignModal.classList.remove('open');
+        closedAny = true;
+      }
+      if (overrideModal && overrideModal.classList.contains('active')) {
+        overrideModal.classList.remove('active');
+        closedAny = true;
+      }
+      if (copilotDrawer && copilotDrawer.classList.contains('open')) {
+        copilotDrawer.classList.remove('open');
+        closedAny = true;
+      }
+      if (calcPopover && calcPopover.style.display !== 'none') {
+        calcPopover.style.display = 'none';
+        closedAny = true;
+      }
+      if (closedAny) {
+        showLuxuryToast('Dismissed active overlays', 'info');
+      }
+      return;
+    }
+
+    if (isInputFocused) return;
+
+    if (e.key === '/' || e.key === '?') {
+      e.preventDefault();
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+        showLuxuryToast('Focused style search', 'info');
+      }
+    } else if (e.key === 'c' || e.key === 'C') {
+      e.preventDefault();
+      const toggleCopilotBtn = document.getElementById('toggleCopilotBtn');
+      if (toggleCopilotBtn) toggleCopilotBtn.click();
+    } else if (e.key === 'b' || e.key === 'B') {
+      e.preventDefault();
+      const campaignBriefingBtn = document.getElementById('campaignBriefingBtn');
+      if (campaignBriefingBtn) campaignBriefingBtn.click();
+    }
+  });
 }

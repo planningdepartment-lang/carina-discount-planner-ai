@@ -70,17 +70,40 @@ body {
   min-height: 100vh;
 }
 
-/* Ambient Luxury Dark Vignette Backdrop */
+/* Living Spatial Cyber Mesh & Deep Cosmos Backdrop */
 .luxury-ambient-bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  overflow: hidden;
   background: 
-    radial-gradient(circle at 15% 15%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 85% 20%, rgba(190, 18, 60, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.04) 0%, transparent 60%),
-    #080a0f;
+    radial-gradient(circle at 18% 15%, rgba(212, 175, 55, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 82% 22%, rgba(190, 18, 60, 0.09) 0%, transparent 45%),
+    radial-gradient(circle at 50% 85%, rgba(6, 182, 212, 0.06) 0%, transparent 55%),
+    #06080e;
+}
+
+.luxury-ambient-bg::before {
+  content: '';
+  position: absolute;
+  inset: -60%;
+  width: 220%;
+  height: 220%;
+  background-image: 
+    linear-gradient(rgba(212, 175, 55, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212, 175, 55, 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  transform: perspective(700px) rotateX(62deg) translateY(-60px);
+  transform-origin: center top;
+  animation: cyberGridDrift 30s linear infinite;
+  mask-image: radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.85) 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.85) 0%, transparent 72%);
+}
+
+@keyframes cyberGridDrift {
+  0% { transform: perspective(700px) rotateX(62deg) translateY(0); }
+  100% { transform: perspective(700px) rotateX(62deg) translateY(72px); }
 }
 
 /* ==========================================================================
@@ -2623,4 +2646,567 @@ input[type="range"]::-webkit-slider-thumb:hover {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* ==========================================================================
+   Antigravity Futuristic Spatial Design System & Cyber-Haute Architecture
+   ========================================================================== */
+
+/* 1. Futuristic HUD Telemetry Corner Brackets */
+.hud-corner {
+  position: relative;
+}
+
+.hud-corner::before,
+.hud-corner::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+  z-index: 5;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.55;
+}
+
+.hud-corner::before {
+  top: 6px;
+  left: 6px;
+  border-top: 2px solid var(--gold-primary);
+  border-left: 2px solid var(--gold-primary);
+}
+
+.hud-corner::after {
+  bottom: 6px;
+  right: 6px;
+  border-bottom: 2px solid var(--gold-primary);
+  border-right: 2px solid var(--gold-primary);
+}
+
+.hud-corner:hover::before,
+.hud-corner:hover::after {
+  opacity: 1;
+  width: 14px;
+  height: 14px;
+  filter: drop-shadow(0 0 6px var(--gold-champagne));
+}
+
+/* 2. Cyber-Luminous Button Enhancements & Shortcut Badges */
+.hud-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6), 0 0 15px var(--gold-glow);
+}
+
+.key-shortcut-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--gold-champagne);
+  margin-left: 0.4rem;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 3. Live Edge Telemetry Radar Pill */
+.status-radar-pill {
+  transition: all 0.3s ease;
+}
+
+.status-radar-pill:hover {
+  border-color: var(--emerald-primary);
+  background: rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 14px var(--emerald-glow);
+}
+
+.radar-telemetry-text {
+  font-family: var(--font-mono);
+  letter-spacing: 0.6px;
+}
+
+.pulse-beacon {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold-primary);
+  box-shadow: 0 0 10px var(--gold-champagne);
+  margin-right: 6px;
+  animation: beaconPulse 2s ease-out infinite;
+}
+
+@keyframes beaconPulse {
+  0% { transform: scale(0.9); opacity: 0.6; box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.6); }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 8px rgba(212, 175, 55, 0); }
+  100% { transform: scale(0.9); opacity: 0.6; box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+
+/* 4. Spatial 3D Card Engine & Specular Sheen (Weightless Antigravity Feel) */
+.dashboard-container {
+  perspective: 1400px;
+}
+
+.kpi-ribbon,
+.store-grid {
+  perspective: 1200px;
+}
+
+.kpi-card {
+  transform-style: preserve-3d;
+  will-change: transform;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: 
+    radial-gradient(circle 280px at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255, 255, 255, 0.07), transparent 75%),
+    linear-gradient(135deg, rgba(20, 26, 42, 0.8) 0%, rgba(12, 16, 28, 0.9) 100%);
+  box-shadow: 
+    0 16px 36px -10px rgba(0, 0, 0, 0.65), 
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.kpi-card:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 
+    0 24px 50px -12px rgba(0, 0, 0, 0.85), 
+    0 0 25px rgba(212, 175, 55, 0.2), 
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+.kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.kpi-card:hover .kpi-icon {
+  transform: scale(1.15) rotate(4deg);
+}
+
+.kpi-accent-bar > span {
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-accent-bar > span::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  animation: scanlineSweep 3.5s infinite;
+}
+
+@keyframes scanlineSweep {
+  0% { left: -100%; }
+  40% { left: 100%; }
+  100% { left: 100%; }
+}
+
+/* 5. Holographic Store Space Physics & Scanner Sweep */
+.store-photo-card {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  will-change: transform;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.7);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.store-photo-card:hover {
+  box-shadow: 0 28px 55px -10px rgba(0, 0, 0, 0.85), 0 0 30px rgba(56, 189, 248, 0.25);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.store-radar-sweep {
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 2;
+  background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 310deg, rgba(56, 189, 248, 0.18) 360deg);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  animation: radarSpin 5s linear infinite;
+}
+
+.store-photo-card:hover .store-radar-sweep {
+  opacity: 1;
+}
+
+@keyframes radarSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.store-grid-wireframe {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image: 
+    linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.6;
+}
+
+/* 6. Aerospace Dynamic Simulator Controls & Scenario Presets */
+.sim-presets-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  background: rgba(14, 18, 30, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.sim-presets-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.btn-sim-preset {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  color: var(--text-main);
+  font-size: 0.725rem;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.btn-sim-preset:hover {
+  background: rgba(212, 175, 55, 0.12);
+  border-color: var(--gold-primary);
+  color: var(--gold-champagne);
+  transform: translateY(-1px);
+}
+
+.btn-sim-preset.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(190, 18, 60, 0.25) 100%);
+  border-color: var(--gold-primary);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+
+.sim-slider-box input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.35) 0%, rgba(56, 189, 248, 0.25) 100%);
+  outline: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) inset;
+}
+
+.sim-slider-box input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, var(--gold-champagne) 50%, var(--gold-primary) 100%);
+  border: 2px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 0 16px var(--gold-glow), 0 2px 8px rgba(0, 0, 0, 0.7);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sim-slider-box input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 24px var(--gold-champagne), 0 0 8px #ffffff;
+}
+
+.sim-metric-card {
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+
+.sim-metric-card:hover {
+  transform: translateY(-4px) translateZ(8px);
+  box-shadow: 0 16px 35px -8px rgba(0, 0, 0, 0.7), 0 0 20px rgba(212, 175, 55, 0.15);
+}
+
+/* 7. Next-Gen Style Lifecycle Assortment Radar (Data Table Telemetry) */
+.search-wrap {
+  position: relative;
+}
+
+.search-kbd-hint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  pointer-events: none;
+  user-select: none;
+}
+
+.search-wrap input:focus + .search-kbd-hint {
+  border-color: var(--gold-primary);
+  color: var(--gold-champagne);
+}
+
+.style-table thead th {
+  background: rgba(14, 18, 30, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 2px solid var(--border-gold);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.style-table tbody tr {
+  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.style-table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.09) 0%, rgba(56, 189, 248, 0.05) 60%, transparent 100%) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+}
+
+/* 8. Neural Copilot Drawer Audio-Visualizer Wave */
+.drawer-neural-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.drawer-neural-wave span {
+  display: inline-block;
+  width: 2.5px;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--gold-primary);
+  animation: neuralWavePulse 1.3s ease-in-out infinite alternate;
+}
+
+.drawer-neural-wave span:nth-child(1) { animation-delay: 0.0s; height: 50%; background: var(--gold-champagne); }
+.drawer-neural-wave span:nth-child(2) { animation-delay: 0.25s; height: 90%; background: var(--sapphire-primary); }
+.drawer-neural-wave span:nth-child(3) { animation-delay: 0.5s; height: 100%; background: var(--ruby-light); }
+.drawer-neural-wave span:nth-child(4) { animation-delay: 0.15s; height: 70%; background: var(--gold-primary); }
+.drawer-neural-wave span:nth-child(5) { animation-delay: 0.4s; height: 40%; background: var(--emerald-primary); }
+
+@keyframes neuralWavePulse {
+  0% { transform: scaleY(0.25); opacity: 0.45; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+/* 9. Floating HUD Keyboard Shortcuts Pill */
+.floating-hud-shortcuts {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 2rem;
+  z-index: 85;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(14, 18, 30, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-gold);
+  border-radius: 30px;
+  padding: 5px 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65), 0 0 15px rgba(212, 175, 55, 0.15);
+  pointer-events: auto;
+  transition: all 0.25s ease;
+}
+
+.floating-hud-shortcuts:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold-champagne);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-glow);
+}
+
+.hud-shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.675rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.hud-shortcut-item kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--gold-champagne);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+/* 10. Luxury Sci-Fi Toast Notification System */
+.luxury-toast-container {
+  position: fixed;
+  top: 1.75rem;
+  right: 1.75rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  pointer-events: none;
+}
+
+.luxury-toast {
+  pointer-events: auto;
+  background: rgba(14, 18, 30, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-gold);
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  color: #ffffff;
+  font-size: 0.825rem;
+  font-weight: 500;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 20px var(--gold-glow);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 400px;
+  animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.luxury-toast .toast-icon {
+  font-size: 1rem;
+  color: var(--gold-champagne);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.luxury-toast.toast-success {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 20px var(--emerald-glow);
+}
+.luxury-toast.toast-success .toast-icon { color: var(--emerald-primary); }
+
+.luxury-toast.toast-error {
+  border-color: rgba(244, 63, 94, 0.5);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 20px var(--ruby-glow);
+}
+.luxury-toast.toast-error .toast-icon { color: var(--ruby-light); }
+
+.luxury-toast.toast-warning {
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(251, 191, 36, 0.3);
+}
+.luxury-toast.toast-warning .toast-icon { color: var(--amber-primary); }
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(100%) scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(110%) scale(0.92);
+    opacity: 0;
+  }
+}
+
+/* 11. Staggered Entrance Animation & Reduced Motion Fallback */
+@keyframes staggeredDropIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.stagger-in {
+  animation: staggeredDropIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .luxury-ambient-bg::before,
+  .store-radar-sweep,
+  .drawer-neural-wave span,
+  .pulse-beacon {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .floating-hud-shortcuts {
+    display: none;
+  }
 }
