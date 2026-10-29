@@ -160,7 +160,17 @@ export default {
           return Response.redirect(new URL('/', request.url).toString(), 302);
         }
 
-        return await env.ASSETS.fetch(request);
+        const assetRes = await env.ASSETS.fetch(request);
+        const assetHeaders = new Headers(assetRes.headers);
+        // Enforce immediate cache invalidation so updates appear instantaneously in all browsers
+        assetHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        assetHeaders.set('Pragma', 'no-cache');
+        assetHeaders.set('Expires', '0');
+        return new Response(assetRes.body, {
+          status: assetRes.status,
+          statusText: assetRes.statusText,
+          headers: assetHeaders
+        });
       }
 
       return new Response('CARINA Discount Planner API running on Cloudflare Workers.', {

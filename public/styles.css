@@ -78,10 +78,10 @@ body {
   pointer-events: none;
   overflow: hidden;
   background: 
-    radial-gradient(circle at 18% 15%, rgba(212, 175, 55, 0.08) 0%, transparent 45%),
-    radial-gradient(circle at 82% 22%, rgba(190, 18, 60, 0.09) 0%, transparent 45%),
-    radial-gradient(circle at 50% 85%, rgba(6, 182, 212, 0.06) 0%, transparent 55%),
-    #06080e;
+    radial-gradient(circle at 18% 15%, rgba(212, 175, 55, 0.14) 0%, transparent 45%),
+    radial-gradient(circle at 82% 22%, rgba(190, 18, 60, 0.15) 0%, transparent 45%),
+    radial-gradient(circle at 50% 85%, rgba(6, 182, 212, 0.12) 0%, transparent 55%),
+    #05070d;
 }
 
 .luxury-ambient-bg::before {
@@ -91,19 +91,29 @@ body {
   width: 220%;
   height: 220%;
   background-image: 
-    linear-gradient(rgba(212, 175, 55, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(212, 175, 55, 0.035) 1px, transparent 1px);
-  background-size: 72px 72px;
-  transform: perspective(700px) rotateX(62deg) translateY(-60px);
+    linear-gradient(rgba(212, 175, 55, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.09) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(650px) rotateX(60deg) translateY(-50px);
   transform-origin: center top;
-  animation: cyberGridDrift 30s linear infinite;
-  mask-image: radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.85) 0%, transparent 72%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.85) 0%, transparent 72%);
+  animation: cyberGridDrift 28s linear infinite;
+  mask-image: radial-gradient(ellipse at 50% 35%, rgba(0,0,0,0.95) 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 35%, rgba(0,0,0,0.95) 0%, transparent 75%);
+}
+
+.luxury-ambient-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(212, 175, 55, 0.18) 1.5px, transparent 1.5px);
+  background-size: 48px 48px;
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 @keyframes cyberGridDrift {
-  0% { transform: perspective(700px) rotateX(62deg) translateY(0); }
-  100% { transform: perspective(700px) rotateX(62deg) translateY(72px); }
+  0% { transform: perspective(650px) rotateX(60deg) translateY(0); }
+  100% { transform: perspective(650px) rotateX(60deg) translateY(64px); }
 }
 
 /* ==========================================================================
@@ -578,59 +588,164 @@ body {
 }
 
 .kpi-accent-bar {
-  height: 3px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 2px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
   overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6) inset;
 }
 
 .kpi-accent-bar > span {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
-/* Specific Card Themes */
+/* Specific Card Themes with Aerospace Neon Glow */
 .card-gold {
-  border-top: 2px solid var(--gold-primary);
+  border-top: 3px solid #ffd700;
+  box-shadow: 0 14px 35px -8px rgba(0, 0, 0, 0.75), 0 0 20px rgba(212, 175, 55, 0.22);
 }
-.card-gold:hover { border-color: var(--gold-champagne); box-shadow: 0 10px 25px var(--gold-glow); }
-.card-gold .kpi-value { color: var(--gold-champagne); }
-.card-gold .kpi-accent-bar > span { background: var(--gold-primary); }
+.card-gold:hover { 
+  border-color: #ffe066; 
+  box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(255, 215, 0, 0.45); 
+}
+.card-gold .kpi-value { 
+  color: #ffe066; 
+  text-shadow: 0 0 22px rgba(255, 215, 0, 0.6); 
+}
+.card-gold .kpi-accent-bar > span { 
+  background: linear-gradient(90deg, #d4af37, #ffd700); 
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.8); 
+}
 
 .card-ruby {
-  border-top: 2px solid var(--ruby-primary);
+  border-top: 3px solid #ff0055;
+  box-shadow: 0 14px 35px -8px rgba(0, 0, 0, 0.75), 0 0 20px rgba(255, 0, 85, 0.22);
 }
-.card-ruby:hover { border-color: var(--ruby-light); box-shadow: 0 10px 25px var(--ruby-glow); }
-.card-ruby .kpi-value { color: #fda4af; }
-.card-ruby .kpi-accent-bar > span { background: var(--ruby-primary); }
+.card-ruby:hover { 
+  border-color: #ff3377; 
+  box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(255, 0, 85, 0.45); 
+}
+.card-ruby .kpi-value { 
+  color: #ffa3b8; 
+  text-shadow: 0 0 22px rgba(255, 0, 85, 0.6); 
+}
+.card-ruby .kpi-accent-bar > span { 
+  background: linear-gradient(90deg, #be123c, #ff0055); 
+  box-shadow: 0 0 12px rgba(255, 0, 85, 0.8); 
+}
 
 .card-emerald {
-  border-top: 2px solid var(--emerald-primary);
+  border-top: 3px solid #00ff88;
+  box-shadow: 0 14px 35px -8px rgba(0, 0, 0, 0.75), 0 0 20px rgba(0, 255, 136, 0.22);
 }
-.card-emerald:hover { border-color: #34d399; box-shadow: 0 10px 25px var(--emerald-glow); }
-.card-emerald .kpi-value { color: #6ee7b7; }
-.card-emerald .kpi-accent-bar > span { background: var(--emerald-primary); }
+.card-emerald:hover { 
+  border-color: #33ff99; 
+  box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(0, 255, 136, 0.45); 
+}
+.card-emerald .kpi-value { 
+  color: #6ee7b7; 
+  text-shadow: 0 0 22px rgba(0, 255, 136, 0.6); 
+}
+.card-emerald .kpi-accent-bar > span { 
+  background: linear-gradient(90deg, #10b981, #00ff88); 
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.8); 
+}
 
 .card-sapphire {
-  border-top: 2px solid var(--sapphire-primary);
+  border-top: 3px solid #00d4ff;
+  box-shadow: 0 14px 35px -8px rgba(0, 0, 0, 0.75), 0 0 20px rgba(0, 212, 255, 0.22);
 }
-.card-sapphire:hover { border-color: #60a5fa; box-shadow: 0 10px 25px var(--sapphire-glow); }
-.card-sapphire .kpi-value { color: var(--sapphire-primary); }
-.card-sapphire .kpi-accent-bar > span { background: var(--sapphire-primary); }
+.card-sapphire:hover { 
+  border-color: #38bdf8; 
+  box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(0, 212, 255, 0.45); 
+}
+.card-sapphire .kpi-value { 
+  color: #38bdf8; 
+  text-shadow: 0 0 22px rgba(0, 212, 255, 0.6); 
+}
+.card-sapphire .kpi-accent-bar > span { 
+  background: linear-gradient(90deg, #0284c7, #00d4ff); 
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.8); 
+}
 
 .card-amber {
-  border-top: 2px solid var(--amber-primary);
+  border-top: 3px solid #ffaa00;
+  box-shadow: 0 14px 35px -8px rgba(0, 0, 0, 0.75), 0 0 20px rgba(255, 170, 0, 0.22);
 }
-.card-amber:hover { border-color: #fcd34d; }
-.card-amber .kpi-value { color: var(--amber-primary); }
-.card-amber .kpi-accent-bar > span { background: var(--amber-primary); }
+.card-amber:hover { 
+  border-color: #fcd34d; 
+  box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(255, 170, 0, 0.45); 
+}
+.card-amber .kpi-value { 
+  color: #fbbf24; 
+  text-shadow: 0 0 22px rgba(255, 170, 0, 0.6); 
+}
+.card-amber .kpi-accent-bar > span { 
+  background: linear-gradient(90deg, #d97706, #ffaa00); 
+  box-shadow: 0 0 12px rgba(255, 170, 0, 0.8); 
+}
 
 .card-mint {
-  border-top: 2px solid #22c55e;
+  border-top: 3px solid #10b981;
+  box-shadow: 0 14px 35px -8px rgba(0, 0, 0, 0.75), 0 0 20px rgba(16, 185, 129, 0.22);
 }
-.card-mint .kpi-value { color: #4ade80; }
-.card-mint .kpi-accent-bar > span { background: #22c55e; }
+.card-mint:hover { 
+  border-color: #34d399; 
+  box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(16, 185, 129, 0.45); 
+}
+.card-mint .kpi-value { 
+  color: #4ade80; 
+  text-shadow: 0 0 22px rgba(16, 185, 129, 0.6); 
+}
+.card-mint .kpi-accent-bar > span { 
+  background: linear-gradient(90deg, #059669, #10b981); 
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); 
+}
+
+/* Tactical Command Cockpit Bar */
+.hero-tactical-cockpit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+  background: rgba(12, 17, 30, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 12px;
+  padding: 1rem 1.4rem;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7), 0 0 20px rgba(212, 175, 55, 0.1) inset;
+}
+
+.cockpit-pod {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+  padding-left: 0.85rem;
+}
+
+.cockpit-pod:first-child {
+  border-left: 2px solid var(--gold-primary);
+}
+
+.cockpit-pod .pod-lbl {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.cockpit-pod .pod-val {
+  font-family: var(--font-num);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
 
 /* ==========================================================================
    Store Space Physics Photographic Showcase Cards
