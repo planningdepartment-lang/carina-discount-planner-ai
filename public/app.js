@@ -697,7 +697,8 @@ function attachTableActionListeners() {
         } else if (discount === 0 || offer.includes('0% Off')) {
           rationale = `Best offer is Full Price Protection (0% Off) since STR is ${str.toFixed(1)}% with an unbroken healthy size curve. Strong organic consumer demand requires zero discount.`;
         } else if (offer.includes('3 For 99') || offer.includes('99 SAR')) {
-          rationale = `Best offer is Take 3 For 99 SAR Rail since size curve is broken (${sizes} sizes remaining) and STR is ${str.toFixed(1)}%. Liquidates stock into 3-unit baskets at 33.00 SAR/u while safely maintaining +${((33 / 1.15) - cost).toFixed(2)} SAR/u margin above legal floor.`;
+          const reasonText = sizes <= 2 ? `size curve is fragmented (${sizes} sizes remaining)` : `floor inventory runway is extended (${storeWos} wks)`;
+          rationale = `Best offer is Take 3 For 99 SAR Rail since ${reasonText} and STR is ${str.toFixed(1)}%. Liquidates stock into 3-unit baskets at 33.00 SAR/u while safely maintaining +${((33 / 1.15) - cost).toFixed(2)} SAR/u margin above legal floor.`;
         } else if (offer.includes('50% Off')) {
           rationale = `Best offer is 50% Off Dedicated Clearance Rail since turnover has slowed (ROS ${ros.toFixed(1)} u/wk) with ${sizes} active sizes. Liquidates floor space while maintaining margin safely above ${floor.toFixed(2)} SAR legal floor.`;
         } else if (offer.includes('40% Off')) {

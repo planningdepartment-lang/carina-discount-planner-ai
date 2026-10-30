@@ -159,7 +159,16 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
   }
 
   // Tier 4/5: Slow Moving, Broken Curve, or Zombie Stock (Apparel Only)
-  if (!isSingleSize && (metrics.cumulativeSTR < 10.0 || metrics.activeSizeCount <= 2 || metrics.storeFloorWOS > 40.0)) {
+  const isBrokenCurve = !isSingleSize && metrics.activeSizeCount <= 2;
+  const isStagnantDeadStock = !isSingleSize && metrics.cumulativeSTR < 10.0;
+  const isOverhangRunway = !isSingleSize && metrics.storeFloorWOS > 40.0 && metrics.cumulativeSTR < 30.0;
+
+  if (isBrokenCurve || isStagnantDeadStock || isOverhangRunway) {
+    const triggerReason = isBrokenCurve 
+      ? `Broken size curve (${metrics.activeSizeCount} sizes active)`
+      : (isStagnantDeadStock 
+          ? `Stagnant turnover (STR ${metrics.cumulativeSTR.toFixed(1)}%)`
+          : `Floor runway overhang (WOS ${metrics.storeFloorWOS.toFixed(1)} wks)`);
     // If ticket price is <= 40 SAR, bundle rail gives negligible discount; route to 50% Off
     if (metrics.ticketPrice <= 40.0) {
       const halfPrice = Math.round(metrics.ticketPrice * 0.50 * 100) / 100;
@@ -171,7 +180,7 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         discountPct: discPct,
         promotionalPriceSAR: safePromo,
         expectedClearancePct: 50,
-        rationale: `Broken size curve or stagnant turnover (WOS ${metrics.storeFloorWOS.toFixed(1)} wks). 50% discount liquidates floor space above cost floor.`,
+        rationale: `${triggerReason}. 50% discount liquidates floor space above cost floor.`,
         zeroLossStatus: 'YES',
         bundleQuantity: 1,
         bundlePriceSAR: safePromo
@@ -187,7 +196,7 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
           discountPct: discPct,
           promotionalPriceSAR: bundleUnit,
           expectedClearancePct: 55,
-          rationale: `Broken curve liquidation. 33 SAR bundle recovers working capital safely above ${costPlusVat.toFixed(2)} SAR floor.`,
+          rationale: `${triggerReason}. 33 SAR bundle recovers working capital safely above ${costPlusVat.toFixed(2)} SAR floor.`,
           zeroLossStatus: 'YES',
           bundleQuantity: 3,
           bundlePriceSAR: 99.00
@@ -202,7 +211,7 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
           discountPct: discPct,
           promotionalPriceSAR: safePrice,
           expectedClearancePct: 40,
-          rationale: 'Liquidates aged inventory while adhering strictly to landed cost + VAT floor.',
+          rationale: `${triggerReason}. Liquidates aged inventory while adhering strictly to landed cost + VAT floor.`,
           zeroLossStatus: 'YES',
           bundleQuantity: 1,
           bundlePriceSAR: safePrice
