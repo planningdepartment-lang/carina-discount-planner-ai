@@ -322,7 +322,13 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         WHEN location_dest_id_name = 'Partners/Customers' AND date >= datetime('now', '-56 days')
         THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_8wk,
 
-      COUNT(DISTINCT product_sku) AS size_count,
+      COUNT(DISTINCT 
+        CASE 
+          WHEN INSTR(SUBSTR(TRIM(product_sku), 7), '-') > 0 
+          THEN SUBSTR(SUBSTR(TRIM(product_sku), 7), 1, INSTR(SUBSTR(TRIM(product_sku), 7), '-') - 1)
+          ELSE product_sku
+        END
+      ) AS size_count,
       COALESCE(
         ROUND(AVG(CASE 
           WHEN CAST(unit_cost AS REAL) > 0 THEN CAST(unit_cost AS REAL)

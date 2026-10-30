@@ -31,7 +31,11 @@ export async function getOrComputeStylePlan(db: D1Database): Promise<StylePlanRe
   });
 
   if (records.length > 0) {
-    saveStylePlanSnapshots(db, records).catch(err => console.error('Snapshot background save error:', err));
+    try {
+      await saveStylePlanSnapshots(db, records);
+    } catch (err) {
+      console.error('Snapshot save error:', err);
+    }
   }
 
   return records;

@@ -41,7 +41,7 @@
    * **Worker B (`src/ai/`):** Workers AI (`@cf/meta/llama-3.3-70b-instruct`). Handles qualitative merchandising rationale, KSA market context, and natural language rule compilation.
 5. **Data Resilience & Hygiene:**
    * Product names in Odoo have leading/trailing whitespace (e.g. `" Round Neck SS"`). Always use `TRIM(product_id_name)`.
-   * SKU structure is `[5-digit style]-[2-digit color]-[size]`. Always extract style using `SUBSTR(product_sku, 1, 5)`.
+   * SKU structure is `[5-digit style]-[size]-[color code]` (e.g. `55915-XS-88` where `55915` is model, `XS` is size, `88` is color code). Extract style using `SUBSTR(product_sku, 1, 5)` and size from the middle segment between dashes.
 
 ---
 

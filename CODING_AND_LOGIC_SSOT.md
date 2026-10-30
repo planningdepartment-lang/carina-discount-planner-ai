@@ -402,10 +402,14 @@ SELECT
         ELSE 0 
     END) AS sales_past_56_days,
 
-    -- Distinct active sizes with stock
+    -- Distinct active sizes with stock (SKU Anatomy: [5-digit model]-[size]-[color], e.g. 55915-XS-88)
     COUNT(DISTINCT CASE 
         WHEN (location_dest_id_name IN ('AND/Stock', 'YAS/Stock', 'Jouri/Stock', 'WH/Stock')) 
-        THEN product_sku 
+        THEN CASE 
+          WHEN INSTR(SUBSTR(TRIM(product_sku), 7), '-') > 0 
+          THEN SUBSTR(SUBSTR(TRIM(product_sku), 7), 1, INSTR(SUBSTR(TRIM(product_sku), 7), '-') - 1)
+          ELSE product_sku
+        END
     END) AS active_size_count,
 
     -- Landed cost and list prices (latest non-zero)

@@ -17,7 +17,7 @@ The D1 table `odoo_stock_move_line` mirrors Odoo ERP stock operations. The table
 | `id` | INTEGER | Primary Key | Unique line ID in Odoo ERP. |
 | `product_id` | INTEGER | Foreign Key | Foreign key to `product.product`. |
 | `product_id_name` | TEXT | Display Name | Format `[SKU] Product Name` or `Product Name`. Must be trimmed. |
-| `product_sku` | TEXT | **Master SKU Key** | **Strict Validation Required**: Must match `^\d{5}-[A-Za-z0-9]+-[A-Za-z0-9]+$` (e.g. `55555-01-xs`). Non-matching values are discarded from style analysis. |
+| `product_sku` | TEXT | **Master SKU Key** | **Strict Validation Required**: Must match `^\d{5}-[A-Za-z0-9\s]+-[A-Za-z0-9]+$` (e.g. `55915-XS-88` where `55915` is model, `XS` is size, `88` is color code). Non-matching values are discarded from style analysis. |
 | `location_id` | INTEGER | Source Loc ID | Origin storage location. |
 | `location_id_name` | TEXT | Source Name | Full path name (e.g., `WH/Stock`, `AND/Stock`, `YAS/Stock`, `JOU/Stock`, `Partners/Customers`). |
 | `location_dest_id` | INTEGER | Dest Loc ID | Target storage location. |
