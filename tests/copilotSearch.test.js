@@ -109,11 +109,12 @@ async function searchStylesInD1(db, userMessage, contextStyleCode) {
     }
   }
 
-  const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it|this style|the style)\b/i.test(lowerMsg);
-  const isMacroQueryWithoutStyle = !/\b(this|it|its|the item|this item|this style|for this|for it)\b/i.test(lowerMsg) &&
-    /\b(catalog|stores?|overall|total|density|network|sales|performance|sizes?|styles?|demand|slow|fast)\b/i.test(lowerMsg);
+  const isExplicitMacroQuery = /\b(entire catalog|all catalog|overall catalog|catalog wide|catalog-wide|whole catalog|catalog total|catalog average|catalog summary|catalog performance|catalog sales|all styles|across all styles|all products|across all products|entire store network|network total|all stores total|network density|store densities|all store densities|overall performance|macro|total units in catalog|all items in catalog)\b/i.test(lowerMsg);
+  const isDataSourceQuery = /\b(data source|data-source|source of data|where is.*data|where does.*data come from|d1 schema|database table|odoo_stock_move_line|move line)\b/i.test(lowerMsg);
+  const isSimulationQuery = /\b(what if.*(?:liquidat|clear|units?|margin|target|sales?)|simulate.*(?:liquidat|clear|units?|margin|scenario)|run.*simulation|what happens if we (?:liquidat|clear))\b/i.test(lowerMsg);
+  const isRuleQuery = /\b(rule|policy|governance)\b/i.test(lowerMsg) && /\b(cap|exclude|floor|discount|enforce)\b/i.test(lowerMsg);
 
-  if (isContextualFollowup && !isMacroQueryWithoutStyle && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
+  if (!isExplicitMacroQuery && !isDataSourceQuery && !isSimulationQuery && !isRuleQuery && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
     const { results } = await db.prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1').bind(contextStyleCode).all();
     if (results && results.length > 0) return results;
   }
@@ -136,11 +137,38 @@ test('Copilot Search: matches Perfume Silk Dream 50ML over active context style 
   assert.equal(results[0].product_name, 'Perfume Silk Dream 50ML');
 });
 
-test('Copilot Search: does NOT reuse previous context style for general "analyze the sales performance"', async () => {
+test('Copilot Search: reuses active context style for "sales performance" when style is in focus', async () => {
   const db = createMockDb(mockCatalog);
-  // User says "analyze the sales performance" while context was 59399
-  const results = await searchStylesInD1(db, 'analyze the sales performance', '59399');
-  assert.equal(results.length, 0); // Must be empty so it routes to Macro Sales Intelligence!
+  // User says "sales performance" while style 59399 is active in focus
+  const results = await searchStylesInD1(db, 'sales performance', '59399');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].style_code, '59399');
+});
+
+test('Copilot Search: reuses active context style for "performance" when style is in focus', async () => {
+  const db = createMockDb(mockCatalog);
+  const results = await searchStylesInD1(db, 'performance', '59399');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].style_code, '59399');
+});
+
+test('Copilot Search: bypasses active context style for explicit macro "overall catalog sales performance"', async () => {
+  const db = createMockDb(mockCatalog);
+  // Explicit macro catalog query must bypass context style
+  const results = await searchStylesInD1(db, 'overall catalog sales performance', '59399');
+  assert.equal(results.length, 0); // Empty routes to macro catalog analysis
+});
+
+test('Copilot Search: bypasses active context style for explicit macro "all styles sales performance"', async () => {
+  const db = createMockDb(mockCatalog);
+  const results = await searchStylesInD1(db, 'all styles sales performance', '59399');
+  assert.equal(results.length, 0);
+});
+
+test('Copilot Search: "sales performance" without active context returns empty for macro routing', async () => {
+  const db = createMockDb(mockCatalog);
+  const results = await searchStylesInD1(db, 'sales performance', null);
+  assert.equal(results.length, 0);
 });
 
 test('Copilot Search: reuses active context style for "what is the performance for this style?" when context style is active', async () => {
@@ -169,10 +197,10 @@ function routeStyleQueryIntent(lowerMsg) {
   const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance|sale price)\b/i.test(lowerMsg);
   const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
   const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
-  const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast)\b/i.test(lowerMsg);
+  const isVelocityQuery = /\b(sales\s+performance|performance|velocity|ros|rate of sale|sales rate|sales velocity|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast|sales volume|how is it selling)\b/i.test(lowerMsg);
   const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
 
-  const isConversational = /\b(what about|how about|tell me about|how is|thoughts on|opinion|status of|evaluate|review|analyze|assessment|performance|doing)\b/i.test(lowerMsg);
+  const isConversational = /\b(what about|how about|tell me about|how is|thoughts on|opinion|status of|evaluate|review|analyze|assessment|doing)\b/i.test(lowerMsg);
   const isComplexAnalysis = isConversational || /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|compare)\b/i.test(lowerMsg);
 
   if (!isComplexAnalysis && !isFullOverview) {
@@ -191,6 +219,16 @@ function routeStyleQueryIntent(lowerMsg) {
 
   return 'COMPLEX_AI';
 }
+
+test('Copilot Intent: "sales performance" routes strictly to VELOCITY_CARD', () => {
+  const intent = routeStyleQueryIntent('sales performance');
+  assert.equal(intent, 'VELOCITY_CARD');
+});
+
+test('Copilot Intent: "performance" routes strictly to VELOCITY_CARD', () => {
+  const intent = routeStyleQueryIntent('performance');
+  assert.equal(intent, 'VELOCITY_CARD');
+});
 
 test('Copilot Intent: "what about this style High Neck Sleeveless Top (V)" routes to SMART AI assessment', () => {
   const intent = routeStyleQueryIntent('what about this style high neck sleeveless top (v)');

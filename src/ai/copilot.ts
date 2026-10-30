@@ -50,6 +50,50 @@ export interface D1StyleSnapshotRow {
   commercial_rationale: string;
 }
 
+export function styleRecordToSnapshotRow(r: any): D1StyleSnapshotRow {
+  const m = r.metrics;
+  const rec = r.recommendation;
+  const costPlusVat = m.unitCost * 1.15;
+  const forecastSold = Math.round(m.totalPhysicalStock * ((rec?.expectedClearancePct || 40) / 100));
+  const postStock = Math.max(0, m.totalPhysicalStock - forecastSold);
+  const promoPrice = rec?.promotionalPriceSAR || m.ticketPrice;
+  const netRev = (forecastSold * promoPrice) / 1.15;
+  const forecastProfit = Math.round(netRev - (forecastSold * m.unitCost));
+  const isSingleSize = m.isSingleSize || (
+    /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(m.category) ||
+    /\b(\d+ml|free size|one size|os)\b/i.test(m.productName)
+  );
+  const curveLabel = isSingleSize
+    ? 'Single Size (Complete)'
+    : (m.activeSizeCount >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)');
+
+  return {
+    style_code: m.styleCode,
+    product_name: m.productName,
+    category: m.category || 'General',
+    season: m.season || 'Continuity',
+    total_physical_stock: m.totalPhysicalStock,
+    stock_andalus: m.stockAndalus,
+    stock_yasmeen: m.stockYasmeen,
+    stock_jouri: m.stockJouri,
+    stock_wh: m.stockWH,
+    cumulative_str_pct: m.cumulativeSTR,
+    weekly_ros: m.weeklyROS,
+    sar_curve_health: curveLabel,
+    unit_cost: m.unitCost,
+    cost_plus_vat: costPlusVat,
+    ticket_price: m.ticketPrice,
+    recommended_offer: rec?.recommendedOffer || 'Full Price (Margin Protection)',
+    promotional_price: promoPrice,
+    discount_pct: rec?.discountPct || 0,
+    zero_loss_status: rec?.zeroLossStatus || 'ZERO_LOSS_COMPLIANT',
+    forecast_sold: forecastSold,
+    forecast_profit: forecastProfit,
+    post_event_stock: postStock,
+    commercial_rationale: rec?.rationale || 'Assortment depth defense.'
+  };
+}
+
 /**
  * Searches D1 style_plan_snapshots for specific matches based on user message.
  * Maintains conversation context if referring to 'this item' or follow-up questions.
@@ -73,6 +117,11 @@ async function searchStylesInD1(
         .bind(code)
         .all<D1StyleSnapshotRow>();
       if (results && results.length > 0) return results;
+
+      // Resilient fallback from live style plan
+      const records = await getOrComputeStylePlan(db);
+      const match = records.find(r => r.metrics.styleCode === code);
+      if (match) return [styleRecordToSnapshotRow(match)];
     }
 
     // 2. Tokenize potential product keywords from current message
@@ -160,18 +209,25 @@ async function searchStylesInD1(
       }
     }
 
-    // 3. ONLY IF NO specific product keyword was found in current user message:
-    // Check if user is referencing the active style in focus ('this', 'it', 'for this item', 'this style')
-    const isContextualFollowup = /\b(this|that|it|its|the item|this item|this product|this model|for this|for it|this style|the style)\b/i.test(lowerMsg);
-    const isMacroQueryWithoutStyle = !/\b(this|it|its|the item|this item|this style|for this|for it)\b/i.test(lowerMsg) &&
-      /\b(catalog|stores?|overall|total|density|network|sales|performance|sizes?|styles?|demand|slow|fast)\b/i.test(lowerMsg);
+    // 3. Contextual Resolution: If user has an active style in focus (contextStyleCode):
+    // Prioritize the focused item unless the user query is an explicit macro catalog inquiry,
+    // a database/architecture inquiry, a scenario simulation, or a business rule compiler command.
+    const isExplicitMacroQuery = /\b(entire catalog|all catalog|overall catalog|catalog wide|catalog-wide|whole catalog|catalog total|catalog average|catalog summary|catalog performance|catalog sales|all styles|across all styles|all products|across all products|entire store network|network total|all stores total|network density|store densities|all store densities|overall performance|macro|total units in catalog|all items in catalog)\b/i.test(lowerMsg);
+    const isDataSourceQuery = /\b(data source|data-source|source of data|where is.*data|where does.*data come from|d1 schema|database table|odoo_stock_move_line|move line)\b/i.test(lowerMsg);
+    const isSimulationQuery = /\b(what if.*(?:liquidat|clear|units?|margin|target|sales?)|simulate.*(?:liquidat|clear|units?|margin|scenario)|run.*simulation|what happens if we (?:liquidat|clear))\b/i.test(lowerMsg);
+    const isRuleQuery = /\b(rule|policy|governance)\b/i.test(lowerMsg) && /\b(cap|exclude|floor|discount|enforce)\b/i.test(lowerMsg);
 
-    if (isContextualFollowup && !isMacroQueryWithoutStyle && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
+    if (!isExplicitMacroQuery && !isDataSourceQuery && !isSimulationQuery && !isRuleQuery && contextStyleCode && /^\d{5}$/.test(contextStyleCode)) {
       const { results } = await db
         .prepare('SELECT * FROM style_plan_snapshots WHERE style_code = ? LIMIT 1')
         .bind(contextStyleCode)
         .all<D1StyleSnapshotRow>();
       if (results && results.length > 0) return results;
+
+      // Resilient fallback from live style plan
+      const records = await getOrComputeStylePlan(db);
+      const match = records.find(r => r.metrics.styleCode === contextStyleCode);
+      if (match) return [styleRecordToSnapshotRow(match)];
     }
   } catch (err) {
     console.error('Error querying D1 for copilot context:', err);
@@ -496,11 +552,11 @@ export async function handleCopilotChat(
     const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance|sale price)\b/i.test(lowerMsg);
     const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
     const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
-    const isVelocityQuery = /\b(velocity|ros|rate of sale|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast)\b/i.test(lowerMsg);
+    const isVelocityQuery = /\b(sales\s+performance|performance|velocity|ros|rate of sale|sales rate|sales velocity|sell-through|sell through|str|runway|wos|weeks of supply|coverage|how fast|sales volume|how is it selling)\b/i.test(lowerMsg);
     const isFullOverview = /\b(all|full|details|overview|everything|snapshot|summary|profile|card)\b/i.test(lowerMsg);
 
     // Conversational, open-ended, qualitative, or analytical inquiries that require smart AI assessment:
-    const isConversational = /\b(what about|how about|tell me about|how is|thoughts on|opinion|status of|evaluate|review|analyze|assessment|performance|doing)\b/i.test(lowerMsg);
+    const isConversational = /\b(what about|how about|tell me about|how is|thoughts on|opinion|status of|evaluate|review|analyze|assessment|doing)\b/i.test(lowerMsg);
     const isComplexAnalysis = isConversational || /\b(why|how did|how is.*calculated|formula|derivation|reason|what if|can we|could we|simulate|project|compare)\b/i.test(lowerMsg);
 
     // Case A: Specific property queries without analytical reasoning (Zero LLM Tokens, Instant Deterministic Accuracy)

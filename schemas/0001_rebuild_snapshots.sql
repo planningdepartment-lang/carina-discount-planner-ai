@@ -64,7 +64,13 @@ WITH raw_agg AS (
       THEN COALESCE(quantity, qty_done, 0) ELSE 0 
     END) AS sold_8wk,
 
-    COUNT(DISTINCT product_sku) AS size_count,
+    COUNT(DISTINCT 
+        CASE 
+          WHEN INSTR(SUBSTR(TRIM(product_sku), 7), '-') > 0 
+          THEN SUBSTR(SUBSTR(TRIM(product_sku), 7), 1, INSTR(SUBSTR(TRIM(product_sku), 7), '-') - 1)
+          ELSE product_sku
+        END
+      ) AS size_count,
     COALESCE(
       ROUND(AVG(CASE 
         WHEN CAST(unit_cost AS REAL) > 0 THEN CAST(unit_cost AS REAL)
