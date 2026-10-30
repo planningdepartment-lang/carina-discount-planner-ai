@@ -755,7 +755,18 @@ function attachTableActionListeners() {
       // STR Benchmark Classification
       let strBenchmark = '';
       let strBadgeClass = 'badge-green';
-      if (str >= 70) {
+      if (isSingleSize) {
+        if (str >= 50) {
+          strBenchmark = 'Strong Single-Size Velocity (STR >= 50%): Organic consumer demand qualifies for full price margin protection.';
+          strBadgeClass = 'badge-green';
+        } else if (stock > 100) {
+          strBenchmark = `Steady Single-Size Stock (${stock} u): High gross margin qualifies for Spend 250 Save 50 (~20% basket discount) rather than apparel clearance dumping.`;
+          strBadgeClass = 'badge-blue';
+        } else {
+          strBenchmark = `Limited Single-Size Oddment (${stock} u): Targeted via Beauty Multi-Buy (Buy 2 Get 1 Free) to drive unit turnover.`;
+          strBadgeClass = 'badge-amber';
+        }
+      } else if (str >= 70) {
         strBenchmark = 'High Sell-Through (>=70%): Strong organic demand qualifies for full price margin protection.';
         strBadgeClass = 'badge-green';
       } else if (str >= 30) {
@@ -773,7 +784,10 @@ function attachTableActionListeners() {
       let wosBenchmark = '';
       let wosBadgeClass = 'badge-green';
       const wosNum = parseFloat(storeWos) || 0;
-      if (wosNum <= 12) {
+      if (isSingleSize) {
+        wosBenchmark = `Store Runway (${storeWos} wks): Non-sized inventory holds zero size-breakage risk; multi-buy basket promotion steadily liquidates floor units.`;
+        wosBadgeClass = wosNum <= 26 ? 'badge-green' : 'badge-blue';
+      } else if (wosNum <= 12) {
         wosBenchmark = 'Tight Store Runway (<=12 wks): Rapid sell-through with low holding risk. No heavy markdown required.';
         wosBadgeClass = 'badge-green';
       } else if (wosNum <= 26) {
@@ -878,6 +892,36 @@ function attachTableActionListeners() {
         </div>
       `;
 
+      // Check if current offer is an override vs AI recommendation
+      const isOverride = rationale.toLowerCase().includes('manual user override') || 
+                         offer.toLowerCase().includes('custom') || 
+                         rationale.toLowerCase().includes('custom promotional price');
+
+      // Standard offer spectrum options from the modal catalog
+      const standardOfferItems = [
+        { label: 'Full Price Protection (0% Off)', key: '0%' },
+        { label: 'Spend 250 Save 50 (Basket Pack)', key: 'spend 250' },
+        { label: 'Spend & Save Eligible (~20% Off)', key: 'spend & save' },
+        { label: 'Category Markdown 40% Off', key: '40%' },
+        { label: '50% Off Dedicated Clearance Rail', key: '50%' },
+        { label: 'Take 3 For 99 SAR Rail (33 SAR/u)', key: '99' },
+        { label: 'Beauty Multi-Buy (Buy 2 Get 1 Free)', key: 'buy 2' }
+      ];
+
+      let foundStandardMatch = false;
+      const standardOffersHtml = standardOfferItems.map(item => {
+        const isMatch = offer.toLowerCase().includes(item.key);
+        if (isMatch) foundStandardMatch = true;
+        const chipStyle = isMatch
+          ? 'background: rgba(212,175,55,0.22); border: 1px solid var(--gold-primary); color: #fff; font-weight: 700;'
+          : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); opacity: 0.7;';
+        return `<span style="display: inline-block; font-size: 0.68rem; padding: 3px 7px; border-radius: 4px; ${chipStyle}">${item.label}${isMatch ? ' ✓ Active' : ''}</span>`;
+      }).join('');
+
+      const customTagHtml = (!foundStandardMatch || offer.toLowerCase().includes('custom'))
+        ? `<span style="display: inline-block; font-size: 0.68rem; padding: 3px 7px; border-radius: 4px; background: rgba(245,158,11,0.25); border: 1px solid #f59e0b; color: #fff; font-weight: 700;">Custom Offer (${promo.toFixed(2)} SAR) ✓ Active</span>`
+        : '';
+
       popover.innerHTML = `
         <div class="popover-header">
           <span>MATHEMATICAL AUDIT & COMMERCIAL DERIVATION</span>
@@ -887,85 +931,37 @@ function attachTableActionListeners() {
           <div class="popover-title">Style <strong>${styleCode}</strong> — <em>${name}</em></div>
           <div class="popover-sub">Category: <code>${category}</code> | Collection Season: <code>${season}</code></div>
 
-          <!-- Card 1: Commercial Offer Strategy & Primary Rationale -->
-          <div class="popover-card highlight-card">
-            <div class="popover-card-header">
-              <span class="popover-card-title">[COMMERCIAL OFFER STRATEGY]</span>
-              <span class="popover-criteria-badge">${offer} (${discount}% Off)</span>
-            </div>
-            <p style="margin: 0; line-height: 1.45; font-size: 0.8rem; color: #f1f5f9;">${rationale}</p>
+          <!-- Journey Stage Bar -->
+          <div class="popover-journey-nav">
+            <span class="journey-step-chip">1. Baseline Supply</span>
+            <span class="journey-step-chip">2. Decision Gates</span>
+            <span class="journey-step-chip active">3. Offer Strategy</span>
+            <span class="journey-step-chip">4. Unit Economics</span>
+            <span class="journey-step-chip">5. Elasticity Curve</span>
+            <span class="journey-step-chip">6. Cash Yield</span>
           </div>
 
-          <!-- Card 2: Multi-Criteria Decision Derivation Matrix -->
+          <!-- STAGE 1: PRODUCT & SUPPLY REALITY (Baseline Inputs) -->
           <div class="popover-card">
             <div class="popover-card-header">
-              <span class="popover-card-title">[MULTI-CRITERIA DECISION DERIVATION]</span>
-              <span class="popover-criteria-badge badge-blue">5 EVALUATION GATES</span>
+              <span class="popover-card-title text-gold">[STAGE 1: PRODUCT & SUPPLY REALITY]</span>
+              <span class="popover-criteria-badge badge-green">MARKUP: ${costMultiplier}x</span>
             </div>
-            <div class="popover-criteria-list">
-              <!-- Gate 1: Assortment Type & Curve Health -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">Assortment & Size Curve</span>
-                  <span class="popover-criteria-badge ${curveBadgeClass}">${curveLabel}</span>
-                </div>
-                <div class="popover-criteria-desc">
-                  ${isSingleSize 
-                    ? 'Non-sized volumetric product; zero risk of size brokenness. Routed to multi-buy basket driver rather than broken apparel clearance rail.' 
-                    : (sizes >= 3 
-                        ? 'Broad size spectrum (>=3 sizes) active. Retains strong customer conversion without broken-curve walkout penalties.' 
-                        : 'Fragmented orphan oddments (<=2 sizes). High customer walkout risk; liquidated via Take 3 For 99 SAR or 50% clearance rail.')}
-                </div>
-              </div>
+            
+            <!-- 1A: Cost Structure & Catalog Pricing -->
+            <div class="pop-row"><span>Landed Unit Cost (COGS):</span><strong>${cost.toFixed(2)} SAR</strong></div>
+            <div class="pop-row"><span>Saudi 15% VAT Legal Floor:</span><strong>${floor.toFixed(2)} SAR</strong></div>
+            <div class="pop-row"><span>Original List Ticket Price:</span><strong>${ticket.toFixed(2)} SAR</strong></div>
+            <div class="pop-row"><span>Net Selling Price (Ex-VAT):</span><strong>${origNetRev.toFixed(2)} SAR</strong></div>
+            <div class="pop-row"><span>Cost Markup Multiplier:</span><strong class="text-gold">${costMultiplier}x (+${netMarkupPct}% on cost)</strong></div>
+            <div class="pop-row"><span>Initial Net Margin (IMU):</span><strong class="text-gold">${netImuPct}% (ex-VAT Net Margin)</strong></div>
 
-              <!-- Gate 2: Sell-Through Rate (STR %) -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">Sell-Through Rate (STR %)</span>
-                  <span class="popover-criteria-badge ${strBadgeClass}">STR: ${str.toFixed(1)}%</span>
-                </div>
-                <div class="popover-criteria-desc">${strBenchmark}</div>
-              </div>
+            <div class="luxury-divider" style="margin: 8px 0;"></div>
 
-              <!-- Gate 3: Store Runway / Weeks of Supply (WOS) -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">Store Runway (WOS)</span>
-                  <span class="popover-criteria-badge ${wosBadgeClass}">WOS: ${storeWos} wks</span>
-                </div>
-                <div class="popover-criteria-desc">${wosBenchmark}</div>
-              </div>
-
-              <!-- Gate 4: Store Floor Saturation & Display Density -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">Store Network Exposure</span>
-                  <span class="popover-criteria-badge badge-blue">${storeSharePct}% in Stores (${storeUnits} u)</span>
-                </div>
-                <div class="popover-criteria-desc">${densityBenchmark}</div>
-              </div>
-
-              <!-- Gate 5: Saudi Zero-Loss Regulatory Floor -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">Saudi 15% VAT Legal Floor</span>
-                  <span class="popover-criteria-badge ${floorHeadroom >= 0 ? 'badge-green' : 'badge-rose'}">
-                    Floor: ${floor.toFixed(2)} SAR (${floorHeadroom >= 0 ? 'PASS' : 'VIOLATION'})
-                  </span>
-                </div>
-                <div class="popover-criteria-desc">
-                  Landed cost (${cost.toFixed(2)} SAR) + 15% VAT establishes a legal minimum retail price of <strong>${floor.toFixed(2)} SAR</strong>. 
-                  Recommended promo price of <strong>${promo.toFixed(2)} SAR</strong> preserves a safe margin headroom of <strong>+${floorHeadroom.toFixed(2)} SAR</strong> above legal threshold.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 3: Store Network Physical Distribution & Density -->
-          <div class="popover-card">
-            <div class="popover-card-header">
-              <span class="popover-card-title">[STORE NETWORK DISTRIBUTION & VELOCITY]</span>
-              <span class="popover-criteria-badge">TOTAL: ${stock} UNITS</span>
+            <!-- 1B: Store Network Distribution & Velocity -->
+            <div class="pop-row" style="margin-bottom: 4px;">
+              <span>Total Physical Stock:</span>
+              <strong>${stock} Units (${storeSharePct}% Stores / ${whSharePct}% Central WH)</strong>
             </div>
             <div class="popover-density-grid">
               <div class="popover-density-cell">
@@ -989,42 +985,136 @@ function attachTableActionListeners() {
                 <div class="popover-density-sub">${whSharePct}% Split</div>
               </div>
             </div>
-            <div class="popover-ratio-bar">
+            <div class="popover-ratio-bar" style="margin-top: 6px;">
               <div class="popover-ratio-store" style="width: ${storeSharePct}%;" title="Stores: ${storeSharePct}%"></div>
               <div class="popover-ratio-wh" style="width: ${whSharePct}%;" title="WH: ${whSharePct}%"></div>
             </div>
-            <div class="pop-row" style="margin-top: 4px;">
-              <span>8-Week Rate of Sale (Weekly ROS):</span>
-              <strong>${ros.toFixed(1)} units/week</strong>
+            <div class="pop-row" style="margin-top: 6px;">
+              <span>8-Week Velocity (Weekly ROS):</span>
+              <strong>${ros.toFixed(1)} u/week</strong>
+            </div>
+            <div class="pop-row">
+              <span>Store Runway (WOS):</span>
+              <strong class="${wosBadgeClass}">${storeWos} weeks</strong>
             </div>
           </div>
 
-          <!-- Card 4: Cost Structure & Catalog Pricing (Strictly Ex-VAT) -->
+          <!-- STAGE 2: 5 DECISION GATES EVALUATION (Logic Diagnostic) -->
           <div class="popover-card">
             <div class="popover-card-header">
-              <span class="popover-card-title">[COST STRUCTURE & CATALOG PRICING]</span>
-              <span class="popover-criteria-badge badge-green">MARKUP: ${costMultiplier}x</span>
+              <span class="popover-card-title">[STAGE 2: MULTI-CRITERIA DECISION GATES]</span>
+              <span class="popover-criteria-badge badge-blue">5 EVALUATION GATES</span>
             </div>
-            <div class="pop-row"><span>Landed Unit Cost (COGS):</span><strong>${cost.toFixed(2)} SAR</strong></div>
-            <div class="pop-row"><span>Saudi 15% VAT Legal Floor:</span><strong>${floor.toFixed(2)} SAR</strong></div>
-            <div class="pop-row"><span>Original List Ticket Price:</span><strong>${ticket.toFixed(2)} SAR</strong></div>
-            <div class="pop-row"><span>Net Selling Price (Ex-VAT):</span><strong>${origNetRev.toFixed(2)} SAR</strong></div>
-            <div class="pop-row"><span>Cost Markup Multiplier:</span><strong class="text-gold">${costMultiplier}x (+${netMarkupPct}% on cost)</strong></div>
-            <div class="pop-row"><span>Initial Net Margin (IMU):</span><strong class="text-gold">${netImuPct}% (ex-VAT Net Margin)</strong></div>
-            <div class="pop-row highlight">
-              <span>Recommended Promo Price:</span>
-              <strong class="text-gold">${promo.toFixed(2)} SAR (${discount}% off)</strong>
+            <div class="popover-criteria-list">
+              <!-- Gate 1: Assortment Type & Curve Health -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">1. Assortment & Size Curve</span>
+                  <span class="popover-criteria-badge ${curveBadgeClass}">${curveLabel}</span>
+                </div>
+                <div class="popover-criteria-desc">
+                  ${isSingleSize 
+                    ? 'Non-sized volumetric product; zero risk of size brokenness. Routed to multi-buy basket driver rather than broken apparel clearance rail.' 
+                    : (sizes >= 3 
+                        ? 'Broad size spectrum (>=3 sizes) active. Retains strong customer conversion without broken-curve walkout penalties.' 
+                        : 'Fragmented orphan oddments (<=2 sizes). High customer walkout risk; liquidated via Take 3 For 99 SAR or 50% clearance rail.')}
+                </div>
+              </div>
+
+              <!-- Gate 2: Sell-Through Rate (STR %) -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">2. Sell-Through Rate (STR %)</span>
+                  <span class="popover-criteria-badge ${strBadgeClass}">STR: ${str.toFixed(1)}%</span>
+                </div>
+                <div class="popover-criteria-desc">${strBenchmark}</div>
+              </div>
+
+              <!-- Gate 3: Store Runway / Weeks of Supply (WOS) -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">3. Store Runway (WOS)</span>
+                  <span class="popover-criteria-badge ${wosBadgeClass}">WOS: ${storeWos} wks</span>
+                </div>
+                <div class="popover-criteria-desc">${wosBenchmark}</div>
+              </div>
+
+              <!-- Gate 4: Store Floor Saturation & Display Density -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">4. Store Network Exposure</span>
+                  <span class="popover-criteria-badge badge-blue">${storeSharePct}% in Stores (${storeUnits} u)</span>
+                </div>
+                <div class="popover-criteria-desc">${densityBenchmark}</div>
+              </div>
+
+              <!-- Gate 5: Saudi Zero-Loss Regulatory Floor -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">5. Saudi 15% VAT Legal Floor</span>
+                  <span class="popover-criteria-badge ${floorHeadroom >= 0 ? 'badge-green' : 'badge-rose'}">
+                    Floor: ${floor.toFixed(2)} SAR (${floorHeadroom >= 0 ? 'PASS' : 'VIOLATION'})
+                  </span>
+                </div>
+                <div class="popover-criteria-desc">
+                  Landed cost (${cost.toFixed(2)} SAR) + 15% VAT establishes a legal minimum retail price of <strong>${floor.toFixed(2)} SAR</strong>. 
+                  Recommended promo price of <strong>${promo.toFixed(2)} SAR</strong> preserves a safe margin headroom of <strong>+${floorHeadroom.toFixed(2)} SAR</strong> above legal threshold.
+                </div>
+              </div>
             </div>
-            <div class="pop-row"><span>Promotional Net Revenue (Ex-VAT):</span><strong>${promoNetRev.toFixed(2)} SAR / unit</strong></div>
           </div>
 
-          <!-- Card 5: Operating Leverage & Break-Even Lift Analysis -->
+          <!-- STAGE 3: STRATEGIC OFFER & PROVENANCE (Decision: AI Recommended vs Custom User Override) -->
+          <div class="popover-card highlight-card">
+            <div class="popover-card-header">
+              <span class="popover-card-title text-gold">[STAGE 3: CAMPAIGN OFFER STRATEGY]</span>
+              <span class="popover-criteria-badge ${isOverride ? 'badge-amber' : 'badge-blue'}">
+                ${isOverride ? '✏️ MANUAL USER OVERRIDE' : '🤖 AI SYSTEM RECOMMENDATION'}
+              </span>
+            </div>
+            
+            <div class="pop-row" style="margin-bottom: 6px;">
+              <span>Active Offer Strategy:</span>
+              <strong class="text-gold" style="font-size: 0.95rem;">${offer} (${discount}% Off)</strong>
+            </div>
+
+            <div class="pop-row highlight">
+              <span>Customer Promotional Price (inc. VAT):</span>
+              <strong class="text-gold">${promo.toFixed(2)} SAR</strong>
+            </div>
+            <div class="pop-row">
+              <span>Promotional Net Revenue (Ex-VAT):</span>
+              <strong>${promoNetRev.toFixed(2)} SAR / unit</strong>
+            </div>
+
+            <!-- Standard Catalog Alignment -->
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 8px;">
+              <strong>Campaign Strategy Catalog Alignment:</strong>
+            </div>
+            <div class="popover-offer-spectrum">
+              ${standardOffersHtml}
+              ${customTagHtml}
+            </div>
+
+            <p style="margin: 8px 0 0 0; line-height: 1.45; font-size: 0.8rem; color: #f1f5f9;">
+              <strong>Strategic Rationale:</strong> ${rationale}
+            </p>
+
+            <button id="popoverOverrideBtn" class="btn btn-sm btn-outline" style="width: 100%; margin-top: 10px; border-color: var(--gold-primary); color: var(--gold-primary); font-weight: 600; cursor: pointer; padding: 6px;">
+              ✏️ Adjust or Override This Offer in POS
+            </button>
+          </div>
+
+          <!-- STAGE 4: UNIT ECONOMICS & OPERATING LEVERAGE (Analysis) -->
+          <div class="popover-stage-title" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px; text-transform: uppercase;">
+            [STAGE 4: OPERATING LEVERAGE & BREAK-EVEN ANALYSIS]
+          </div>
           ${leverageCardHtml}
 
-          <!-- Card 5b: Dynamic Price Elasticity & Multi-Point Revenue Curve -->
+          <!-- STAGE 5: DYNAMIC PRICE ELASTICITY & REVENUE OPTIMIZATION CURVE (Simulation) -->
           <div class="popover-card">
             <div class="popover-card-header">
-              <span class="popover-card-title text-gold">[PRICE ELASTICITY & REVENUE OPTIMIZATION CURVE]</span>
+              <span class="popover-card-title text-gold">[STAGE 5: PRICE ELASTICITY SIMULATION]</span>
               <span class="popover-criteria-badge badge-blue">MULTI-TIER PROFIT MODEL</span>
             </div>
             <p style="font-size: 0.725rem; color: var(--text-muted); margin: 0 0 8px 0;">
@@ -1052,14 +1142,14 @@ function attachTableActionListeners() {
             </div>
           </div>
 
-          <!-- Card 6: Dynamic Campaign Clearance Forecast & Cash Margin Yield -->
+          <!-- STAGE 6: CAMPAIGN FINANCIAL FORECAST & CASH YIELD (Outcome) -->
           <div class="popover-card highlight-card">
             <div class="popover-card-header">
-              <span class="popover-card-title text-gold">[CAMPAIGN FINANCIAL FORECAST]</span>
-              <span class="popover-criteria-badge badge-green">${clearancePct}% CLEARANCE RATE</span>
+              <span class="popover-card-title text-gold">[STAGE 6: CAMPAIGN FINANCIAL FORECAST]</span>
+              <span class="popover-criteria-badge badge-green">${clearancePct}% INVENTORY LIQUIDATION TARGET</span>
             </div>
             <div class="pop-row">
-              <span>Forecast Sales Volume (${clearancePct}% clearance):</span>
+              <span>Forecast Sales Volume (${clearancePct}% inventory target):</span>
               <strong>${forecastSold} units</strong>
             </div>
             <div class="pop-row">
@@ -1095,6 +1185,15 @@ function attachTableActionListeners() {
       document.getElementById('closePopoverBtn').addEventListener('click', () => {
         popover.style.display = 'none';
       });
+
+      const popoverOverrideBtn = document.getElementById('popoverOverrideBtn');
+      if (popoverOverrideBtn) {
+        popoverOverrideBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          popover.style.display = 'none';
+          openOverrideModal(styleCode, name, cost, ticket, promo, offer);
+        });
+      }
     });
   });
 
@@ -1166,9 +1265,11 @@ function setupOverrideModal() {
   const offerSelect = document.getElementById('overrideOfferSelect');
 
   let currentCost = 0;
+  let currentTicket = 0;
 
   window.openOverrideModal = function(styleCode, name, cost, ticket, promo, offer) {
     currentCost = cost;
+    currentTicket = ticket;
     document.getElementById('overrideStyleCode').value = styleCode;
     priceInput.value = promo;
     offerSelect.value = offerSelect.querySelector(`option[value="${offer}"]`) ? offer : 'CUSTOM';
@@ -1207,8 +1308,20 @@ function setupOverrideModal() {
   priceInput.addEventListener('input', validateOverridePrice);
 
   offerSelect.addEventListener('change', () => {
-    if (offerSelect.value === 'Take 3 For 99 SAR Rail (33 SAR/u)') priceInput.value = 33;
-    if (offerSelect.value === '50% Off Dedicated Clearance Rail') priceInput.value = (parseFloat(priceInput.value) * 0.5).toFixed(2);
+    const val = offerSelect.value;
+    if (val === 'Take 3 For 99 SAR Rail (33 SAR/u)') {
+      priceInput.value = 33;
+    } else if (val === '50% Off Dedicated Clearance Rail') {
+      priceInput.value = (currentTicket * 0.50).toFixed(2);
+    } else if (val === 'Category Markdown 40% Off') {
+      priceInput.value = (currentTicket * 0.60).toFixed(2);
+    } else if (val === 'Spend 250 Save 50 (Basket Pack)' || val === 'Spend & Save Eligible (~20% Off)') {
+      priceInput.value = (currentTicket * 0.80).toFixed(2);
+    } else if (val === 'Beauty Multi-Buy (Buy 2 Get 1 Free)') {
+      priceInput.value = (currentTicket * 0.67).toFixed(2);
+    } else if (val === 'Full Price Margin Protection (0% Off)') {
+      priceInput.value = currentTicket.toFixed(2);
+    }
     validateOverridePrice();
   });
 
