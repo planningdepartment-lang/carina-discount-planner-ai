@@ -67,8 +67,8 @@ WITH raw_agg AS (
     COUNT(DISTINCT 
         CASE 
           WHEN INSTR(SUBSTR(TRIM(product_sku), 7), '-') > 0 
-          THEN SUBSTR(SUBSTR(TRIM(product_sku), 7), 1, INSTR(SUBSTR(TRIM(product_sku), 7), '-') - 1)
-          ELSE product_sku
+          THEN SUBSTR(SUBSTR(TRIM(product_sku), 7), INSTR(SUBSTR(TRIM(product_sku), 7), '-') + 1)
+          ELSE 'OS'
         END
       ) AS size_count,
     COALESCE(

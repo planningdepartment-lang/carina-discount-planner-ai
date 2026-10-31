@@ -423,36 +423,37 @@ test.describe('Dynamic Performance Offers & "Bundle 2" Engine', () => {
     assert.ok(heroRec.recommendedOffer.includes('Full Price Margin Protection'));
   });
 
-  test('SKU Anatomy Extraction: accurately parses model, size, and color code (e.g. 55915-XS-88)', () => {
+  test('SKU Anatomy Extraction: accurately parses model, color code, and size (e.g. 58401-27-M)', () => {
     function parseSku(sku) {
       const trimmed = sku.trim();
       const styleCode = trimmed.substring(0, 5);
       const afterFirstDash = trimmed.substring(6);
       const dashPos = afterFirstDash.indexOf('-');
-      const size = dashPos > 0 ? afterFirstDash.substring(0, dashPos) : trimmed;
-      const color = dashPos > 0 ? afterFirstDash.substring(dashPos + 1) : '';
-      return { styleCode, size, color };
+      const color = dashPos > 0 ? afterFirstDash.substring(0, dashPos) : '';
+      const size = dashPos > 0 ? afterFirstDash.substring(dashPos + 1) : afterFirstDash;
+      return { styleCode, color, size };
     }
 
-    const item1 = parseSku('55915-XS-88');
-    assert.equal(item1.styleCode, '55915');
-    assert.equal(item1.size, 'XS');
-    assert.equal(item1.color, '88');
+    // Real Odoo SKU Anatomy: {MODEL}-{COLOR}-{SIZE}
+    const item1 = parseSku('58401-27-M');
+    assert.equal(item1.styleCode, '58401');
+    assert.equal(item1.color, '27');
+    assert.equal(item1.size, 'M');
 
-    const item2 = parseSku('55915-Free Size-01');
-    assert.equal(item2.styleCode, '55915');
-    assert.equal(item2.size, 'Free Size');
+    const item2 = parseSku('58401-01-Free Size');
+    assert.equal(item2.styleCode, '58401');
     assert.equal(item2.color, '01');
+    assert.equal(item2.size, 'Free Size');
 
-    const item3 = parseSku('55915-36B-05');
-    assert.equal(item3.styleCode, '55915');
-    assert.equal(item3.size, '36B');
-    assert.equal(item3.color, '05');
+    const item3 = parseSku('55573-01-75B');
+    assert.equal(item3.styleCode, '55573');
+    assert.equal(item3.color, '01');
+    assert.equal(item3.size, '75B');
 
-    // Multi-color same-size aggregation: 4 SKU rows with only 2 true sizes
-    const skus = ['55915-XS-88', '55915-XS-01', '55915-S-88', '55915-S-01'];
+    // Multi-color same-size aggregation: 4 SKU rows across 2 colors with only 2 true sizes (S and M)
+    const skus = ['58401-27-M', '58401-01-M', '58401-27-S', '58401-01-S'];
     const distinctSizes = new Set(skus.map(s => parseSku(s).size));
-    assert.equal(distinctSizes.size, 2); // Correctly classified as broken oddment (<=2), NOT 4!
+    assert.equal(distinctSizes.size, 2); // Correctly classified as broken oddment (<=2 true sizes), NOT 4!
   });
 
 });

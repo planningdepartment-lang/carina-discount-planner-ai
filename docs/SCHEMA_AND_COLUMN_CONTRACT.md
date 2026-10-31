@@ -17,7 +17,26 @@ The D1 table `odoo_stock_move_line` mirrors Odoo ERP stock operations. The table
 | `id` | INTEGER | Primary Key | Unique line ID in Odoo ERP. |
 | `product_id` | INTEGER | Foreign Key | Foreign key to `product.product`. |
 | `product_id_name` | TEXT | Display Name | Format `[SKU] Product Name` or `Product Name`. Must be trimmed. |
-| `product_sku` | TEXT | **Master SKU Key** | **Strict Validation Required**: Must match `^\d{5}-[A-Za-z0-9\s]+-[A-Za-z0-9]+$` (e.g. `55915-XS-88` where `55915` is model, `XS` is size, `88` is color code). Non-matching values are discarded from style analysis. |
+| `product_sku` | TEXT | **Master SKU Key** | **Strict Validation Required**: Must match `^\d{5}-[A-Za-z0-9]+-[A-Za-z0-9\s]+# CARINA D1 Schema & Column Contract Specification
+## Permanent Autonomous Data Engine Reference
+
+---
+
+### Executive Overview
+This document serves as the permanent, immutable technical specification for data ingestion, column mapping, and anomaly handling in the **CARINA Autonomous Style Lifecycle Monitor & Strategic Discount Planner**. It provides strict rules for Cloudflare Workers, AI Copilot, and ETL processes to eliminate guessing.
+
+---
+
+### 1. `odoo_stock_move_line` Data Dictionary & Column Contract
+
+The D1 table `odoo_stock_move_line` mirrors Odoo ERP stock operations. The table contains 82 raw columns. The table below documents the core operational columns, their required data types, and extraction instructions:
+
+| Field Name | Type | Contract Role | Rule & Handling Logic |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | Primary Key | Unique line ID in Odoo ERP. |
+| `product_id` | INTEGER | Foreign Key | Foreign key to `product.product`. |
+| `product_id_name` | TEXT | Display Name | Format `[SKU] Product Name` or `Product Name`. Must be trimmed. |
+| `product_sku` | TEXT | **Master SKU Key** | **Strict Validation Required**:  (e.g. `58401-27-M` where `58401` is model, `27` is color code, `M` is size). Non-matching values are discarded from style analysis. |
 | `location_id` | INTEGER | Source Loc ID | Origin storage location. |
 | `location_id_name` | TEXT | Source Name | Full path name (e.g., `WH/Stock`, `AND/Stock`, `YAS/Stock`, `JOU/Stock`, `Partners/Customers`). |
 | `location_dest_id` | INTEGER | Dest Loc ID | Target storage location. |

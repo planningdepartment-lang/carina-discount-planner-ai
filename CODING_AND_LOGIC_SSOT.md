@@ -411,7 +411,7 @@ SELECT
         ELSE 0 
     END) AS sales_past_56_days,
 
-    -- Distinct active sizes with stock (SKU Anatomy: [5-digit model]-[size]-[color], e.g. 55915-XS-88)
+    -- Distinct active sizes with stock (SKU Anatomy: [5-digit model]-[color]-[size], e.g. 58401-27-M)
     COUNT(DISTINCT CASE 
         WHEN (location_dest_id_name IN ('AND/Stock', 'YAS/Stock', 'Jouri/Stock', 'WH/Stock')) 
         THEN CASE 
