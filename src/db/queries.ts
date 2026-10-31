@@ -338,6 +338,13 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         10.0
       ) AS unit_cost,
       MAX(COALESCE(sales_price, 0)) AS ticket_price,
+      COALESCE(
+        ROUND(AVG(CASE 
+          WHEN location_dest_id_name = 'Partners/Customers' AND CAST(sales_price AS REAL) > 0 
+          THEN CAST(sales_price AS REAL) 
+        END), 2),
+        MAX(COALESCE(sales_price, 0))
+      ) AS historical_asp,
       MAX(product_category_id_name) AS category,
       MAX(season_id_name) AS season
 
@@ -386,7 +393,8 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         weeklyROS: weeklyROS,
         cumulativeSTR: Math.round(strPct * 10) / 10,
         storeFloorWOS: wos,
-        activeSizeCount: row.size_count || 1
+        activeSizeCount: row.size_count || 1,
+        historicalASP: row.historical_asp ? Number(row.historical_asp) : undefined
       };
     });
   } catch (err) {

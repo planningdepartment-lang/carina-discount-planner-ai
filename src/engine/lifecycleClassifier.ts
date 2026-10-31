@@ -19,6 +19,7 @@ export interface StyleMetrics {
   storeFloorWOS: number;
   activeSizeCount: number;
   isSingleSize?: boolean;
+  historicalASP?: number;
 }
 
 export interface RecommendationResult {

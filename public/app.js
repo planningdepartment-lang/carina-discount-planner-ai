@@ -43,15 +43,29 @@ let currentBriefingMarkdown = ''; // Memory for executive briefing markdown copy
 /**
  * Computes multi-point price elasticity of demand and profit curve for a style.
  */
-function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhysicalStock, cumulativeSTR = 40.0) {
+function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhysicalStock, cumulativeSTR = 40.0, activeSizeCount = 4, isSingleSize = false, storeSharePct = 50, historicalRealizedPrice = null) {
   const costPlusVat = unitCost > 0 ? Math.round(unitCost * 1.15 * 100) / 100 : 0;
   const discountSteps = [0, 10, 20, 30, 40, 50];
   const baseWeeklySales = Math.max(0.2, weeklyROS);
   const baselineSales = Math.max(1, Math.round(baseWeeklySales * 4));
 
+  // 1. Assortment Size Curve Walkout Factor
+  const isBrokenCurve = !isSingleSize && activeSizeCount <= 2;
+  const sizeFulfillmentRate = isBrokenCurve ? 0.70 : 1.00;
+  const sizeFulfillmentLabel = isBrokenCurve 
+    ? `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`
+    : (isSingleSize ? 'Complete Assortment — 100% Single-Size fulfillment' : `Healthy Curve (${activeSizeCount} sizes active) — 100% fulfillment`);
+
+  // 2. Price sensitivity coefficient
   let priceElasticityCoeff = 1.6;
   if (cumulativeSTR < 30) priceElasticityCoeff = 2.1;
   else if (cumulativeSTR > 65) priceElasticityCoeff = 1.1;
+
+  // 3. Historical Realized ASP & Discount Depth (from sales_price or estimated from STR velocity)
+  const historicalAspEstimate = (historicalRealizedPrice && historicalRealizedPrice > 0)
+    ? historicalRealizedPrice
+    : (cumulativeSTR > 50 ? ticketPrice * 0.94 : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72));
+  const historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
 
   const tiers = [];
   let maxProfit = -Infinity;
@@ -64,11 +78,16 @@ function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhy
 
     let demandMultiplier = 1.0;
     if (discPct > 0) {
-      demandMultiplier = 1.0 + (priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8));
+      const rawLift = priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8);
+      const adjustedLift = rawLift * sizeFulfillmentRate;
+      demandMultiplier = 1.0 + adjustedLift;
     }
 
     const uncappedDemand = Math.round(baselineSales * demandMultiplier);
     const estimatedDemand = Math.min(totalPhysicalStock, Math.max(baselineSales, uncappedDemand));
+    const incrementalDemand = Math.max(0, estimatedDemand - baselineSales);
+    const incrementalPct = baselineSales > 0 ? Math.round((incrementalDemand / baselineSales) * 100) : 0;
+
     const netPriceExVat = Math.round((promotionalPrice / 1.15) * 100) / 100;
     const projectedNetRevenue = Math.round(estimatedDemand * netPriceExVat * 100) / 100;
     const projectedCOGS = Math.round(estimatedDemand * unitCost * 100) / 100;
@@ -80,6 +99,8 @@ function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhy
       promotionalPrice,
       isZeroLossViolated,
       estimatedDemand,
+      incrementalDemand,
+      incrementalPct,
       projectedNetRevenue,
       projectedGrossProfit,
       realizedMarginPct,
@@ -107,7 +128,19 @@ function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhy
     commercialAdvice = `A deeper markdown of ${optimalTier.discountPct}% off is mathematically required to accelerate velocity and recover +${Math.round(optimalTier.projectedGrossProfit).toLocaleString()} SAR working capital.`;
   }
 
-  return { tiers, optimalDiscountPct: optimalTier.discountPct, commercialAdvice };
+  return { 
+    tiers, 
+    baselineDemandUnits: baselineSales,
+    optimalDiscountPct: optimalTier.discountPct, 
+    commercialAdvice,
+    enhancementMetrics: {
+      sizeFulfillmentRate,
+      sizeFulfillmentLabel,
+      storeExposureRate: storeSharePct,
+      historicalAspEstimate,
+      historicalDiscountDepth
+    }
+  };
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -556,6 +589,7 @@ async function loadStyles() {
               data-yasmeen="${metrics.stockYasmeen}"
               data-jouri="${metrics.stockJouri}"
               data-wh="${metrics.stockWH}"
+              data-historical-asp="${metrics.historicalASP || ''}"
               data-clearance-pct="${recommendation.expectedClearancePct || 0}"
               data-offer="${escapeHtml(recommendation.recommendedOffer)}"
               data-rationale="${escapeHtml(recommendation.rationale)}">
@@ -812,7 +846,8 @@ function attachTableActionListeners() {
       const isUnderwater = origMargin < 0 || ticket < floor;
 
       // Dynamic Price Elasticity Calculation for Popover
-      const elasticityCurve = computeClientElasticityCurve(ticket, cost, ros, stock, str);
+      const historicalAspVal = parseFloat(btn.getAttribute('data-historical-asp')) || null;
+      const elasticityCurve = computeClientElasticityCurve(ticket, cost, ros, stock, str, sizes, isSingleSize, storeSharePct, historicalAspVal);
       const elasticityRowsHtml = elasticityCurve.tiers.map(t => {
         const isRec = Math.abs(t.discountPct - discount) < 5;
         const highlightStyle = t.isOptimalProfitPeak 
@@ -820,11 +855,15 @@ function attachTableActionListeners() {
           : (isRec ? 'background: rgba(59,130,246,0.1); font-weight: 600;' : '');
         const peakTag = t.isOptimalProfitPeak ? ' <span style="font-size:0.65rem; color:var(--gold-primary); font-weight:700;">[Peak]</span>' : '';
         const clampTag = t.isZeroLossViolated ? ' <span style="font-size:0.65rem; color:#ef4444;">[Floor]</span>' : '';
+        const incText = t.discountPct === 0 
+          ? '<span style="color:var(--text-muted);">— (Base)</span>' 
+          : `<span style="color:#10b981; font-weight:600;">+${t.incrementalDemand} u <span style="font-size:0.65rem; opacity:0.85;">(+${t.incrementalPct}%)</span></span>`;
         return `
           <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); ${highlightStyle}">
             <td style="text-align: left; padding: 4px;">${t.discountPct}%${peakTag}${clampTag}</td>
             <td style="padding: 4px;">${t.promotionalPrice.toFixed(2)}</td>
-            <td style="padding: 4px;">${t.estimatedDemand} u</td>
+            <td style="padding: 4px;"><strong>${t.estimatedDemand} u</strong></td>
+            <td style="padding: 4px;">${incText}</td>
             <td style="padding: 4px;">${Math.round(t.projectedNetRevenue).toLocaleString()} SAR</td>
             <td style="padding: 4px; ${t.projectedGrossProfit >= 0 ? 'color:#10b981;' : 'color:#ef4444;'} font-weight:600;">+${Math.round(t.projectedGrossProfit).toLocaleString()} SAR</td>
             <td style="padding: 4px;">${t.realizedMarginPct.toFixed(1)}%</td>
@@ -1127,7 +1166,8 @@ function attachTableActionListeners() {
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.12); color: var(--text-muted); font-size: 0.7rem;">
                     <th style="text-align: left; padding: 4px;">Discount</th>
                     <th style="padding: 4px;">Price</th>
-                    <th style="padding: 4px;">Demand</th>
+                    <th style="padding: 4px;">Total Demand</th>
+                    <th style="padding: 4px;">Incremental Lift</th>
                     <th style="padding: 4px;">Net Sales</th>
                     <th style="padding: 4px;">Gross Profit</th>
                     <th style="padding: 4px;">Margin %</th>
@@ -1140,6 +1180,32 @@ function attachTableActionListeners() {
             </div>
             <div class="pop-note" style="margin-top: 6px;">
               <strong>Optimization Insight:</strong> ${elasticityCurve.commercialAdvice}
+            </div>
+            <div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; font-size: 0.72rem;">
+              <div style="font-weight: 600; color: var(--gold-light); margin-bottom: 5px; display: flex; align-items: center; justify-content: space-between;">
+                <span>🔬 FORECAST ENHANCEMENT DIAGNOSTICS</span>
+                <span class="badge-blue" style="font-size: 0.65rem; padding: 1px 6px;">Multi-Factor Calibrated</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; color: var(--text-muted);">
+                <div>
+                  <span style="color: var(--text-main); font-weight: 500;">Size Fulfillment:</span> 
+                  <span style="color: ${elasticityCurve.enhancementMetrics.sizeFulfillmentRate < 1 ? '#f59e0b' : '#10b981'};">
+                    ${elasticityCurve.enhancementMetrics.sizeFulfillmentRate * 100}% (${elasticityCurve.enhancementMetrics.sizeFulfillmentLabel})
+                  </span>
+                </div>
+                <div>
+                  <span style="color: var(--text-main); font-weight: 500;">Store Floor Ratio:</span> 
+                  <span style="color: var(--text-main);">${storeSharePct}% in Doors (${storeUnits} u) / ${whSharePct}% in WH</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-main); font-weight: 500;">Historical Realized ASP:</span> 
+                  <span style="color: var(--gold-primary); font-weight: 600;">${elasticityCurve.enhancementMetrics.historicalAspEstimate.toFixed(2)} SAR</span>
+                </div>
+                <div>
+                  <span style="color: var(--text-main); font-weight: 500;">Historical Discount Depth:</span> 
+                  <span style="color: var(--text-main);">${elasticityCurve.enhancementMetrics.historicalDiscountDepth}% off ticket (${ticket.toFixed(2)} SAR)</span>
+                </div>
+              </div>
             </div>
           </div>
 

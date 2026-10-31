@@ -7,15 +7,37 @@ function calculateZeroLossFloor(cost) {
   return Math.round(cost * 1.15 * 100) / 100;
 }
 
-function computeStyleElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhysicalStock, cumulativeSTR = 40.0) {
+function computeStyleElasticityCurve(
+  ticketPrice, 
+  unitCost, 
+  weeklyROS, 
+  totalPhysicalStock, 
+  cumulativeSTR = 40.0,
+  campaignDurationWeeks = 4,
+  activeSizeCount = 4,
+  isSingleSize = false,
+  storeExposureRate = 0.50,
+  historicalRealizedPrice = null
+) {
   const costPlusVat = calculateZeroLossFloor(unitCost);
   const discountSteps = [0, 10, 20, 30, 40, 50];
   const baseWeeklySales = Math.max(0.2, weeklyROS);
-  const baselineSales = Math.max(1, Math.round(baseWeeklySales * 4));
+  const baselineSales = Math.max(1, Math.round(baseWeeklySales * campaignDurationWeeks));
+
+  const isBrokenCurve = !isSingleSize && activeSizeCount <= 2;
+  const sizeFulfillmentRate = isBrokenCurve ? 0.70 : 1.00;
+  const sizeFulfillmentLabel = isBrokenCurve 
+    ? `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`
+    : (isSingleSize ? 'Complete Assortment — 100% Single-Size fulfillment' : `Healthy Curve (${activeSizeCount} sizes active) — 100% fulfillment`);
 
   let priceElasticityCoeff = 1.6;
   if (cumulativeSTR < 30) priceElasticityCoeff = 2.1;
   else if (cumulativeSTR > 65) priceElasticityCoeff = 1.1;
+
+  const historicalAspEstimate = (historicalRealizedPrice && historicalRealizedPrice > 0)
+    ? historicalRealizedPrice
+    : (cumulativeSTR > 50 ? ticketPrice * 0.94 : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72));
+  const historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
 
   const tiers = [];
   let maxProfit = -Infinity;
@@ -28,23 +50,32 @@ function computeStyleElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhys
 
     let demandMultiplier = 1.0;
     if (discPct > 0) {
-      demandMultiplier = 1.0 + (priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8));
+      const rawLift = priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8);
+      const adjustedLift = rawLift * sizeFulfillmentRate;
+      demandMultiplier = 1.0 + adjustedLift;
     }
 
     const uncappedDemand = Math.round(baselineSales * demandMultiplier);
     const estimatedDemand = Math.min(totalPhysicalStock, Math.max(baselineSales, uncappedDemand));
+    const incrementalDemand = Math.max(0, estimatedDemand - baselineSales);
+    const incrementalPct = baselineSales > 0 ? Math.round((incrementalDemand / baselineSales) * 100) : 0;
+
     const netPriceExVat = Math.round((promotionalPrice / 1.15) * 100) / 100;
     const projectedNetRevenue = Math.round(estimatedDemand * netPriceExVat * 100) / 100;
     const projectedCOGS = Math.round(estimatedDemand * unitCost * 100) / 100;
     const projectedGrossProfit = Math.round((projectedNetRevenue - projectedCOGS) * 100) / 100;
+    const realizedMarginPct = projectedNetRevenue > 0 ? Math.round(((projectedNetRevenue - projectedCOGS) / projectedNetRevenue) * 1000) / 10 : 0;
 
     const tierResult = {
       discountPct: discPct,
       promotionalPrice,
       isZeroLossViolated,
       estimatedDemand,
+      incrementalDemand,
+      incrementalPct,
       projectedNetRevenue,
       projectedGrossProfit,
+      realizedMarginPct,
       isOptimalProfitPeak: false
     };
 
@@ -59,7 +90,18 @@ function computeStyleElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhys
     tiers[optimalIdx].isOptimalProfitPeak = true;
   }
 
-  return { tiers, optimalDiscountPct: tiers[optimalIdx].discountPct };
+  return { 
+    tiers, 
+    baselineDemandUnits: baselineSales,
+    optimalDiscountPct: tiers[optimalIdx].discountPct,
+    enhancementMetrics: {
+      sizeFulfillmentRate,
+      sizeFulfillmentLabel,
+      storeExposureRate,
+      historicalAspEstimate,
+      historicalDiscountDepth
+    }
+  };
 }
 
 describe('Dynamic Price Elasticity Engine', () => {
@@ -93,5 +135,27 @@ describe('Dynamic Price Elasticity Engine', () => {
     // Hero style: STR 75%, ROS 4.0 u/wk, Ticket 120 SAR, Cost 30 SAR
     const curve = computeStyleElasticityCurve(120.00, 30.00, 4.0, 80, 75.0);
     assert.ok(curve.optimalDiscountPct <= 20, 'Hero item should not need deep discount');
+  });
+
+  test('Forecast Enhancement Metrics & Incremental Demand Validation', () => {
+    // Style with 3.5 weekly ROS and STR 25% (< 30% -> elasticity coeff 2.1) -> baseline demand = 14 units over 4 weeks
+    const curve = computeStyleElasticityCurve(69.00, 10.15, 3.5, 358, 25.0, 4, 4, false, 0.25, 55.20);
+    assert.equal(curve.baselineDemandUnits, 14, 'Baseline demand at 0% off must be 14 units');
+    
+    // Tier 0 (0% off)
+    const tier0 = curve.tiers.find(t => t.discountPct === 0);
+    assert.equal(tier0.estimatedDemand, 14, '0% off demand must equal baseline 14 units');
+    assert.equal(tier0.incrementalDemand, 0, '0% off incremental demand must be 0');
+
+    // Tier 20 (20% off) -> 21 total units, +7 incremental units
+    const tier20 = curve.tiers.find(t => t.discountPct === 20);
+    assert.equal(tier20.estimatedDemand, 21, 'Total demand at 20% off must be 21 units');
+    assert.equal(tier20.incrementalDemand, 7, 'Incremental demand at 20% off must be +7 units (21 - 14)');
+    assert.equal(tier20.incrementalPct, 50, 'Incremental lift percentage must be +50% (7 / 14)');
+
+    // Historical ASP validation from sales_price
+    assert.equal(curve.enhancementMetrics.historicalAspEstimate, 55.20);
+    assert.equal(curve.enhancementMetrics.historicalDiscountDepth, 20);
+    assert.equal(curve.enhancementMetrics.sizeFulfillmentRate, 1.00);
   });
 });

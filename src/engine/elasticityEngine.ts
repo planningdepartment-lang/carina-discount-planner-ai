@@ -7,6 +7,7 @@ export interface ElasticityTierResult {
   isZeroLossViolated: boolean;
   legalFloorSAR: number;
   estimatedDemandUnits: number;
+  incrementalDemandUnits: number;
   projectedNetRevenueSAR: number;
   projectedGrossProfitSAR: number;
   realizedMarginPct: number;
@@ -19,11 +20,19 @@ export interface StyleElasticityCurve {
   ticketPrice: number;
   unitCost: number;
   costPlusVat: number;
+  baselineDemandUnits: number;
   optimalDiscountPct: number;
   optimalProfitSAR: number;
   optimalDemandUnits: number;
   tiers: ElasticityTierResult[];
   commercialAdvice: string;
+  enhancementMetrics?: {
+    sizeFulfillmentRate: number;
+    sizeFulfillmentLabel: string;
+    storeExposureRate: number;
+    historicalAspEstimate: number;
+    historicalDiscountDepth: number;
+  };
 }
 
 /**
@@ -37,7 +46,11 @@ export function computeStyleElasticityCurve(
   weeklyROS: number,
   totalPhysicalStock: number,
   cumulativeSTR: number = 40.0,
-  campaignDurationWeeks: number = 4
+  campaignDurationWeeks: number = 4,
+  activeSizeCount: number = 4,
+  isSingleSize: boolean = false,
+  storeExposureRate: number = 0.50,
+  historicalRealizedPrice?: number
 ): StyleElasticityCurve {
   const costPlusVat = calculateZeroLossFloor(unitCost);
   const discountSteps = [0, 10, 20, 30, 40, 50];
@@ -46,13 +59,26 @@ export function computeStyleElasticityCurve(
   const baseWeeklySales = Math.max(0.2, weeklyROS);
   const baselineSales = Math.max(1, Math.round(baseWeeklySales * campaignDurationWeeks));
 
-  // Price sensitivity coefficient (higher for aged / slow moving styles, lower for hero / fresh items)
+  // 1. Assortment Size Curve Walkout Factor
+  const isBrokenCurve = !isSingleSize && activeSizeCount <= 2;
+  const sizeFulfillmentRate = isBrokenCurve ? 0.70 : 1.00;
+  const sizeFulfillmentLabel = isBrokenCurve 
+    ? `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`
+    : (isSingleSize ? 'Complete Assortment — 100% Single-Size fulfillment' : `Healthy Curve (${activeSizeCount} sizes active) — 100% fulfillment`);
+
+  // 2. Price sensitivity coefficient (higher for aged / slow moving styles, lower for hero / fresh items)
   let priceElasticityCoeff = 1.6;
   if (cumulativeSTR < 30) {
     priceElasticityCoeff = 2.1; // Highly sensitive to price drops
   } else if (cumulativeSTR > 65) {
     priceElasticityCoeff = 1.1; // Inelastic, brand-driven demand
   }
+
+  // 3. Historical Realized ASP & Discount Depth (from sales_price or estimated from STR velocity)
+  const historicalAspEstimate = historicalRealizedPrice && historicalRealizedPrice > 0 
+    ? historicalRealizedPrice 
+    : (cumulativeSTR > 50 ? ticketPrice * 0.94 : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72));
+  const historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
 
   const tiers: ElasticityTierResult[] = [];
   let maxProfit = -Infinity;
@@ -65,15 +91,17 @@ export function computeStyleElasticityCurve(
       ? costPlusVat 
       : Math.round(rawPrice * 100) / 100;
 
-    // Demand expansion modeling based on price elasticity
+    // Demand expansion modeling based on price elasticity adjusted by size availability
     let demandMultiplier = 1.0;
     if (discPct > 0) {
-      // Exponential curve modeling urgency & volume lift
-      demandMultiplier = 1.0 + (priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8));
+      const rawLift = priceElasticityCoeff * (discPct / 100) * (1 + (discPct / 100) * 0.8);
+      const adjustedLift = rawLift * sizeFulfillmentRate;
+      demandMultiplier = 1.0 + adjustedLift;
     }
 
     const uncappedDemand = Math.round(baselineSales * demandMultiplier);
     const estimatedDemand = Math.min(totalPhysicalStock, Math.max(baselineSales, uncappedDemand));
+    const incrementalDemandUnits = Math.max(0, estimatedDemand - baselineSales);
     const clearancePct = totalPhysicalStock > 0 ? Math.round((estimatedDemand / totalPhysicalStock) * 100) : 0;
 
     const netPriceExVat = Math.round((promotionalPrice / 1.15) * 100) / 100;
@@ -91,6 +119,7 @@ export function computeStyleElasticityCurve(
       isZeroLossViolated,
       legalFloorSAR: costPlusVat,
       estimatedDemandUnits: estimatedDemand,
+      incrementalDemandUnits,
       projectedNetRevenueSAR: projectedNetRevenue,
       projectedGrossProfitSAR: projectedGrossProfit,
       realizedMarginPct,
@@ -127,10 +156,18 @@ export function computeStyleElasticityCurve(
     ticketPrice,
     unitCost,
     costPlusVat,
+    baselineDemandUnits: baselineSales,
     optimalDiscountPct: optimalTier.discountPct,
     optimalProfitSAR: optimalTier.projectedGrossProfitSAR,
     optimalDemandUnits: optimalTier.estimatedDemandUnits,
     tiers,
-    commercialAdvice
+    commercialAdvice,
+    enhancementMetrics: {
+      sizeFulfillmentRate,
+      sizeFulfillmentLabel,
+      storeExposureRate,
+      historicalAspEstimate,
+      historicalDiscountDepth
+    }
   };
 }
