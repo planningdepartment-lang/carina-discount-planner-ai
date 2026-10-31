@@ -604,9 +604,15 @@ async function loadStyles() {
           <button class="btn-sm btn-outline override-btn"
             data-style="${metrics.styleCode}"
             data-name="${escapeHtml(metrics.productName)}"
+            data-category="${escapeHtml(metrics.category || '')}"
+            data-season="${escapeHtml(metrics.season || '')}"
             data-cost="${metrics.unitCost}"
             data-ticket="${metrics.ticketPrice}"
             data-promo="${recommendation.promotionalPriceSAR}"
+            data-discount="${recommendation.discountPct}"
+            data-sizes="${metrics.activeSizeCount || 2}"
+            data-str="${metrics.cumulativeSTR.toFixed(1)}"
+            data-ros="${metrics.weeklyROS.toFixed(1)}"
             data-offer="${escapeHtml(recommendation.recommendedOffer)}">Override</button>
         </td>
       `;
@@ -1258,7 +1264,7 @@ function attachTableActionListeners() {
         popoverOverrideBtn.addEventListener('click', (ev) => {
           ev.stopPropagation();
           popover.style.display = 'none';
-          openOverrideModal(styleCode, name, cost, ticket, promo, offer);
+          openOverrideModal(styleCode, name, cost, ticket, promo, offer, category, season, str, ros, sizes);
         });
       }
     });
@@ -1276,12 +1282,18 @@ function attachTableActionListeners() {
     btn.addEventListener('click', () => {
       const styleCode = btn.getAttribute('data-style');
       const name = btn.getAttribute('data-name');
-      const cost = parseFloat(btn.getAttribute('data-cost'));
-      const ticket = parseFloat(btn.getAttribute('data-ticket'));
-      const promo = parseFloat(btn.getAttribute('data-promo'));
-      const offer = btn.getAttribute('data-offer');
+      const category = btn.getAttribute('data-category') || '';
+      const season = btn.getAttribute('data-season') || '';
+      const cost = parseFloat(btn.getAttribute('data-cost')) || 0;
+      const ticket = parseFloat(btn.getAttribute('data-ticket')) || 0;
+      const promo = parseFloat(btn.getAttribute('data-promo')) || 0;
+      const discount = parseFloat(btn.getAttribute('data-discount')) || 0;
+      const sizes = parseInt(btn.getAttribute('data-sizes')) || 2;
+      const str = parseFloat(btn.getAttribute('data-str')) || 0;
+      const ros = parseFloat(btn.getAttribute('data-ros')) || 0;
+      const offer = btn.getAttribute('data-offer') || 'Regular';
 
-      openOverrideModal(styleCode, name, cost, ticket, promo, offer);
+      openOverrideModal(styleCode, name, cost, ticket, promo, offer, category, season, str, ros, sizes);
     });
   });
 
@@ -1334,19 +1346,178 @@ function setupOverrideModal() {
   let currentCost = 0;
   let currentTicket = 0;
 
-  window.openOverrideModal = function(styleCode, name, cost, ticket, promo, offer) {
+  window.openOverrideModal = function(styleCode, name, cost, ticket, promo, offer, category = '', season = '', str = 0, ros = 0, sizes = 2) {
     currentCost = cost;
     currentTicket = ticket;
     document.getElementById('overrideStyleCode').value = styleCode;
-    priceInput.value = promo;
-    offerSelect.value = offerSelect.querySelector(`option[value="${offer}"]`) ? offer : 'CUSTOM';
 
-    const floor = (cost * 1.15).toFixed(2);
+    const floor = Math.round(cost * 1.15 * 100) / 100;
+    const isSingleSize = /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(category) || 
+                         /\b(\d+ml|free size|one size|os)\b/i.test(name);
+
+    // 1. Build contextual AI candidate offers tailored specifically to this style
+    const candidateOffers = [];
+
+    // Primary AI Recommendation as top option
+    candidateOffers.push({
+      strategy: offer,
+      price: promo,
+      label: `🤖 AI Recommendation: ${offer} — ${promo.toFixed(2)} SAR`,
+      isAiPrimary: true
+    });
+
+    if (isSingleSize) {
+      // Cosmetics & Single-Size Assortments (No broken curve clearance)
+      const spend250Price = Math.max(floor, Math.round(ticket * 0.80 * 100) / 100);
+      if (!offer.toLowerCase().includes('spend 250')) {
+        candidateOffers.push({
+          strategy: 'Spend 250 Save 50 (Basket Pack)',
+          price: spend250Price,
+          label: `Spend 250 Save 50 (Basket Pack) — ${spend250Price.toFixed(2)} SAR (20% Off)`
+        });
+      }
+
+      const beautyMultiPrice = Math.max(floor, Math.round(ticket * (2 / 3) * 100) / 100);
+      if (!offer.toLowerCase().includes('buy 2') && !offer.toLowerCase().includes('beauty multi')) {
+        candidateOffers.push({
+          strategy: 'Beauty Multi-Buy (Buy 2 Get 1 Free)',
+          price: beautyMultiPrice,
+          label: `Beauty Multi-Buy (Buy 2 Get 1 Free) — ${beautyMultiPrice.toFixed(2)} SAR/u (33% Off)`
+        });
+      }
+
+      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off')) {
+        candidateOffers.push({
+          strategy: 'Full Price Margin Protection (0% Off)',
+          price: ticket,
+          label: `Full Price Margin Protection (0% Off) — ${ticket.toFixed(2)} SAR`
+        });
+      }
+
+      const mark40Price = Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
+      if (!offer.toLowerCase().includes('40% off')) {
+        candidateOffers.push({
+          strategy: 'Category Markdown 40% Off',
+          price: mark40Price,
+          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR (40% Off)`
+        });
+      }
+
+      const clear50Price = Math.max(floor, Math.round(ticket * 0.50 * 100) / 100);
+      if (!offer.toLowerCase().includes('50% off')) {
+        candidateOffers.push({
+          strategy: '50% Off Dedicated Clearance Rail',
+          price: clear50Price,
+          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR (50% Off)`
+        });
+      }
+    } else if (sizes >= 3) {
+      // Healthy Sized Apparel Curve (>= 3 active sizes)
+      const bundleUnitPrice = Math.max(floor, Math.round(ticket * 0.75 * 100) / 100);
+      const bundlePairPrice = Math.round(bundleUnitPrice * 2 * 100) / 100;
+      if (!offer.toLowerCase().includes('bundle 2') && !offer.toLowerCase().includes('take 2')) {
+        candidateOffers.push({
+          strategy: `Dynamic Bundle 2 (Take 2 For ${bundlePairPrice} SAR)`,
+          price: bundleUnitPrice,
+          label: `Dynamic Bundle 2 (Take 2 For ${bundlePairPrice} SAR) — ${bundleUnitPrice.toFixed(2)} SAR/u (25% Off)`
+        });
+      }
+
+      const spendSavePrice = Math.max(floor, Math.round(ticket * 0.80 * 100) / 100);
+      if (!offer.toLowerCase().includes('spend & save')) {
+        candidateOffers.push({
+          strategy: 'Spend & Save Eligible (~20% Off)',
+          price: spendSavePrice,
+          label: `Spend & Save Eligible (~20% Off) — ${spendSavePrice.toFixed(2)} SAR (20% Off)`
+        });
+      }
+
+      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off')) {
+        candidateOffers.push({
+          strategy: 'Full Price Margin Protection (0% Off)',
+          price: ticket,
+          label: `Full Price Margin Protection (0% Off) — ${ticket.toFixed(2)} SAR`
+        });
+      }
+
+      const mark40Price = Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
+      if (!offer.toLowerCase().includes('40% off')) {
+        candidateOffers.push({
+          strategy: 'Category Markdown 40% Off',
+          price: mark40Price,
+          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR (40% Off)`
+        });
+      }
+
+      const clear50Price = Math.max(floor, Math.round(ticket * 0.50 * 100) / 100);
+      if (!offer.toLowerCase().includes('50% off')) {
+        candidateOffers.push({
+          strategy: '50% Off Dedicated Clearance Rail',
+          price: clear50Price,
+          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR (50% Off)`
+        });
+      }
+    } else {
+      // Broken Curve Apparel (<= 2 active sizes)
+      const rail33Price = Math.max(floor, 33.00);
+      if (!offer.toLowerCase().includes('99') && !offer.toLowerCase().includes('3 for 99')) {
+        candidateOffers.push({
+          strategy: 'Take 3 For 99 SAR Rail (33 SAR/u)',
+          price: rail33Price,
+          label: `Take 3 For 99 SAR Rail — ${rail33Price.toFixed(2)} SAR/u`
+        });
+      }
+
+      const clear50Price = Math.max(floor, Math.round(ticket * 0.50 * 100) / 100);
+      if (!offer.toLowerCase().includes('50% off')) {
+        candidateOffers.push({
+          strategy: '50% Off Dedicated Clearance Rail',
+          price: clear50Price,
+          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR (50% Off)`
+        });
+      }
+
+      const mark40Price = Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
+      if (!offer.toLowerCase().includes('40% off')) {
+        candidateOffers.push({
+          strategy: 'Category Markdown 40% Off',
+          price: mark40Price,
+          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR (40% Off)`
+        });
+      }
+
+      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off')) {
+        candidateOffers.push({
+          strategy: 'Full Price Margin Protection (0% Off)',
+          price: ticket,
+          label: `Full Price Margin Protection (0% Off) — ${ticket.toFixed(2)} SAR`
+        });
+      }
+    }
+
+    // Always add Custom Promotional Price option at the end
+    candidateOffers.push({
+      strategy: 'CUSTOM',
+      price: null,
+      label: '✏️ Custom Promotional Price...'
+    });
+
+    // Populate the dropdown dynamically
+    offerSelect.innerHTML = candidateOffers.map((o, idx) => {
+      const isSelected = idx === 0; // AI recommendation is selected by default
+      const priceAttr = o.price !== null ? `data-price="${o.price.toFixed(2)}"` : 'data-price=""';
+      const stratAttr = `data-strategy="${escapeHtml(o.strategy)}"`;
+      return `<option value="${escapeHtml(o.strategy)}" ${stratAttr} ${priceAttr} ${isSelected ? 'selected' : ''}>${escapeHtml(o.label)}</option>`;
+    }).join('');
+
+    // Set initial promotional price
+    priceInput.value = promo.toFixed(2);
+
     document.getElementById('overrideStyleInfo').innerHTML = `
       <div><strong>Style ${styleCode}</strong> — <em>${name}</em></div>
       <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.3rem;">
         Unit Cost: <strong>${cost.toFixed(2)} SAR</strong> | 
-        Zero-Loss Floor (Cost + 15% VAT): <strong style="color: var(--amber-primary);">${floor} SAR</strong> | 
+        Zero-Loss Floor (Cost + 15% VAT): <strong style="color: var(--amber-primary);">${floor.toFixed(2)} SAR</strong> | 
         Ticket Price: <strong>${ticket.toFixed(2)} SAR</strong>
       </div>
     `;
@@ -1357,10 +1528,10 @@ function setupOverrideModal() {
 
   function validateOverridePrice() {
     const val = parseFloat(priceInput.value) || 0;
-    const floor = currentCost * 1.15;
+    const floor = Math.round(currentCost * 1.15 * 100) / 100;
     alertBox.style.display = 'block';
 
-    if (val < floor) {
+    if (val < (floor - 0.005)) {
       alertBox.className = 'alert-box alert-danger';
       alertBox.innerHTML = `🚫 <strong>BLOCKED BY LEGAL ZERO-LOSS GUARD:</strong> Price (${val.toFixed(2)} SAR) is below legal floor (${floor.toFixed(2)} SAR).`;
       saveBtn.disabled = true;
@@ -1374,20 +1545,16 @@ function setupOverrideModal() {
 
   priceInput.addEventListener('input', validateOverridePrice);
 
+  // Instant and robust price update on strategy selection
   offerSelect.addEventListener('change', () => {
-    const val = offerSelect.value;
-    if (val === 'Take 3 For 99 SAR Rail (33 SAR/u)') {
-      priceInput.value = 33;
-    } else if (val === '50% Off Dedicated Clearance Rail') {
-      priceInput.value = (currentTicket * 0.50).toFixed(2);
-    } else if (val === 'Category Markdown 40% Off') {
-      priceInput.value = (currentTicket * 0.60).toFixed(2);
-    } else if (val === 'Spend 250 Save 50 (Basket Pack)' || val === 'Spend & Save Eligible (~20% Off)') {
-      priceInput.value = (currentTicket * 0.80).toFixed(2);
-    } else if (val === 'Beauty Multi-Buy (Buy 2 Get 1 Free)') {
-      priceInput.value = (currentTicket * 0.67).toFixed(2);
-    } else if (val === 'Full Price Margin Protection (0% Off)') {
-      priceInput.value = currentTicket.toFixed(2);
+    const selectedOpt = offerSelect.selectedOptions[0];
+    if (!selectedOpt) return;
+    const targetPrice = selectedOpt.getAttribute('data-price');
+    if (targetPrice && targetPrice !== '') {
+      priceInput.value = parseFloat(targetPrice).toFixed(2);
+    } else if (selectedOpt.value === 'CUSTOM') {
+      priceInput.focus();
+      priceInput.select();
     }
     validateOverridePrice();
   });
@@ -1399,8 +1566,13 @@ function setupOverrideModal() {
     e.preventDefault();
     const styleCode = document.getElementById('overrideStyleCode').value;
     const promotionalPrice = parseFloat(priceInput.value);
-    const recommendedOffer = offerSelect.value === 'CUSTOM' ? `Custom Offer (${promotionalPrice} SAR)` : offerSelect.value;
-
+    const selectedOpt = offerSelect.selectedOptions[0];
+    let recommendedOffer = offerSelect.value;
+    if (recommendedOffer === 'CUSTOM') {
+      recommendedOffer = `Custom Offer (${promotionalPrice.toFixed(2)} SAR)`;
+    } else if (selectedOpt && selectedOpt.getAttribute('data-strategy')) {
+      recommendedOffer = selectedOpt.getAttribute('data-strategy');
+    }
     try {
       const res = await fetch('/api/styles/override', {
         method: 'POST',
