@@ -1,7 +1,7 @@
 import { StyleMetrics, RecommendationResult } from '../engine/lifecycleClassifier';
 import { StylePlanRecord } from '../engine/posExporter';
 import { BusinessRuleRecord } from '../engine/rulePipeline';
-import { calculateZeroLossFloor } from '../engine/metricsCalculator';
+import { calculateZeroLossFloor, calculateWeeklyROS, calculateVelocityMomentum } from '../engine/metricsCalculator';
 
 export interface NetworkSummaryKPIs {
   totalPhysicalStock: number;
@@ -205,6 +205,11 @@ export async function fetchStylePlanSnapshots(db: D1Database): Promise<StylePlan
         stockJouri: row.stock_jouri,
         stockWH: row.stock_wh,
         weeklyROS: row.weekly_ros,
+        weeklyROS2wk: row.weekly_ros_2wk ?? row.weekly_ros,
+        weeklyROS4wk: row.weekly_ros_4wk ?? row.weekly_ros,
+        momentumRatio: row.momentum_ratio ?? 1.0,
+        momentumLabel: row.momentum_label ?? 'Stable',
+        activeWeeks: row.active_weeks ?? 8.0,
         cumulativeSTR: row.cumulative_str_pct,
         storeFloorWOS: row.store_floor_wos || 0,
         activeSizeCount: row.sar_curve_health?.includes('>=3') ? 4 : (row.sar_curve_health?.includes('Single') ? 1 : 2),
@@ -239,8 +244,9 @@ export async function saveStylePlanSnapshots(db: D1Database, records: StylePlanR
         unit_cost, cost_plus_vat, ticket_price,
         recommended_offer, promotional_price, discount_pct,
         zero_loss_status, forecast_sold, forecast_profit, post_event_stock,
-        commercial_rationale, last_computed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        commercial_rationale, last_computed_at,
+        weekly_ros_2wk, weekly_ros_4wk, momentum_ratio, active_weeks, momentum_label
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
     `);
 
     // D1 batches up to 50 statements per roundtrip
@@ -284,7 +290,12 @@ export async function saveStylePlanSnapshots(db: D1Database, records: StylePlanR
           forecastSold,
           forecastProfit,
           postStock,
-          recommendation.rationale
+          recommendation.rationale,
+          metrics.weeklyROS2wk ?? metrics.weeklyROS,
+          metrics.weeklyROS4wk ?? metrics.weeklyROS,
+          metrics.momentumRatio ?? 1.0,
+          metrics.activeWeeks ?? 8.0,
+          metrics.momentumLabel ?? 'Stable'
         );
       });
       await db.batch(statements);
@@ -319,8 +330,18 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
       SUM(CASE WHEN location_id_name = 'Partners/Customers' THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_lifetime,
 
       SUM(CASE 
+        WHEN location_dest_id_name = 'Partners/Customers' AND date >= datetime('now', '-14 days')
+        THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_2wk,
+
+      SUM(CASE 
+        WHEN location_dest_id_name = 'Partners/Customers' AND date >= datetime('now', '-28 days')
+        THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_4wk,
+
+      SUM(CASE 
         WHEN location_dest_id_name = 'Partners/Customers' AND date >= datetime('now', '-56 days')
         THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_8wk,
+
+      ROUND(MAX(1.0, julianday('now') - julianday(MIN(date))), 1) AS days_active,
 
       COUNT(DISTINCT 
         CASE 
@@ -372,8 +393,20 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
       const totalStock = stockAnd + stockYas + stockJou + stockWh;
 
       const lifetimeSold = Math.max(0, Math.round(row.sold_lifetime || 0));
+      const sold2wk = Math.max(0, Math.round(row.sold_2wk || 0));
+      const sold4wk = Math.max(0, Math.round(row.sold_4wk || 0));
       const sold8wk = Math.max(0, Math.round(row.sold_8wk || 0));
-      const weeklyROS = Math.round((sold8wk / 8.0) * 10) / 10;
+
+      const daysActive = Math.max(1.0, Number(row.days_active) || 56.0);
+      const rawActiveWeeks = Math.round((daysActive / 7.0) * 10) / 10;
+      const activeWeeks = Math.min(8.0, Math.max(1.0, rawActiveWeeks));
+
+      const weeklyROS = calculateWeeklyROS(sold8wk, 8.0, activeWeeks);
+      const weeklyROS2wk = calculateWeeklyROS(sold2wk, 2.0, Math.min(2.0, activeWeeks));
+      const weeklyROS4wk = calculateWeeklyROS(sold4wk, 4.0, Math.min(4.0, activeWeeks));
+
+      const momentum = calculateVelocityMomentum(weeklyROS2wk, weeklyROS);
+
       const strPct = (lifetimeSold + totalStock) > 0 ? (lifetimeSold / (lifetimeSold + totalStock)) * 100 : 0;
       const floorStock = stockAnd + stockYas + stockJou;
       const wos = weeklyROS > 0 ? Math.round((floorStock / weeklyROS) * 10) / 10 : 999.0;
@@ -391,6 +424,11 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         stockJouri: stockJou,
         stockWH: stockWh,
         weeklyROS: weeklyROS,
+        weeklyROS2wk: weeklyROS2wk,
+        weeklyROS4wk: weeklyROS4wk,
+        activeWeeks: activeWeeks,
+        momentumRatio: momentum.momentumRatio,
+        momentumLabel: momentum.momentumLabel,
         cumulativeSTR: Math.round(strPct * 10) / 10,
         storeFloorWOS: wos,
         activeSizeCount: row.size_count || 1,

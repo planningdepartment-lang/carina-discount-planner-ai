@@ -48,12 +48,77 @@ export function enforceZeroLossGuard(
 }
 
 /**
- * 8-Week Rolling Rate of Sale (Weekly Velocity)
- * Filters out single-day transaction anomalies by averaging over an active 8-week baseline.
+ * Rolling Rate of Sale (Weekly Velocity)
+ * Filters out single-day transaction anomalies by averaging over active floor weeks (up to 8 weeks).
+ * If actualActiveWeeks is provided (e.g. style arrived 3 weeks ago), divides by actual active weeks
+ * to prevent unfairly depressing fresh arrival velocity.
  */
-export function calculateWeeklyROS(unitsSoldPast56Days: number): number {
-  if (unitsSoldPast56Days <= 0) return 0.0;
-  return Math.round((unitsSoldPast56Days / 8.0) * 10) / 10;
+export function calculateWeeklyROS(unitsSold: number, lookbackWeeks = 8.0, actualActiveWeeks?: number): number {
+  if (unitsSold <= 0) return 0.0;
+  const effectiveWeeks = actualActiveWeeks !== undefined && actualActiveWeeks > 0
+    ? Math.min(lookbackWeeks, Math.max(1.0, actualActiveWeeks))
+    : lookbackWeeks;
+  if (effectiveWeeks <= 0) return 0.0;
+  return Math.round((unitsSold / effectiveWeeks) * 10) / 10;
+}
+
+export interface VelocityMomentumResult {
+  momentumRatio: number;
+  momentumLabel: string;
+  trendDirection: 'ACCELERATING' | 'DECELERATING' | 'STABLE';
+  percentageChange: number;
+}
+
+/**
+ * Calculates Velocity Momentum Ratio: short-term pulse (ROS 2wk) vs baseline (ROS 8wk / active weeks).
+ * Momentum Ratio = ROS_2wk / ROS_baseline
+ * - >= 1.25: Accelerating (e.g. +35%)
+ * - <= 0.75: Decelerating (e.g. -40%)
+ * - In-between: Stable
+ */
+export function calculateVelocityMomentum(ros2wk: number, rosBaseline: number): VelocityMomentumResult {
+  if (rosBaseline <= 0) {
+    if (ros2wk > 0) {
+      return {
+        momentumRatio: 2.0,
+        momentumLabel: 'Surging (New Demand)',
+        trendDirection: 'ACCELERATING',
+        percentageChange: 100
+      };
+    }
+    return {
+      momentumRatio: 1.0,
+      momentumLabel: 'Stable (0%)',
+      trendDirection: 'STABLE',
+      percentageChange: 0
+    };
+  }
+
+  const ratio = Math.round((ros2wk / rosBaseline) * 100) / 100;
+  const pctChange = Math.round(((ros2wk - rosBaseline) / rosBaseline) * 100);
+
+  if (ratio >= 1.25) {
+    return {
+      momentumRatio: ratio,
+      momentumLabel: `Accelerating (+${pctChange}%)`,
+      trendDirection: 'ACCELERATING',
+      percentageChange: pctChange
+    };
+  } else if (ratio <= 0.75) {
+    return {
+      momentumRatio: ratio,
+      momentumLabel: `Decelerating (${pctChange}%)`,
+      trendDirection: 'DECELERATING',
+      percentageChange: pctChange
+    };
+  } else {
+    return {
+      momentumRatio: ratio,
+      momentumLabel: `Stable (${pctChange >= 0 ? '+' : ''}${pctChange}%)`,
+      trendDirection: 'STABLE',
+      percentageChange: pctChange
+    };
+  }
 }
 
 /**

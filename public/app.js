@@ -556,6 +556,19 @@ async function loadStyles() {
 
       const breakdown = `<span class="store-chip chip-and">AND ${metrics.stockAndalus}</span> <span class="store-chip chip-yas">YAS ${metrics.stockYasmeen}</span> <span class="store-chip chip-jou">JOU ${metrics.stockJouri}</span>`;
 
+      const momentumRatio = metrics.momentumRatio !== undefined ? metrics.momentumRatio : 1.0;
+      const momentumLabel = metrics.momentumLabel || 'Stable';
+      let momentumBadgeHtml = '';
+      if (momentumRatio >= 1.25) {
+        const pct = Math.round((momentumRatio - 1) * 100);
+        momentumBadgeHtml = `<span class="momentum-badge momentum-up" title="${escapeHtml(momentumLabel)}">🚀 +${pct}%</span>`;
+      } else if (momentumRatio <= 0.75) {
+        const pct = Math.round((1 - momentumRatio) * 100);
+        momentumBadgeHtml = `<span class="momentum-badge momentum-down" title="${escapeHtml(momentumLabel)}">📉 -${pct}%</span>`;
+      } else {
+        momentumBadgeHtml = `<span class="momentum-badge momentum-stable" title="${escapeHtml(momentumLabel)}">⚖️</span>`;
+      }
+
       tr.innerHTML = `
         <td><span class="style-code-badge clickable-style-badge" data-style="${metrics.styleCode}" data-name="${escapeHtml(metrics.productName)}" title="Focus Copilot on Style ${metrics.styleCode}">${metrics.styleCode}</span></td>
         <td>${metrics.productName}</td>
@@ -564,7 +577,12 @@ async function loadStyles() {
         <td><strong>${metrics.totalPhysicalStock}</strong></td>
         <td><small>${breakdown}</small></td>
         <td>${metrics.cumulativeSTR.toFixed(1)}%</td>
-        <td>${metrics.weeklyROS.toFixed(1)}</td>
+        <td>
+          <div style="display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;">
+            <span>${metrics.weeklyROS.toFixed(1)}</span>
+            ${momentumBadgeHtml}
+          </div>
+        </td>
         <td>${curveTag}</td>
         <td>${metrics.unitCost.toFixed(2)}</td>
         <td><strong>${(metrics.unitCost * 1.15).toFixed(2)}</strong></td>
@@ -584,6 +602,11 @@ async function loadStyles() {
               data-stock="${metrics.totalPhysicalStock}"
               data-str="${metrics.cumulativeSTR.toFixed(1)}"
               data-ros="${metrics.weeklyROS.toFixed(1)}"
+              data-ros-2wk="${metrics.weeklyROS2wk !== undefined ? metrics.weeklyROS2wk.toFixed(1) : metrics.weeklyROS.toFixed(1)}"
+              data-ros-4wk="${metrics.weeklyROS4wk !== undefined ? metrics.weeklyROS4wk.toFixed(1) : metrics.weeklyROS.toFixed(1)}"
+              data-active-weeks="${metrics.activeWeeks !== undefined ? metrics.activeWeeks.toFixed(1) : '8.0'}"
+              data-momentum-ratio="${momentumRatio.toFixed(2)}"
+              data-momentum-label="${escapeHtml(momentumLabel)}"
               data-sizes="${metrics.activeSizeCount}"
               data-andalus="${metrics.stockAndalus}"
               data-yasmeen="${metrics.stockYasmeen}"
@@ -670,6 +693,11 @@ function attachTableActionListeners() {
       const stock = parseInt(btn.getAttribute('data-stock')) || 0;
       const str = parseFloat(btn.getAttribute('data-str')) || 0;
       const ros = parseFloat(btn.getAttribute('data-ros')) || 0;
+      const ros2wk = parseFloat(btn.getAttribute('data-ros-2wk')) || ros;
+      const ros4wk = parseFloat(btn.getAttribute('data-ros-4wk')) || ros;
+      const activeWeeks = parseFloat(btn.getAttribute('data-active-weeks')) || 8.0;
+      const momentumRatio = parseFloat(btn.getAttribute('data-momentum-ratio')) || 1.0;
+      const momentumLabel = btn.getAttribute('data-momentum-label') || 'Stable';
       const sizes = parseInt(btn.getAttribute('data-sizes')) || 2;
       const andalus = parseInt(btn.getAttribute('data-andalus')) || 0;
       const yasmeen = parseInt(btn.getAttribute('data-yasmeen')) || 0;
@@ -1036,12 +1064,52 @@ function attachTableActionListeners() {
               <div class="popover-ratio-wh" style="width: ${whSharePct}%;" title="WH: ${whSharePct}%"></div>
             </div>
             <div class="pop-row" style="margin-top: 6px;">
-              <span>8-Week Velocity (Weekly ROS):</span>
-              <strong>${ros.toFixed(1)} u/week</strong>
+              <span>Velocity (Rate of Sale):</span>
+              <strong>${ros.toFixed(1)} u/week (${activeWeeks < 7.9 ? activeWeeks.toFixed(1) + 'w active' : '8w baseline'})</strong>
             </div>
             <div class="pop-row">
               <span>Store Runway (WOS):</span>
               <strong class="${wosBadgeClass}">${storeWos} weeks</strong>
+            </div>
+
+            <!-- Multi-Horizon Velocity Pulse Card -->
+            <div style="margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 600; font-size: 0.73rem; color: var(--gold-light); display: flex; align-items: center; gap: 5px;">
+                  <span>⚡ MULTI-HORIZON VELOCITY PULSE</span>
+                </span>
+                <span class="momentum-badge ${momentumRatio >= 1.25 ? 'momentum-up' : (momentumRatio <= 0.75 ? 'momentum-down' : 'momentum-stable')}" style="font-size: 0.7rem; padding: 2px 7px;">
+                  ${escapeHtml(momentumLabel)}
+                </span>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center;">
+                <div style="background: rgba(0,0,0,0.25); padding: 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                  <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Fast Pulse (14d)</div>
+                  <div style="font-size: 0.95rem; font-weight: 700; color: #38bdf8; margin-top: 2px;">${ros2wk.toFixed(1)} <span style="font-size: 0.65rem; font-weight: normal; color: var(--text-muted);">u/wk</span></div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.25); padding: 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                  <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Monthly Turn (28d)</div>
+                  <div style="font-size: 0.95rem; font-weight: 700; color: #a855f7; margin-top: 2px;">${ros4wk.toFixed(1)} <span style="font-size: 0.65rem; font-weight: normal; color: var(--text-muted);">u/wk</span></div>
+                </div>
+
+                <div style="background: rgba(0,0,0,0.25); padding: 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                  <div style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;">Baseline (${activeWeeks.toFixed(1)}w active)</div>
+                  <div style="font-size: 0.95rem; font-weight: 700; color: var(--gold-primary); margin-top: 2px;">${ros.toFixed(1)} <span style="font-size: 0.65rem; font-weight: normal; color: var(--text-muted);">u/wk</span></div>
+                </div>
+              </div>
+
+              <div style="margin-top: 8px; font-size: 0.72rem; color: var(--text-muted); line-height: 1.45;">
+                ${activeWeeks < 7.9
+                  ? `<strong>Tenure Calibration:</strong> Active on floor for <strong>${activeWeeks.toFixed(1)} weeks</strong>. Velocity is computed by dividing sales by actual active weeks (avoiding artificial 8-week dilution).`
+                  : `<strong>Long-Horizon Baseline:</strong> Style has mature floor tenure (&ge;8 weeks). 8-week baseline smooths weekend and pay-cycle swings.`}
+                ${momentumRatio >= 1.25
+                  ? ` Short-term demand is <strong>accelerating (+${Math.round((momentumRatio - 1) * 100)}%)</strong> vs baseline pace.`
+                  : (momentumRatio <= 0.75
+                    ? ` Short-term demand is <strong>decelerating (-${Math.round((1 - momentumRatio) * 100)}%)</strong> vs baseline.`
+                    : ` Velocity momentum is tracking in balance with baseline trend.`)}
+              </div>
             </div>
           </div>
 

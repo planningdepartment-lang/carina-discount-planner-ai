@@ -20,6 +20,13 @@ export interface StyleMetrics {
   activeSizeCount: number;
   isSingleSize?: boolean;
   historicalASP?: number;
+  // Multi-Horizon Velocity & Floor Tenure
+  activeWeeks?: number;
+  weeklyROS2wk?: number;
+  weeklyROS4wk?: number;
+  weeklyROS8wk?: number;
+  momentumRatio?: number;
+  momentumLabel?: string;
 }
 
 export interface RecommendationResult {
