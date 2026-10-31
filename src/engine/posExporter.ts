@@ -72,6 +72,8 @@ export function generateMasterPlanCSV(records: StylePlanRecord[]): string {
 
 /**
  * Generates the Odoo POS Promotional Pricelist CSV ready for cash register barcode imports.
+ * Emits standardized POS Rule Tags (e.g. RULE_BUNDLE_2_299_RAIL) so cross-style mix & match
+ * offers trigger automatically at the cash register.
  */
 export function generateOdooPOSPricelistCSV(records: StylePlanRecord[]): string {
   const headers = [
@@ -104,16 +106,20 @@ export function generateOdooPOSPricelistCSV(records: StylePlanRecord[]): string 
     let posRuleTag = 'RULE_SPEND_SAVE_20';
     if (recommendation.zeroLossStatus === 'FLAGGED' || (recommendation.tier || '').includes('FLAGGED') || metrics.ticketPrice < costPlusVat) {
       posRuleTag = 'RULE_FLAGGED_PRICE_ERROR_LOCKED';
+    } else if (recommendation.sharedRailTag) {
+      posRuleTag = recommendation.sharedRailTag;
     } else if (recommendation.tier === 'CLEARANCE_50_PCT') {
       posRuleTag = 'RULE_CLEAR_50_PCT';
     } else if (recommendation.tier === 'CLEARANCE_3_FOR_99') {
-      posRuleTag = 'RULE_CLEAR_3_FOR_99';
+      posRuleTag = 'RULE_BUNDLE_3_99_RAIL';
     } else if (recommendation.tier === 'MATURE_SUMMER_EXIT') {
       posRuleTag = 'RULE_SUMMER_40_PCT';
     } else if (recommendation.tier === 'HERO_CORE' || recommendation.tier === 'FRESH_WINTER') {
       posRuleTag = 'RULE_FULL_PRICE_PROTECTED';
     } else if (recommendation.tier === 'BUNDLE_2') {
-      posRuleTag = 'RULE_BUNDLE_2_PAIRS';
+      posRuleTag = recommendation.bundlePriceSAR 
+        ? `RULE_BUNDLE_${recommendation.bundleQuantity || 2}_${Math.round(recommendation.bundlePriceSAR)}_RAIL` 
+        : 'RULE_BUNDLE_2_PAIRS';
     } else if (recommendation.tier === 'VOLUME_MULTI_BUY') {
       posRuleTag = 'RULE_VOLUME_MULTI_BUY';
     }

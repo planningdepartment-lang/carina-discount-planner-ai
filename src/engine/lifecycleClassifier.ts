@@ -1,6 +1,6 @@
 import { calculateZeroLossFloor } from './metricsCalculator';
 import { LIFECYCLE_TIERS } from '../config/constants';
-import { computeDynamicBundle2 } from './dynamicOfferEngine';
+import { computeDynamicBundle2, calculateRailCostCeiling, generateSharedRailTag } from './dynamicOfferEngine';
 
 export interface StyleMetrics {
   styleCode: string;
@@ -39,12 +39,15 @@ export interface RecommendationResult {
   zeroLossStatus: 'YES' | 'FLAGGED';
   bundleQuantity?: number;
   bundlePriceSAR?: number;
+  sharedRailTag?: string;
+  railCostCeilingSAR?: number;
+  historicalDiscountDepthPct?: number;
 }
 
 /**
- * 7-Tier Style Judgement Engine & Dynamic Offer Classifier
- * Evaluates Velocity (ROS), Lifecycle (STR%), Runway (WOS), Curve (SAR), Category, and Seasonality.
- * Dynamically computes "Bundle 2" pairs for healthy apparel curves and dedicated clearance for broken curves.
+ * 7-Tier Style Judgement Engine & Dynamic Offer Classifier with Historical Discount Intelligence
+ * Evaluates Velocity (ROS), Lifecycle (STR%), Runway (WOS), Curve (SAR), Category, Seasonality,
+ * and Historical Realized ASP to protect organic pricing power and assign cross-style bundle rails.
  */
 export function classifyStyleAndRecommend(metrics: StyleMetrics): RecommendationResult {
   const costPlusVat = calculateZeroLossFloor(metrics.unitCost);
@@ -64,6 +67,12 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     };
   }
 
+  // Historical Discount Intelligence: Audit realized customer willingness to pay from Odoo
+  const hasHistoricalSales = metrics.historicalASP !== undefined && metrics.historicalASP > 0;
+  const histDiscountDepthPct = (hasHistoricalSales && metrics.ticketPrice > 0 && (metrics.historicalASP ?? 0) < metrics.ticketPrice)
+    ? Math.round((1 - ((metrics.historicalASP ?? 0) / metrics.ticketPrice)) * 100)
+    : 0;
+
   // Guard 1: Fresh Winter 2026 arrivals entering peak seasonal demand
   const seasonUpper = (metrics.season || '').toUpperCase();
   if (seasonUpper.includes('AW26') || seasonUpper.includes('WINTER 2026')) {
@@ -76,7 +85,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       rationale: 'Fresh Winter 2026 arrival entering peak weather window. Strictly protected at full price.',
       zeroLossStatus: 'YES',
       bundleQuantity: 1,
-      bundlePriceSAR: metrics.ticketPrice
+      bundlePriceSAR: metrics.ticketPrice,
+      historicalDiscountDepthPct: histDiscountDepthPct
     };
   }
 
@@ -98,7 +108,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         rationale: 'Core single-size product with healthy sell-through. Organic demand protects full ticket margin.',
         zeroLossStatus: 'YES',
         bundleQuantity: 1,
-        bundlePriceSAR: metrics.ticketPrice
+        bundlePriceSAR: metrics.ticketPrice,
+        historicalDiscountDepthPct: histDiscountDepthPct
       };
     }
 
@@ -114,7 +125,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         rationale: 'High-margin non-sized cosmetic/accessory. Deployed as transaction basket booster rather than clearance rail.',
         zeroLossStatus: 'YES',
         bundleQuantity: 1,
-        bundlePriceSAR: promoPrice
+        bundlePriceSAR: promoPrice,
+        historicalDiscountDepthPct: histDiscountDepthPct
       };
     } else {
       const promoPrice = Math.max(costPlusVat, Math.round(metrics.ticketPrice * 0.67 * 100) / 100);
@@ -128,7 +140,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         rationale: 'Single-size beauty item. Multi-buy incentive drives transaction volume without single-unit oddment dumping.',
         zeroLossStatus: 'YES',
         bundleQuantity: 3,
-        bundlePriceSAR: Math.round(metrics.ticketPrice * 2 * 100) / 100
+        bundlePriceSAR: Math.round(metrics.ticketPrice * 2 * 100) / 100,
+        historicalDiscountDepthPct: histDiscountDepthPct
       };
     }
   }
@@ -144,8 +157,52 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       rationale: `Proven category captain (STR ${metrics.cumulativeSTR.toFixed(1)}%). Organic customer demand is self-sustaining.`,
       zeroLossStatus: 'YES',
       bundleQuantity: 1,
-      bundlePriceSAR: metrics.ticketPrice
+      bundlePriceSAR: metrics.ticketPrice,
+      historicalDiscountDepthPct: histDiscountDepthPct
     };
+  }
+
+  // Historical Discount Rule 1: High Organic Pricing Power Protection
+  // If style sold historically at near full price (<10% discount depth), has healthy STR (>=40%),
+  // surging momentum (momentumRatio >= 1.25), and healthy sizes (>=3):
+  // Strictly protect from 40% exit markdown dilution. Route to Dynamic Bundle 2 (to drive 2 UPT) or Full Price.
+  const hasOrganicPricingPower = histDiscountDepthPct <= 10 && 
+                                metrics.cumulativeSTR >= 40.0 && 
+                                (metrics.momentumRatio || 1.0) >= 1.25 && 
+                                metrics.activeSizeCount >= 3;
+
+  if (hasOrganicPricingPower) {
+    const bundle2 = computeDynamicBundle2(metrics);
+    if (bundle2.isBundleApplicable) {
+      const momentumPct = Math.round(((metrics.momentumRatio || 1.0) - 1) * 100);
+      return {
+        tier: LIFECYCLE_TIERS.BUNDLE_2,
+        recommendedOffer: bundle2.bundleOfferLabel,
+        discountPct: bundle2.discountPct,
+        promotionalPriceSAR: bundle2.unitPromoPriceSAR,
+        expectedClearancePct: bundle2.expectedClearancePct,
+        rationale: `Organic pricing power verified (historical discount ${histDiscountDepthPct}%, STR ${metrics.cumulativeSTR.toFixed(1)}%, momentum +${momentumPct}%). Preserves margin via 2-pack bundle (${bundle2.bundleOfferLabel}) rather than margin-diluting 40% exit markdown.`,
+        zeroLossStatus: 'YES',
+        bundleQuantity: bundle2.bundleQuantity,
+        bundlePriceSAR: bundle2.bundlePriceSAR,
+        sharedRailTag: bundle2.sharedRailTag,
+        railCostCeilingSAR: bundle2.railCostCeilingSAR,
+        historicalDiscountDepthPct: histDiscountDepthPct
+      };
+    } else {
+      return {
+        tier: LIFECYCLE_TIERS.HERO_CORE,
+        recommendedOffer: 'Full Price Margin Protection (0% Off)',
+        discountPct: 0,
+        promotionalPriceSAR: metrics.ticketPrice,
+        expectedClearancePct: 25,
+        rationale: `Organic pricing power verified (historical discount ${histDiscountDepthPct}%, STR ${metrics.cumulativeSTR.toFixed(1)}%). Margin strictly protected at full ticket price.`,
+        zeroLossStatus: 'YES',
+        bundleQuantity: 1,
+        bundlePriceSAR: metrics.ticketPrice,
+        historicalDiscountDepthPct: histDiscountDepthPct
+      };
+    }
   }
 
   // Tier 3: Past Summer 2026 Exit (SS26)
@@ -162,7 +219,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
       rationale: 'Summer 2026 collection exit before cold winter weather sets in Taif and Western Province.',
       zeroLossStatus: 'YES',
       bundleQuantity: 1,
-      bundlePriceSAR: safePromo
+      bundlePriceSAR: safePromo,
+      historicalDiscountDepthPct: histDiscountDepthPct
     };
   }
 
@@ -191,13 +249,16 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         rationale: `${triggerReason}. 50% discount liquidates floor space above cost floor.`,
         zeroLossStatus: 'YES',
         bundleQuantity: 1,
-        bundlePriceSAR: safePromo
+        bundlePriceSAR: safePromo,
+        historicalDiscountDepthPct: histDiscountDepthPct
       };
     } else {
       // 3 for 99 SAR Rail (33 SAR/unit)
       const bundleUnit = 33.00;
       if (bundleUnit >= costPlusVat) {
         const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (bundleUnit / metrics.ticketPrice)) * 100) : 0;
+        const railTag = generateSharedRailTag(99, 3);
+        const railCeiling = calculateRailCostCeiling(99, 3);
         return {
           tier: LIFECYCLE_TIERS.CLEARANCE_3_FOR_99,
           recommendedOffer: 'Take 3 For 99 SAR Rail (33 SAR/u)',
@@ -207,7 +268,10 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
           rationale: `${triggerReason}. 33 SAR bundle recovers working capital safely above ${costPlusVat.toFixed(2)} SAR floor.`,
           zeroLossStatus: 'YES',
           bundleQuantity: 3,
-          bundlePriceSAR: 99.00
+          bundlePriceSAR: 99.00,
+          sharedRailTag: railTag,
+          railCostCeilingSAR: railCeiling,
+          historicalDiscountDepthPct: histDiscountDepthPct
         };
       } else {
         // Fallback for higher-cost items to safe clearance price
@@ -222,7 +286,8 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
           rationale: `${triggerReason}. Liquidates aged inventory while adhering strictly to landed cost + VAT floor.`,
           zeroLossStatus: 'YES',
           bundleQuantity: 1,
-          bundlePriceSAR: safePrice
+          bundlePriceSAR: safePrice,
+          historicalDiscountDepthPct: histDiscountDepthPct
         };
       }
     }
@@ -241,7 +306,10 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
         rationale: bundle2.rationale,
         zeroLossStatus: 'YES',
         bundleQuantity: bundle2.bundleQuantity,
-        bundlePriceSAR: bundle2.bundlePriceSAR
+        bundlePriceSAR: bundle2.bundlePriceSAR,
+        sharedRailTag: bundle2.sharedRailTag,
+        railCostCeilingSAR: bundle2.railCostCeilingSAR,
+        historicalDiscountDepthPct: histDiscountDepthPct
       };
     }
   }
@@ -260,6 +328,7 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     rationale: 'Core continuity basic pack. Basket driver protects 75%+ stock for December/January peak winter trading.',
     zeroLossStatus: 'YES',
     bundleQuantity: 1,
-    bundlePriceSAR: spendSavePrice
+    bundlePriceSAR: spendSavePrice,
+    historicalDiscountDepthPct: histDiscountDepthPct
   };
 }

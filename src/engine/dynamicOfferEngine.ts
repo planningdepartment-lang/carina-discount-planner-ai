@@ -14,6 +14,8 @@ export interface DynamicOfferMetrics {
   storeFloorWOS: number;
   activeSizeCount: number;
   isSingleSize?: boolean;
+  historicalASP?: number;
+  momentumRatio?: number;
 }
 
 export interface DynamicBundleResult {
@@ -26,6 +28,41 @@ export interface DynamicBundleResult {
   savingsAmountSAR: number;
   expectedClearancePct: number;
   rationale: string;
+  railCostCeilingSAR?: number;
+  sharedRailTag?: string;
+}
+
+/**
+ * Calculates the maximum safe landed cost (SAR) for a style to participate
+ * in a shared multi-style bundle rail without violating the Saudi 15% VAT Zero-Loss floor.
+ * 
+ * Formula: Floor( (Bundle_Price / Quantity) / 1.15 )
+ * E.g. Buy 2 for 299 SAR: (299 / 2) / 1.15 = 149.50 / 1.15 = 130.00 SAR max cost ceiling.
+ */
+export function calculateRailCostCeiling(bundlePrice: number, quantity: number): number {
+  if (quantity <= 0 || bundlePrice <= 0) return 0;
+  const promoPerUnit = bundlePrice / quantity;
+  return Math.floor((promoPerUnit / 1.15) * 100) / 100;
+}
+
+/**
+ * Validates whether a specific style's landed cost permits it to join a shared bundle rail.
+ * Returns true iff Landed Cost <= calculateRailCostCeiling(bundlePrice, quantity)
+ */
+export function isStyleEligibleForRail(landedCost: number, bundlePrice: number, quantity: number): boolean {
+  const ceiling = calculateRailCostCeiling(bundlePrice, quantity);
+  return landedCost <= (ceiling + 0.005);
+}
+
+/**
+ * Generates the standardized Odoo POS Campaign Rail Tag for cross-style bundling.
+ * When styles share this tag in Odoo POS Pricelist, cash registers automatically apply
+ * the bundle discount across different styles in the same transaction.
+ * E.g. RULE_BUNDLE_2_299_RAIL or RULE_BUNDLE_3_99_RAIL
+ */
+export function generateSharedRailTag(bundlePrice: number, quantity: number): string {
+  const roundedPrice = Math.round(bundlePrice);
+  return `RULE_BUNDLE_${quantity}_${roundedPrice}_RAIL`;
 }
 
 /**
@@ -123,6 +160,9 @@ export function computeDynamicBundle2(metrics: DynamicOfferMetrics): DynamicBund
   // Format attractive commercial offer label
   const offerLabel = `Buy 2 For ${charmBundlePrice} SAR (Save ${Math.round(savingsSAR)} SAR)`;
 
+  const sharedRailTag = generateSharedRailTag(charmBundlePrice, 2);
+  const railCostCeilingSAR = calculateRailCostCeiling(charmBundlePrice, 2);
+
   return {
     isBundleApplicable: true,
     bundleOfferLabel: offerLabel,
@@ -132,6 +172,8 @@ export function computeDynamicBundle2(metrics: DynamicOfferMetrics): DynamicBund
     discountPct: realizedDiscountPct,
     savingsAmountSAR: savingsSAR,
     expectedClearancePct: expectedClearance,
-    rationale: `Dynamic 2-pack bundle calibrated to performance (WOS ${metrics.storeFloorWOS.toFixed(1)} wks, STR ${metrics.cumulativeSTR.toFixed(1)}%). Drives 2.0 UPT at ${charmBundlePrice} SAR commercial charm point.`
+    rationale: `Dynamic 2-pack bundle calibrated to performance (WOS ${metrics.storeFloorWOS.toFixed(1)} wks, STR ${metrics.cumulativeSTR.toFixed(1)}%). Drives 2.0 UPT at ${charmBundlePrice} SAR commercial charm point. Eligible for cross-style mix & match (Cost ceiling: ${railCostCeilingSAR.toFixed(2)} SAR).`,
+    sharedRailTag,
+    railCostCeilingSAR
   };
 }
