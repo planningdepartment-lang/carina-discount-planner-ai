@@ -1698,6 +1698,17 @@ async function runSimulation() {
     document.getElementById('simRealizedMargin').textContent = realizedMargin.toFixed(1) + '%';
     document.getElementById('simRetainedStock').textContent = `${retainedStock.toLocaleString()} Units (${retainedPct.toFixed(1)}%)`;
 
+    const marginSub = document.getElementById('simMarginSub');
+    if (marginSub) {
+      if (realizedMargin >= marginFloor - 0.05) {
+        marginSub.textContent = `≥ ${marginFloor.toFixed(1)}% Floor Preserved`;
+        marginSub.style.color = '';
+      } else {
+        marginSub.textContent = `⚠️ Breaches ${marginFloor.toFixed(1)}% Floor`;
+        marginSub.style.color = '#ef4444';
+      }
+    }
+
     const rawJouri = Number(sim.postEventDensities ? sim.postEventDensities.jouriDensity : (sim.postEventJouriDensity ?? 35.4));
     const jouriDensity = isNaN(rawJouri) ? 35.4 : rawJouri;
     const jouriStatus = sim.jouriStatus ?? (jouriDensity <= 40 ? 'Clean' : 'Bottleneck');

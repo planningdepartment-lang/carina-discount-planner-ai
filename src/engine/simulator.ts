@@ -27,11 +27,14 @@ export interface SimulationResult {
   };
   postEventJouriDensity: number;
   jouriStatus: string;
+  marginFloorPreserved: boolean;
+  targetMarginFloorPct: number;
 }
 
 /**
  * Real-Time What-If Inventory Liquidation Simulator
- * Evaluates the impact of target liquidation volumes and margin floors on cash and store physics.
+ * Evaluates the impact of target liquidation volumes and minimum net margin floors
+ * on cash generation, margin retention, and store physics.
  */
 export function runWhatIfSimulation(
   styles: StyleMetrics[],
@@ -52,7 +55,7 @@ export function runWhatIfSimulation(
   let yasmeenSold = 0;
   let jouriSold = 0;
 
-  // Global scale factor if user requested a specific liquidation target
+  // 1. Global scale factor if user requested a specific liquidation volume target
   let globalClearanceScale = 1.0;
   if (params?.targetLiquidationUnits && params.targetLiquidationUnits > 0) {
     let baselineForecastSold = 0;
@@ -63,6 +66,10 @@ export function runWhatIfSimulation(
       globalClearanceScale = params.targetLiquidationUnits / baselineForecastSold;
     }
   }
+
+  // 2. Minimum Realized Net Margin Floor constraint (Hurdle Rate)
+  const marginFloorPct = params?.minimumNetMarginFloorPct ?? 48.0;
+  const marginFloorRatio = Math.min(0.85, Math.max(0.10, marginFloorPct / 100));
 
   for (let i = 0; i < styles.length; i++) {
     const s = styles[i];
@@ -76,13 +83,39 @@ export function runWhatIfSimulation(
     yasmeenStartingStock += (s.stockYasmeen || 0);
     jouriStartingStock += (s.stockJouri || 0);
 
-    // Calculate scaled clearance units
+    const basePromoPrice = r.promotionalPriceSAR || s.ticketPrice;
+    let simPromoPrice = basePromoPrice;
+    let elasticityDampener = 1.0;
+
+    // Enforce Net Margin Floor: Net Revenue ex-VAT must satisfy (NetRev - Cost) / NetRev >= marginFloorRatio
+    // => NetRev >= Cost / (1 - marginFloorRatio)
+    // => PromoPrice (incl. 15% VAT) >= (Cost / (1 - marginFloorRatio)) * 1.15
+    if (s.unitCost > 0 && marginFloorRatio > 0 && marginFloorRatio < 1.0) {
+      const minNetPriceExVat = s.unitCost / (1 - marginFloorRatio);
+      const minPromoPriceInclVat = Math.round(minNetPriceExVat * 1.15 * 100) / 100;
+
+      if (basePromoPrice < minPromoPriceInclVat) {
+        // Price must be elevated to satisfy the executive net margin hurdle rate
+        simPromoPrice = Math.min(s.ticketPrice, minPromoPriceInclVat);
+
+        // Shallower discount dampens clearance velocity
+        const baseDiscount = s.ticketPrice > 0 ? Math.max(0, 1 - (basePromoPrice / s.ticketPrice)) : 0;
+        const constrainedDiscount = s.ticketPrice > 0 ? Math.max(0, 1 - (simPromoPrice / s.ticketPrice)) : 0;
+
+        if (baseDiscount > 0) {
+          elasticityDampener = Math.max(0.20, constrainedDiscount / baseDiscount);
+        } else {
+          elasticityDampener = 0.50;
+        }
+      }
+    }
+
+    // Calculate scaled clearance units incorporating volume scaling and margin-floor elasticity
     const baseClearance = r.expectedClearancePct || 35;
-    const scaledRate = Math.min(0.95, (baseClearance / 100) * globalClearanceScale);
+    const scaledRate = Math.min(0.95, (baseClearance / 100) * globalClearanceScale * elasticityDampener);
     const styleUnitsSold = Math.round((s.totalPhysicalStock || 0) * scaledRate);
 
-    const promoPrice = r.promotionalPriceSAR || s.ticketPrice;
-    const grossRev = styleUnitsSold * promoPrice;
+    const grossRev = styleUnitsSold * simPromoPrice;
     const netRev = grossRev / 1.15;
     const cogs = styleUnitsSold * (s.unitCost || 0);
 
@@ -127,6 +160,8 @@ export function runWhatIfSimulation(
       jouriDensity: jouriDensity,
     },
     postEventJouriDensity: jouriDensity,
-    jouriStatus: jouriStatus
+    jouriStatus: jouriStatus,
+    marginFloorPreserved: realizedMargin >= (marginFloorPct - 0.05),
+    targetMarginFloorPct: marginFloorPct
   };
 }
