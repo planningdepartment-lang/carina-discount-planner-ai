@@ -2617,46 +2617,140 @@ function formatMarkdown(text) {
              .replace(/[⚡✨🧠➤✅❌⚖🛡💡🏬🏭🚫💰🏷📦🎯📈⏳🔮💫🌟🌐💻📱🌪🌙🗑✏]/g, '');
 
   function parseInline(str) {
+    if (!str) return '';
     return str
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, url) => {
+        if (url.startsWith('action:simulate:') || url.startsWith('action:override:')) {
+          const parts = url.split(':');
+          const code = parts[2] || '';
+          return `<button class="btn-chat-pill" onclick="if(window.openOverrideModal){window.openOverrideModal('${code}','',0,0,0,'');}else{submitCopilotChat('evaluate style ${code}');}">⚡ ${parseInline(linkText)}</button>`;
+        }
+        return `<a href="${url}" target="_blank" rel="noopener" class="copilot-link">${parseInline(linkText)}</a>`;
+      })
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/`([^`]+)`/g, '<code class="copilot-code">$1</code>');
   }
 
-  // 3. Process line-by-line for clean structured organization
+  // 3. Process line-by-line with Table and Callout block extraction
   const lines = text.split('\n');
   const out = [];
+  let i = 0;
 
-  for (let rawLine of lines) {
-    let line = rawLine.trim();
-    if (!line) continue;
+  while (i < lines.length) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
 
-    // Headers: ### Header or ## Header
+    if (!line) {
+      i++;
+      continue;
+    }
+
+    // A. Detect Markdown Table: starts with '|' and ends with '|', next line has delimiter '|:---|'
+    if (line.startsWith('|') && line.endsWith('|') && i + 1 < lines.length) {
+      const nextLine = lines[i + 1].trim();
+      const isDelimiter = /^\|\s*[-: ]+[-|: ]*\|$/.test(nextLine) && nextLine.includes('-');
+
+      if (isDelimiter) {
+        // Collect header
+        const headerCells = line.split('|').slice(1, -1).map(c => c.trim());
+        let tableHtml = '<div class="copilot-table-responsive"><table class="copilot-table"><thead><tr>';
+        for (const h of headerCells) {
+          tableHtml += `<th>${parseInline(h)}</th>`;
+        }
+        tableHtml += '</tr></thead><tbody>';
+
+        // Skip delimiter row
+        i += 2;
+
+        // Collect body rows
+        while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+          const rowLine = lines[i].trim();
+          const rowCells = rowLine.split('|').slice(1, -1).map(c => c.trim());
+          tableHtml += '<tr>';
+          for (let cIdx = 0; cIdx < rowCells.length; cIdx++) {
+            const cellContent = rowCells[cIdx];
+            const isFirstCol = cIdx === 0;
+            tableHtml += `<td${isFirstCol ? ' class="col-primary"' : ''}>${parseInline(cellContent)}</td>`;
+          }
+          tableHtml += '</tr>';
+          i++;
+        }
+
+        tableHtml += '</tbody></table></div>';
+        out.push(tableHtml);
+        continue;
+      }
+    }
+
+    // B. Detect GitHub-Flavored Callouts (> [!NOTE], > [!WARNING], > [!TIP], > [!IMPORTANT], > ...)
+    if (line.startsWith('>')) {
+      const calloutLines = [];
+      let calloutType = 'note';
+      let title = 'Strategic Retail Advisory';
+
+      while (i < lines.length && lines[i].trim().startsWith('>')) {
+        let cLine = lines[i].trim().replace(/^>\s?/, '');
+        const alertMatch = cLine.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+        if (alertMatch) {
+          calloutType = alertMatch[1].toLowerCase();
+          if (calloutType === 'note') title = 'Strategic Hypothesis & Qualitative Context';
+          else if (calloutType === 'warning') title = 'Regulatory & Margin Warning';
+          else if (calloutType === 'tip') title = 'Merchandising Optimization Tip';
+          else if (calloutType === 'important') title = 'Mandatory Commercial Governance';
+          else title = 'Notice';
+          cLine = cLine.replace(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '');
+        }
+        if (cLine) calloutLines.push(cLine);
+        i++;
+      }
+
+      const bodyHtml = calloutLines.map(l => {
+        if (/^[•\*\-\+]|\d+\./.test(l.trim())) {
+          return `<div class="copilot-callout-bullet">&bull; ${parseInline(l.replace(/^[•\*\-\+]\s*|\d+\.\s*/, ''))}</div>`;
+        }
+        return `<p>${parseInline(l)}</p>`;
+      }).join('');
+
+      out.push(`
+        <div class="copilot-callout ${calloutType}">
+          <div class="copilot-callout-header">${title}</div>
+          <div class="copilot-callout-body">${bodyHtml}</div>
+        </div>
+      `);
+      continue;
+    }
+
+    // C. Headers: ### Header or ## Header
     const hMatch = line.match(/^(#{2,4})\s*(.*)$/);
     if (hMatch) {
       const title = hMatch[2].trim();
       out.push(`<div class="copilot-section-header">${parseInline(title)}</div>`);
+      i++;
       continue;
     }
 
-    // Pseudo Headers: '* Title:*' or '**Title:**' or 'Title:' (when short uppercase or Title Case)
+    // D. Pseudo Headers: '* Title:*' or '**Title:**' or 'Title:' (when short uppercase or Title Case)
     const pseudoHMatch = line.match(/^(\*{1,2}|_)?([A-Za-z0-9\s\/\-\&]+):(\*{1,2}|_)?$/);
-    if (pseudoHMatch && pseudoHMatch[2].length < 45 && !line.includes('http')) {
+    if (pseudoHMatch && pseudoHMatch[2].length < 45 && !line.includes('http') && !line.startsWith('|')) {
       out.push(`<div class="copilot-section-header">${pseudoHMatch[2].trim()}</div>`);
+      i++;
       continue;
     }
 
-    // List items: •, *, -, +, or numbered 1., 2.
+    // E. List items: •, *, -, +, or numbered 1., 2.
     const listMatch = line.match(/^([•\*\-\+]|\d+\.)\s+(.*)$/);
     if (listMatch) {
       const bullet = listMatch[1].match(/\d+\./) ? listMatch[1] : '&bull;';
       const content = listMatch[2].trim();
       out.push(`<div class="copilot-item-row"><span class="copilot-bullet">${bullet}</span><div class="copilot-item-content">${parseInline(content)}</div></div>`);
+      i++;
       continue;
     }
 
-    // Regular line
+    // F. Regular line
     out.push(`<div class="copilot-text-line">${parseInline(line)}</div>`);
+    i++;
   }
 
   return out.join('');

@@ -1,7 +1,15 @@
 import { KSA_RETAIL_CONTEXT } from './skills/ksaRetailContext';
 import { KSA_CRISIS_RETAIL_CONTEXT } from './skills/crisisRetailContext';
-import { formatOfferDecisionCard, formatDynamicCategoryOfferDossier } from './skills/offerDecisionFormatter';
+import { 
+  formatOfferDecisionCard, 
+  formatDynamicCategoryOfferDossier,
+  formatAlternativeOffersCard 
+} from './skills/offerDecisionFormatter';
 import { generateDynamicCategoryOfferPlan, CategoryTelemetry } from '../engine/dynamicCategoryOfferEngine';
+import { 
+  generateAlternativeOfferScenarios,
+  DynamicOfferMetrics 
+} from '../engine/dynamicOfferEngine';
 import { COMPETITOR_PLAYBOOK } from './skills/competitorPlaybook';
 import { parseNaturalLanguageRule } from './skills/ruleParser';
 import { StyleMetrics } from '../engine/lifecycleClassifier';
@@ -1039,6 +1047,32 @@ export async function handleCopilotChat(
     if (isCompetitorStyleQuery) {
       return {
         reply: formatStyleCompetitorCard(style),
+        mode,
+        activeStyleCode: style.style_code,
+        activeStyleName: style.product_name
+      };
+    }
+
+    // Alternative Promotional Scenarios Query (e.g. "is there another offer suitable for it", "other offers for 52007")
+    const isAlternativeOfferQuery = /\b(anothe|another|other|alternative|alternatives|different|options?|what else|second option|any other|more offers?|instead|suitable|scenarios?)\b/i.test(lowerMsg) &&
+      /\b(offers?|promo|promotions?|promotional|discounts?|deals?|suitable|options?|rails?|bundles?)\b/i.test(lowerMsg);
+    if (isAlternativeOfferQuery) {
+      const dynamicMetrics: DynamicOfferMetrics = {
+        styleCode: style.style_code,
+        productName: style.product_name,
+        category: style.category || 'General',
+        season: style.season || 'Continuity',
+        unitCost: Number(style.unit_cost) || 10,
+        ticketPrice: Number(style.ticket_price) || 29,
+        totalPhysicalStock: Number(style.total_physical_stock) || 0,
+        weeklyROS: Number(style.weekly_ros) || 0.1,
+        cumulativeSTR: Number(style.cumulative_str_pct) || 0,
+        storeFloorWOS: Number(style.weekly_ros) > 0 ? (Number(style.total_physical_stock) / Number(style.weekly_ros)) : 999,
+        activeSizeCount: 1
+      };
+      const altResult = generateAlternativeOfferScenarios(dynamicMetrics);
+      return {
+        reply: formatAlternativeOffersCard(altResult, allowUnguidedMetrics),
         mode,
         activeStyleCode: style.style_code,
         activeStyleName: style.product_name

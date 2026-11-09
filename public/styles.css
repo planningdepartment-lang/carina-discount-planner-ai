@@ -1934,6 +1934,150 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 0.82rem;
 }
 
+/* Copilot Luxury Chat Tables */
+.copilot-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  background: rgba(11, 17, 32, 0.75);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+}
+
+.copilot-table-responsive::-webkit-scrollbar {
+  height: 5px;
+}
+
+.copilot-table-responsive::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.35);
+  border-radius: 3px;
+}
+
+.copilot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.copilot-table th {
+  background: rgba(17, 24, 39, 0.95);
+  color: #f59e0b;
+  font-weight: 700;
+  font-family: var(--font-cinzel), serif;
+  letter-spacing: 0.03em;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+  font-size: 0.78rem;
+}
+
+.copilot-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+}
+
+.copilot-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.copilot-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.copilot-table tbody tr:hover {
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.copilot-table td.col-primary {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Copilot Executive Callout Alerts */
+.copilot-callout {
+  margin: 0.85rem 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.8);
+  border-left: 3px solid var(--gold-primary);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.copilot-callout.note {
+  border-left-color: #38bdf8;
+  background: rgba(14, 165, 233, 0.06);
+}
+
+.copilot-callout.warning {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.copilot-callout.tip {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.copilot-callout.important {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.copilot-callout-header {
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f59e0b;
+  margin-bottom: 0.35rem;
+}
+
+.copilot-callout.note .copilot-callout-header { color: #38bdf8; }
+.copilot-callout.warning .copilot-callout-header { color: #ef4444; }
+.copilot-callout.tip .copilot-callout-header { color: #10b981; }
+
+.copilot-callout-body p {
+  margin: 0.25rem 0;
+  color: #cbd5e1;
+}
+
+.copilot-callout-bullet {
+  margin: 0.2rem 0 0.2rem 0.4rem;
+  color: #cbd5e1;
+}
+
+.btn-chat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: #f59e0b;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.btn-chat-pill:hover {
+  background: rgba(212, 175, 55, 0.25);
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+}
+
 .chat-model-badge {
   display: inline-block;
   font-size: 0.65rem;

@@ -79,6 +79,49 @@ export function formatOfferDecisionCard(data: OfferDecisionData): string {
 
 
 import { DynamicCategoryOfferPlan } from '../../engine/dynamicCategoryOfferEngine';
+import { StyleAlternativeOffersResult } from '../../engine/dynamicOfferEngine';
+
+/**
+ * Formats a comprehensive comparison matrix of 4 alternative promotional scenarios
+ */
+export function formatAlternativeOffersCard(
+  res: StyleAlternativeOffersResult,
+  isExploratory: boolean = false
+): string {
+  const badge = isExploratory 
+    ? '`🧪 EXPLORATORY SCENARIO EVALUATION (MULTI-MECHANIC TRADE-OFF)`'
+    : '`🔒 AUDITED ALTERNATIVE PROMOTIONAL SCENARIOS (POS-COMPLIANT)`';
+
+  let card = `### 🏷️ Alternative Promotional Scenarios: **${res.styleCode}** (*${res.productName}*)\n`;
+  card += `${badge}\n\n`;
+
+  card += `| Promotional Scenario | Offer Mechanics | Promo Price | Effective Disc % | Net Margin % | 14-Day Clearance | Post-Event Runway |\n`;
+  card += `| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+  for (const sc of res.scenarios) {
+    card += `| **${sc.name}** | *${sc.offerLabel}* | **${sc.promoPriceSAR.toFixed(2)} SAR** | **${sc.discountPct}% Off** | **+${sc.netMarginPct.toFixed(1)}%** | **~${sc.forecastSoldUnits}u** (${sc.expectedClearancePct}%) | **${sc.postEventWOS} wks** |\n`;
+  }
+
+  card += `\n• **Executive Commercial Trade-Off Analysis:**\n`;
+  for (const sc of res.scenarios) {
+    card += `  - **${sc.name}:** ${sc.tradeOffSummary} (Odoo POS Tag: \`${sc.posTag}\`)\n`;
+  }
+
+  card += `\n• **Assortment Physics & Current Baseline:**\n` +
+    `  - **Physical Stock:** **${res.totalPhysicalStock} units** across store network.\n` +
+    `  - **Weekly Velocity & Sell-Through:** **${res.weeklyROS.toFixed(1)} u/wk** &bull; Cumulative STR: **${res.strPct.toFixed(1)}%**.\n` +
+    `  - **Current Runway Bottleneck:** **${res.currentWOS.toFixed(1)} Weeks of Supply** (~${(res.currentWOS / 4.33).toFixed(1)} months).\n` +
+    `  - **Saudi 15% VAT Zero-Loss Floor:** Landed Cost is ${res.unitCost.toFixed(2)} SAR &rarr; **Legal Price Floor is ${res.costPlusVat.toFixed(2)} SAR** (All 4 options strictly compliant).\n`;
+
+  if (isExploratory) {
+    card += `\n> [!NOTE]\n> **Exploratory & Unguided Merchandising Recommendation:**\n` +
+      `> For Style ${res.styleCode} with an extreme runway of ${res.currentWOS.toFixed(0)} weeks, relying on mild Spend & Save (Option 1) will leave the store floor congested for years. **Option 2 (Volume Multi-Buy)** or **Option 3 (50% Clearance Rail)** is strongly recommended for Al-Yasmeen and Taif Jouri to rapidly recover cash and liberate display space.`;
+  }
+
+  card += `\n👉 *Quick Action:* [Open Style ${res.styleCode} in What-If Simulator](action:simulate:${res.styleCode})\n`;
+
+  return card;
+}
 
 export interface CategoryStyleItem {
   style_code: string;

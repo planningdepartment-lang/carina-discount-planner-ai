@@ -200,6 +200,203 @@ export interface EvaluatedOfferDecision {
 /**
  * Deterministically evaluates the unit economics and commercial feasibility of a style offer
  */
+export interface AlternativeOfferScenario {
+  scenarioId: string;
+  name: string;
+  strategicPosture: string;
+  promoPriceSAR: number;
+  discountPct: number;
+  offerLabel: string;
+  unitNetMarginSAR: number;
+  netMarginPct: number;
+  forecastSoldUnits: number;
+  expectedClearancePct: number;
+  postEventWOS: number;
+  posTag: string;
+  tradeOffSummary: string;
+}
+
+export interface StyleAlternativeOffersResult {
+  styleCode: string;
+  productName: string;
+  category: string;
+  season: string;
+  ticketPrice: number;
+  unitCost: number;
+  costPlusVat: number;
+  totalPhysicalStock: number;
+  weeklyROS: number;
+  currentWOS: number;
+  strPct: number;
+  scenarios: AlternativeOfferScenario[];
+}
+
+/**
+ * Generates 4 mathematically modeled alternative promotional scenarios
+ * allowing executives to balance cash margin against inventory liquidation velocity.
+ */
+export function generateAlternativeOfferScenarios(
+  metrics: DynamicOfferMetrics
+): StyleAlternativeOffersResult {
+  const ticket = metrics.ticketPrice;
+  const cost = metrics.unitCost;
+  const floor = calculateZeroLossFloor(cost);
+  const stock = metrics.totalPhysicalStock;
+  const ros = metrics.weeklyROS > 0 ? metrics.weeklyROS : 0.05;
+  const currentWOS = metrics.storeFloorWOS > 0 ? metrics.storeFloorWOS : (stock / ros);
+  const scenarios: AlternativeOfferScenario[] = [];
+
+  // --- Scenario 1: Margin Defense (Spend & Save / 20% Off) ---
+  const s1Discount = 20;
+  const s1RawPrice = ticket * (1 - (s1Discount / 100));
+  const s1Price = Math.max(floor, Math.round(s1RawPrice * 100) / 100);
+  const s1NetRev = s1Price / 1.15;
+  const s1MarginSAR = Math.round((s1NetRev - cost) * 100) / 100;
+  const s1MarginPct = s1NetRev > 0 ? Math.round((s1MarginSAR / s1NetRev) * 1000) / 10 : 0;
+  const s1ClearanceRate = 0.35;
+  const s1Sold = Math.min(stock, Math.round(stock * s1ClearanceRate));
+  const s1Remaining = Math.max(0, stock - s1Sold);
+  const s1PostWOS = Math.round((s1Remaining / ros) * 10) / 10;
+
+  scenarios.push({
+    scenarioId: 'MARGIN_DEFENSE',
+    name: 'Option 1: Margin Defense (Spend & Save)',
+    strategicPosture: 'PROTECT_MARGIN',
+    promoPriceSAR: s1Price,
+    discountPct: s1Discount,
+    offerLabel: `Spend & Save Eligible (~20% Off: ${s1Price.toFixed(2)} SAR)`,
+    unitNetMarginSAR: s1MarginSAR,
+    netMarginPct: s1MarginPct,
+    forecastSoldUnits: s1Sold,
+    expectedClearancePct: Math.round(s1ClearanceRate * 100),
+    postEventWOS: s1PostWOS,
+    posTag: `RULE_SPEND_SAVE_20PCT_${metrics.styleCode}`,
+    tradeOffSummary: `Locks in max net margin (+${s1MarginPct.toFixed(1)}%), but clears only ~${s1Sold}u, leaving ${s1PostWOS} wks of inventory.`
+  });
+
+  // --- Scenario 2: Volume Multi-Buy Accelerator (Charm Bundle 2) ---
+  const bundleQty = ticket <= 15 ? 3 : 2;
+  const bundleTotalTicket = ticket * bundleQty;
+  const bundleTotalFloor = floor * bundleQty;
+  const targetBundleDiscount = 30; // 30% discount target
+  const bundleSolved = roundToSaudiCharmPrice(bundleTotalTicket * (1 - (targetBundleDiscount / 100)), bundleTotalFloor);
+  // Ensure strictly < combined ticket
+  const finalBundlePrice = bundleSolved < bundleTotalTicket ? bundleSolved : Math.floor(bundleTotalTicket - 1);
+  const s2UnitPromo = Math.round((finalBundlePrice / bundleQty) * 100) / 100;
+  const s2Discount = Math.round(((bundleTotalTicket - finalBundlePrice) / bundleTotalTicket) * 100);
+  const s2NetRev = s2UnitPromo / 1.15;
+  const s2MarginSAR = Math.round((s2NetRev - cost) * 100) / 100;
+  const s2MarginPct = s2NetRev > 0 ? Math.round((s2MarginSAR / s2NetRev) * 1000) / 10 : 0;
+  const s2ClearanceRate = 0.70;
+  const s2Sold = Math.min(stock, Math.round(stock * s2ClearanceRate));
+  const s2Remaining = Math.max(0, stock - s2Sold);
+  const s2PostWOS = Math.round((s2Remaining / ros) * 10) / 10;
+
+  scenarios.push({
+    scenarioId: 'VOLUME_BUNDLE',
+    name: `Option 2: Volume Multi-Buy (Buy ${bundleQty} For ${finalBundlePrice} SAR)`,
+    strategicPosture: 'ACCELERATE_VOLUME',
+    promoPriceSAR: s2UnitPromo,
+    discountPct: s2Discount,
+    offerLabel: `Take ${bundleQty} For ${finalBundlePrice} SAR (${s2UnitPromo.toFixed(2)} SAR/u)`,
+    unitNetMarginSAR: s2MarginSAR,
+    netMarginPct: s2MarginPct,
+    forecastSoldUnits: s2Sold,
+    expectedClearancePct: Math.round(s2ClearanceRate * 100),
+    postEventWOS: s2PostWOS,
+    posTag: `RULE_BUNDLE_${bundleQty}_${finalBundlePrice}_${metrics.styleCode}`,
+    tradeOffSummary: `Drives transaction size and clears ~${s2Sold}u (70% liquidation) while retaining healthy +${s2MarginPct.toFixed(1)}% margin.`
+  });
+
+  // --- Scenario 3: Aggressive Floor Liquidation (Dedicated Clearance Rail 50% Off) ---
+  const s3RawPrice = ticket * 0.50;
+  const s3Price = Math.max(floor, Math.round(s3RawPrice * 100) / 100);
+  const s3Discount = Math.round(((ticket - s3Price) / ticket) * 100);
+  const s3NetRev = s3Price / 1.15;
+  const s3MarginSAR = Math.round((s3NetRev - cost) * 100) / 100;
+  const s3MarginPct = s3NetRev > 0 ? Math.round((s3MarginSAR / s3NetRev) * 1000) / 10 : 0;
+  const s3ClearanceRate = 0.95;
+  const s3Sold = Math.min(stock, Math.round(stock * s3ClearanceRate));
+  const s3Remaining = Math.max(0, stock - s3Sold);
+  const s3PostWOS = Math.round((s3Remaining / ros) * 10) / 10;
+
+  scenarios.push({
+    scenarioId: 'CLEARANCE_RAIL',
+    name: 'Option 3: Dedicated Clearance Rail (50% Off / Floor Clamped)',
+    strategicPosture: 'RAPID_DECONGESTION',
+    promoPriceSAR: s3Price,
+    discountPct: s3Discount,
+    offerLabel: `50% Off Dedicated Rail (${s3Price.toFixed(2)} SAR)`,
+    unitNetMarginSAR: s3MarginSAR,
+    netMarginPct: s3MarginPct,
+    forecastSoldUnits: s3Sold,
+    expectedClearancePct: Math.round(s3ClearanceRate * 100),
+    postEventWOS: s3PostWOS,
+    posTag: `RULE_CLEARANCE_50PCT_${metrics.styleCode}`,
+    tradeOffSummary: `Eliminates the ${currentWOS.toFixed(0)}-week bottleneck immediately (95% liquidation), preserving legal +${s3MarginPct.toFixed(1)}% net margin.`
+  });
+
+  // --- Scenario 4: Checkout Till Impulse Booster (Basket Threshold Add-On) ---
+  const s4Price = Math.max(floor, Math.round(ticket * 0.52));
+  const s4Discount = Math.round(((ticket - s4Price) / ticket) * 100);
+  const s4NetRev = s4Price / 1.15;
+  const s4MarginSAR = Math.round((s4NetRev - cost) * 100) / 100;
+  const s4MarginPct = s4NetRev > 0 ? Math.round((s4MarginSAR / s4NetRev) * 1000) / 10 : 0;
+  const s4Threshold = 100;
+
+  scenarios.push({
+    scenarioId: 'CHECKOUT_BOOSTER',
+    name: 'Option 4: POS Till Basket Booster (Tamara/Tabby Threshold)',
+    strategicPosture: 'BASKET_BUILDER',
+    promoPriceSAR: s4Price,
+    discountPct: s4Discount,
+    offerLabel: `Add at checkout for ${s4Price.toFixed(2)} SAR on orders $\\ge$ ${s4Threshold} SAR`,
+    unitNetMarginSAR: s4MarginSAR,
+    netMarginPct: s4MarginPct,
+    forecastSoldUnits: Math.min(stock, Math.round(stock * 0.55)),
+    expectedClearancePct: 55,
+    postEventWOS: Math.round((Math.max(0, stock * 0.45) / ros) * 10) / 10,
+    posTag: `RULE_CHECKOUT_ADDON_${s4Price}_${metrics.styleCode}`,
+    tradeOffSummary: `Acts as the decisive basket builder at checkout to help shoppers exceed the 100 SAR BNPL split-payment limit.`
+  });
+
+  return {
+    styleCode: metrics.styleCode,
+    productName: metrics.productName,
+    category: metrics.category,
+    season: metrics.season,
+    ticketPrice: ticket,
+    unitCost: cost,
+    costPlusVat: floor,
+    totalPhysicalStock: stock,
+    weeklyROS: metrics.weeklyROS,
+    currentWOS,
+    strPct: metrics.cumulativeSTR,
+    scenarios
+  };
+}
+
+export interface EvaluatedOfferDecision {
+  styleCode: string;
+  productName: string;
+  ticketPrice: number;
+  unitCost: number;
+  costPlusVat: number;
+  zeroLossFloorSAR: number;
+  recommendedPriceSAR: number;
+  discountPct: number;
+  netMarginSAR: number;
+  netMarginPct: number;
+  isZeroLossCompliant: boolean;
+  expectedClearancePct: number;
+  forecastSoldUnits: number;
+  forecastNetProfitSAR: number;
+  posTag: string;
+}
+
+/**
+ * Deterministically evaluates the unit economics and commercial feasibility of a style offer
+ */
 export function evaluateOfferDecision(
   metrics: DynamicOfferMetrics,
   targetDiscountPct?: number
