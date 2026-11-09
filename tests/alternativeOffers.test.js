@@ -239,4 +239,46 @@ describe('Alternative Strategic Offers & UI Table Rendering Engine', () => {
     assert.ok(cssSrc.includes('.copilot-callout'), 'styles.css must style .copilot-callout');
   });
 
+  // Test 4: Slow Movers Diagnostic Card & 4 Mathematical Dimensions
+  test('offerDecisionFormatter: formatSlowMoversIntelligenceCard formats criteria, recommendations, and live styles', () => {
+    const formatterSrc = fs.readFileSync(path.join(__dirname, '../src/ai/skills/offerDecisionFormatter.ts'), 'utf8');
+    assert.ok(formatterSrc.includes('formatSlowMoversIntelligenceCard'), 'formatter must export formatSlowMoversIntelligenceCard');
+    assert.ok(formatterSrc.includes('Runway Overhang'), 'must detail Runway Overhang');
+    assert.ok(formatterSrc.includes('Velocity Stagnation'), 'must detail Velocity Stagnation');
+    assert.ok(formatterSrc.includes('Broken Size Curve'), 'must detail Broken Size Curve');
+    assert.ok(formatterSrc.includes('Negative Momentum'), 'must detail Negative Momentum');
+    assert.ok(formatterSrc.includes('Take 3 For 99 SAR Shared Rail'), 'must recommend 3 for 99 SAR for apparel > 40 SAR');
+    assert.ok(formatterSrc.includes('50% Off Dedicated Clearance Rail'), 'must recommend 50% clearance for basics <= 40 SAR');
+    assert.ok(formatterSrc.includes('Inter-Store Van Rebalancing'), 'must recommend van rebalance for store congestion');
+  });
+
+  // Test 5: Copilot Intent Routing for Slow Movers Query
+  test('copilot intent routing: matches exact executive inquiry for slow movers', () => {
+    const slowRegex = /\b(slow\s*movers?|slow\s*moving|dead\s*stock|stagnant|zombie\s*stock|aged\s*stock|aged\s*inventory|identify\s*slow|how.*identify.*slow|recommend.*slow|what.*ai.*recommend.*slow)\b/i;
+
+    const query1 = "how the system identify the slow movers? what the ai recommend for this";
+    assert.ok(slowRegex.test(query1), 'Must match user exact question: "how the system identify the slow movers? what the ai recommend for this"');
+
+    const query2 = "how do we identify slow moving items";
+    assert.ok(slowRegex.test(query2), 'Must match "how do we identify slow moving items"');
+
+    const query3 = "what does the ai recommend for slow movers";
+    assert.ok(slowRegex.test(query3), 'Must match "what does the ai recommend for slow movers"');
+
+    const copilotSrc = fs.readFileSync(path.join(__dirname, '../src/ai/copilot.ts'), 'utf8');
+    assert.ok(copilotSrc.includes('isSlowMoverInquiry'), 'copilot.ts must define isSlowMoverInquiry');
+    assert.ok(copilotSrc.includes('formatSlowMoversIntelligenceCard'), 'copilot.ts must invoke formatSlowMoversIntelligenceCard');
+  });
+
+  // Test 6: CSS Sticky First Column & Frontend Action Pill
+  test('styles.css and app.js implement sticky first column and table tier filtering', () => {
+    const cssSrc = fs.readFileSync(path.join(__dirname, '../public/styles.css'), 'utf8');
+    assert.ok(cssSrc.includes('position: sticky;'), 'styles.css must make table columns sticky');
+    assert.ok(cssSrc.includes('left: 0;'), 'styles.css must stick to left: 0');
+
+    const appJsSrc = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+    assert.ok(appJsSrc.includes('action:filter:tier:'), 'app.js parseInline must handle tier filter action pills');
+    assert.ok(appJsSrc.includes('applyTableTierFilter'), 'app.js must provide window.applyTableTierFilter');
+  });
+
 });

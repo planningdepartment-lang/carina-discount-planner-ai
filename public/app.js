@@ -59,7 +59,8 @@ let debounceTimer = null;
 let activeContextStyle = null; // Session memory for Copilot multi-turn chat
 let currentLoadedStyles = []; // Dynamic catalog styles for executive prompt generation
 let promptShuffleOffset = 0; // Offset for rotating dynamic questions
-let isExploratoryMode = localStorage.getItem('carina_copilot_exploratory') === 'true'; // Global Cognitive Mode state
+window.isExploratoryMode = localStorage.getItem('carina_copilot_exploratory') === 'true'; // Global Cognitive Mode state
+let isExploratoryMode = window.isExploratoryMode;
 let currentPromotionWeeks = 4;
 let currentScenario = 'base';
 let currentBriefingMarkdown = ''; // Memory for executive briefing markdown copy
@@ -68,6 +69,7 @@ let currentBriefingMarkdown = ''; // Memory for executive briefing markdown copy
  * Toggles and synchronizes Cognitive Analysis Mode (Guided vs Unguided) across entire app.
  */
 function setCognitiveMode(exploratory) {
+  window.isExploratoryMode = exploratory;
   isExploratoryMode = exploratory;
   localStorage.setItem('carina_copilot_exploratory', isExploratoryMode ? 'true' : 'false');
   const copilotExploratoryToggle = document.getElementById('copilotExploratoryToggle');
@@ -2149,10 +2151,26 @@ async function runSimulation() {
   }
 }
 
+window.applyTableTierFilter = function(tier) {
+  const filterTier = document.getElementById('filterTier');
+  if (filterTier) {
+    filterTier.value = tier;
+  }
+  const tableEl = document.getElementById('assortmentTable') || document.querySelector('.table-container');
+  if (tableEl) {
+    tableEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  currentPage = 1;
+  if (typeof loadStyles === 'function') {
+    loadStyles();
+  }
+};
+
 /**
  * Handles Copilot chat queries with multi-turn session context.
  */
 async function submitCopilotChat(message) {
+  window.submitCopilotChat = submitCopilotChat;
   const history = document.getElementById('chatHistory');
   const drawerBody = document.querySelector('.drawer-body');
   const mode = document.getElementById('agentModeSelect').value;
@@ -2624,6 +2642,14 @@ function formatMarkdown(text) {
           const parts = url.split(':');
           const code = parts[2] || '';
           return `<button class="btn-chat-pill" onclick="if(window.openOverrideModal){window.openOverrideModal('${code}','',0,0,0,'');}else{submitCopilotChat('evaluate style ${code}');}">⚡ ${parseInline(linkText)}</button>`;
+        }
+        if (url.startsWith('action:filter:tier:')) {
+          const tier = url.split(':')[3] || '';
+          return `<button class="btn-chat-pill" onclick="window.applyTableTierFilter('${tier}')">🔍 ${parseInline(linkText)}</button>`;
+        }
+        if (url.startsWith('action:chat:')) {
+          const prompt = url.slice('action:chat:'.length);
+          return `<button class="btn-chat-pill" onclick="submitCopilotChat('${escapeHtml(prompt)}')">💬 ${parseInline(linkText)}</button>`;
         }
         return `<a href="${url}" target="_blank" rel="noopener" class="copilot-link">${parseInline(linkText)}</a>`;
       })

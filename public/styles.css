@@ -1976,6 +1976,21 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 0.78rem;
 }
 
+.copilot-table th:first-child,
+.copilot-table td:first-child,
+.copilot-table td.col-primary {
+  position: sticky;
+  left: 0;
+  background: #0d1527;
+  z-index: 2;
+  box-shadow: 2px 0 6px rgba(0, 0, 0, 0.4);
+}
+
+.copilot-table th:first-child {
+  background: #111827;
+  z-index: 3;
+}
+
 .copilot-table td {
   padding: 7px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
@@ -1990,8 +2005,17 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: rgba(255, 255, 255, 0.015);
 }
 
+.copilot-table tbody tr:nth-child(even) td:first-child {
+  background: #0f182c;
+}
+
 .copilot-table tbody tr:hover {
   background: rgba(212, 175, 55, 0.06);
+}
+
+.copilot-table tbody tr:hover td:first-child,
+.copilot-table tbody tr:hover td.col-primary {
+  background: #1e293b;
 }
 
 .copilot-table td.col-primary {
