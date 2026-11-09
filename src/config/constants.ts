@@ -53,7 +53,7 @@ export const LIFECYCLE_TIERS = {
 } as const;
 
 export const SAUDI_CHARM_PRICE_POINTS = [
-  29, 39, 49, 59, 69, 79, 89, 99, 119, 129, 149, 169, 189, 199, 219, 249, 299, 349
+  9, 12, 15, 19, 25, 29, 39, 49, 59, 69, 79, 89, 99, 119, 129, 149, 169, 189, 199, 219, 249, 299, 349
 ] as const;
 
 export const CAMPAIGN_DEFAULTS = {

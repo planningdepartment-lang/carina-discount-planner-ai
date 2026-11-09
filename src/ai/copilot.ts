@@ -1,9 +1,20 @@
 import { KSA_RETAIL_CONTEXT } from './skills/ksaRetailContext';
+import { KSA_CRISIS_RETAIL_CONTEXT } from './skills/crisisRetailContext';
+import { formatOfferDecisionCard, formatDynamicCategoryOfferDossier } from './skills/offerDecisionFormatter';
+import { generateDynamicCategoryOfferPlan, CategoryTelemetry } from '../engine/dynamicCategoryOfferEngine';
 import { COMPETITOR_PLAYBOOK } from './skills/competitorPlaybook';
 import { parseNaturalLanguageRule } from './skills/ruleParser';
 import { StyleMetrics } from '../engine/lifecycleClassifier';
 import { runWhatIfSimulation } from '../engine/simulator';
 import { getOrComputeStylePlan } from '../api/styleService';
+import { 
+  analyzeCompetitorPosition, 
+  getCompetitorIntelligenceSummary, 
+  KSA_COMPETITOR_BENCHMARKS 
+} from '../engine/competitorAnalyzer';
+import { ForecastScenario } from '../engine/statisticalForecaster';
+import { generatePortfolioRebalancingPlan } from '../engine/storeRebalancer';
+import { KSA_RETAIL_CALENDAR } from '../engine/ksaRetailCalendar';
 
 export type AgentMode = 'DISCOUNT_STRATEGIST' | 'STORE_AUDITOR' | 'RULE_COMPILER';
 
@@ -13,6 +24,7 @@ export interface CopilotChatRequest {
   model?: string;
   contextStyleCode?: string;
   metricsSnapshot?: Partial<StyleMetrics>;
+  allowUnguidedMetrics?: boolean;
 }
 
 export interface CopilotChatResponse {
@@ -48,6 +60,8 @@ export interface D1StyleSnapshotRow {
   forecast_profit: number;
   post_event_stock: number;
   commercial_rationale: string;
+  sold_units?: number;
+  sales_lifecycle_weeks?: number;
 }
 
 export function styleRecordToSnapshotRow(r: any): D1StyleSnapshotRow {
@@ -90,7 +104,9 @@ export function styleRecordToSnapshotRow(r: any): D1StyleSnapshotRow {
     forecast_sold: forecastSold,
     forecast_profit: forecastProfit,
     post_event_stock: postStock,
-    commercial_rationale: rec?.rationale || 'Assortment depth defense.'
+    commercial_rationale: rec?.rationale || 'Assortment depth defense.',
+    sold_units: m.soldUnits !== undefined ? m.soldUnits : 0,
+    sales_lifecycle_weeks: m.salesLifecycleWeeks !== undefined ? m.salesLifecycleWeeks : 0.0
   };
 }
 
@@ -240,6 +256,82 @@ async function searchStylesInD1(
  * Formatters for targeted style property requests (Stock, Pricing, Velocity, Offer).
  * Guarantees zero data overexposure and zero token waste when answering specific questions.
  */
+/**
+ * Formats autonomous KSA competitor intelligence summary for Nayomi & Blooming.
+ */
+function formatCompetitorIntelligenceCard(): string {
+  const summary = getCompetitorIntelligenceSummary();
+  let text = '### KSA Competitor Intelligence — Autonomous Benchmarks\n\n' +
+    'Real-time retail price positioning and active promotional offers across Saudi Arabia (Jeddah & Taif):\n\n' +
+    '• **Direct Competitors Monitored:** **Nayomi (نعومي)** & **Blooming (بلومنج)**\n' +
+    '• **Category Price Positioning & Market Dynamics:**\n';
+
+  for (const s of summary) {
+    text += `  - **${s.category}:**\n` +
+      `    * **Nayomi:** ${s.nayomi.regularTicketSAR.toFixed(2)} SAR ticket | Active Promo: **${s.nayomi.promotionalOffer}** (${s.nayomi.effectivePromoPriceSAR.toFixed(2)} SAR/u, ${s.nayomi.impliedDiscountPct}% off)\n` +
+      `    * **Blooming:** ${s.blooming.regularTicketSAR.toFixed(2)} SAR ticket | Active Promo: **${s.blooming.promotionalOffer}** (${s.blooming.effectivePromoPriceSAR.toFixed(2)} SAR/u, ${s.blooming.impliedDiscountPct}% off)\n`;
+  }
+
+  text += '\n• **Autonomous Competitor Demand Feedback:**\n' +
+    '  - When CARINA prices are higher than Nayomi or Blooming (Price Index > 108), the AI automatically applies an 18% substitution drag to prevent overly optimistic sales forecasts.\n' +
+    '  - When CARINA holds a value advantage (Price Index < 88), a 12% volume capture boost is applied.\n' +
+    '• **Tactical Counter Recommendations:**\n' +
+    '  - **Pyjamas:** Deploy CARINA Dynamic Bundle 2 starting at 149 SAR (elevated to charm floor when cost demands, e.g. 189 SAR for 3PC sets) strictly defending gross margin above Saudi VAT zero-loss floor.\n' +
+    '  - **Bras:** Deploy 2 for 99 SAR to achieve direct parity with Blooming and defeat Nayomi (74.50 SAR/u).\n' +
+    '  - **Socks & Hosiery:** Deploy Impulse Multipacks (3 for 15 SAR / 5.00 SAR/u) at POS checkout counters to capture footfall against Blooming (5.00 SAR/u).\n' +
+    '  - **Cosmetics:** Protect 0% off single unit margin, using Spend 250 Save 50 multi-buys as basket boosters.';
+
+  return text;
+}
+
+function formatStyleCompetitorCard(row: D1StyleSnapshotRow): string {
+  const comp = analyzeCompetitorPosition(
+    row.category,
+    row.product_name,
+    row.ticket_price,
+    row.promotional_price,
+    row.unit_cost
+  );
+
+  return (
+    `### Competitor Analysis — Style **${row.style_code}** (*${row.product_name}*)\n\n` +
+    `• **Assortment Category:** \`${row.category || 'General'}\` | CARINA Promo Price: **${row.promotional_price.toFixed(2)} SAR**\n` +
+    `• **Saudi Market Price Index (PI):**\n` +
+    `  - **vs Nayomi (نعومي):** **${comp.priceIndexVsNayomi.toFixed(1)}%** (${comp.priceIndexVsNayomi < 100 ? 'CARINA Value Advantage' : 'Nayomi Cheaper'})\n` +
+    `    * Nayomi Offer: ${comp.nayomiBenchmark.promotionalOffer} (${comp.nayomiBenchmark.effectivePromoPriceSAR.toFixed(2)} SAR/u)\n` +
+    `  - **vs Blooming (بلومنج):** **${comp.priceIndexVsBlooming.toFixed(1)}%** (${comp.priceIndexVsBlooming < 100 ? 'CARINA Value Advantage' : 'Blooming Cheaper'})\n` +
+    `    * Blooming Offer: ${comp.bloomingBenchmark.promotionalOffer} (${comp.bloomingBenchmark.effectivePromoPriceSAR.toFixed(2)} SAR/u)\n` +
+    `• **Competitive Posture:** **${comp.competitivePosture}** (Blended Market Index: ${comp.blendedMarketPriceIndex.toFixed(1)}%)\n` +
+    `• **Demand Calibration:** Competitor Substitution Drag: **${comp.competitorDemandDrag.toFixed(2)}x** on statistical sales volume\n` +
+    `• **Tactical Counter Offer:** **${comp.tacticalCounterOffer}**\n` +
+    `• **Commercial Rationale:** ${comp.tacticalRationale}`
+  );
+}
+
+function formatCapabilitiesCard(): string {
+  return (
+    '### CARINA Merchandising Intelligence — Autonomous Capabilities\n\n' +
+    'I am your autonomous Commercial Merchandising Strategist and Retail Pricing Intelligence for Saudi Arabia. Here is what I can do:\n\n' +
+    '• **1. Statistical Demand Forecasting & Horizon Control:**\n' +
+    '  - User-controlled promotional horizon (1 to 8 weeks, e.g., *"simulate a 3-week promotion"*).\n' +
+    '  - Empirical Log-Log price elasticity models, baseline velocity tracking, and broken size walkout penalties (45% degradation when sizes <= 2).\n' +
+    '  - Three statistical confidence scenarios: **Conservative (P10)**, **Expected Base (P50)**, and **Optimistic (P90)**.\n\n' +
+    '• **2. Autonomous KSA Competitor Intelligence (Nayomi & Blooming):**\n' +
+    '  - Real-time price indexing against **Nayomi (نعومي)** and **Blooming (بلومنج)** across all 8 catalog departments (Nightwear, Bras, Panties, Shapewear, Socks, Basics, Accessories, and Cosmetics).\n' +
+    '  - Automatic competitor substitution drag (dampening overly optimistic sales when competitor prices are lower).\n' +
+    '  - Tactical counter-offer generation (e.g. Dynamic Bundle 2 vs Nayomi Buy 2 Get 1).\n\n' +
+    '• **3. Differentiated Promotional Architecture:**\n' +
+    '  - **Dynamic Bundle 2:** Tailored 2-pack bundles driving 2.0 Units Per Transaction (UPT).\n' +
+    '  - **Dedicated Clearance Rails:** 50% Off and Take 3 For 99 SAR rails for fragmented broken oddments.\n' +
+    '  - **Assortment Shield:** Strict 0% Off full ticket margin protection for fresh Winter AW26 and hero bestsellers.\n\n' +
+    '• **4. Store Floor Space Physics (621 m² Footprint):**\n' +
+    '  - Real-time density monitoring and bottleneck diagnostics for Al-Andalus Flagship (260 m²), Al-Yasmeen (193 m²), and Jouri Mall Taif (168 m²).\n\n' +
+    '• **5. Saudi Regulatory Zero-Loss Compliance:**\n' +
+    '  - Enforcing the mandatory 15% VAT legal floor (Promotional Price >= Landed Cost x 1.15) with zero exceptions.\n\n' +
+    '*Tip: Ask about any style code (e.g. 58424, 59465), compare with competitors (e.g. "compare pyjamas with Nayomi"), or run a what-if simulation (e.g. "simulate 2 weeks promotion with 50% margin").*'
+  );
+}
+
 function formatStockCard(row: D1StyleSnapshotRow): string {
   const total = row.total_physical_stock || 1;
   const andalusPct = ((row.stock_andalus / total) * 100).toFixed(1);
@@ -292,18 +384,33 @@ function formatVelocityCard(row: D1StyleSnapshotRow): string {
   );
 }
 
-function formatOfferCard(row: D1StyleSnapshotRow): string {
-  const clearanceRate = Math.round((row.forecast_sold / (row.total_physical_stock || 1)) * 100);
-
-  return (
-    `### Promotional Strategy & Recommendations — Style **${row.style_code}** (*${row.product_name}*)\n` +
-    `• **Primary Offer (Velocity Driver):** **${row.recommended_offer}** at **${row.promotional_price.toFixed(2)} SAR** (${row.discount_pct}% off list)\n` +
-    `• **Alternative (Margin Defense):** **Spend 250 Save 50 (Multi-Buy Basket Pack)**\n` +
-    `• **Zero-Loss Compliance:** **${row.zero_loss_status}** (Promo ${row.promotional_price.toFixed(2)} SAR >= Floor ${row.cost_plus_vat.toFixed(2)} SAR)\n` +
-    `• **Forecast Event Clearance:** **${row.forecast_sold} units** (${clearanceRate}% liquidation rate)\n` +
-    `• **Projected Net Cash Margin:** **+${row.forecast_profit.toLocaleString()} SAR**\n` +
-    `• **Commercial Rationale:** ${row.commercial_rationale}`
-  );
+function formatOfferCard(row: D1StyleSnapshotRow, isExploratory: boolean = false): string {
+  const wos = row.weekly_ros > 0 ? row.total_physical_stock / row.weekly_ros : 999;
+  return formatOfferDecisionCard({
+    styleCode: row.style_code,
+    productName: row.product_name,
+    category: row.category,
+    season: row.season,
+    ticketPrice: row.ticket_price,
+    unitCost: row.unit_cost,
+    costPlusVat: row.cost_plus_vat,
+    recommendedPrice: row.promotional_price,
+    discountPct: row.discount_pct,
+    recommendedOffer: row.recommended_offer,
+    totalStock: row.total_physical_stock,
+    storeStock: {
+      andalus: row.stock_andalus,
+      yasmeen: row.stock_yasmeen,
+      jouri: row.stock_jouri,
+      wh: row.stock_wh
+    },
+    weeklyROS: row.weekly_ros,
+    storeFloorWOS: wos,
+    sarHealth: row.sar_curve_health,
+    forecastSold: row.forecast_sold,
+    forecastProfit: row.forecast_profit,
+    isExploratory
+  });
 }
 
 /**
@@ -313,17 +420,19 @@ function formatOfferCard(row: D1StyleSnapshotRow): string {
 function formatSimulationCard(res: any, targetUnits: number, marginFloor: number): string {
   const isHealthy = res.realizedNetMarginPct >= marginFloor;
   const statusBadge = isHealthy ? 'HEALTHY_MARGIN_COMPLIANT' : 'MARGIN_DILUTION_WARNING';
+  const weeks = res.promotionWeeks || 4;
+  const scenarioLabel = (res.scenario || 'base').toUpperCase();
 
   let advice = '';
   if (res.unitsSold >= 25000) {
-    advice = `Liquidating ${res.unitsSold.toLocaleString()} units successfully decongests Taif Jouri to ${res.postEventDensities.jouriDensity.toFixed(1)} u/m², yielding +${Math.round(res.projectedNetProfit).toLocaleString()} SAR net cash margin.`;
+    advice = `Liquidating ${res.unitsSold.toLocaleString()} units over ${weeks} weeks successfully decongests Taif Jouri to ${res.postEventDensities.jouriDensity.toFixed(1)} u/m², yielding +${Math.round(res.projectedNetProfit).toLocaleString()} SAR net cash margin.`;
   } else {
-    advice = `Liquidation pace protects ${res.retainedWinterPct.toFixed(1)}% of core winter assortment depth for peak winter trade while generating +${Math.round(res.projectedNetProfit).toLocaleString()} SAR net cash.`;
+    advice = `Statistical liquidation over ${weeks} weeks protects ${res.retainedWinterPct.toFixed(1)}% of core assortment depth while generating +${Math.round(res.projectedNetProfit).toLocaleString()} SAR net cash margin.`;
   }
 
   return (
-    `### Inventory Liquidation Scenario Simulation\n\n` +
-    `• **Target Parameters:** Target Liquidation: **${targetUnits.toLocaleString()} units** | Net Margin Floor: **${marginFloor.toFixed(1)}%**\n` +
+    `### Statistical Inventory & Promotional Simulation\n\n` +
+    `• **Simulation Parameters:** Horizon: **${weeks} Weeks** | Scenario: **${scenarioLabel}** | Net Margin Floor: **${marginFloor.toFixed(1)}%**` + (targetUnits > 0 ? ` | Target: **${targetUnits.toLocaleString()} u**` : '') + `\n` +
     `• **Liquidation Volume:** **${res.unitsSold.toLocaleString()} units** cleared (${res.clearanceSharePct.toFixed(1)}% clearance rate)\n` +
     `• **Financial Impact (Net Cash Recovery):**\n` +
     `  - **Projected Gross Revenue:** ${Math.round(res.projectedGrossRevenue).toLocaleString()} SAR\n` +
@@ -451,6 +560,253 @@ function sanitizeAiResponse(raw: string, style?: D1StyleSnapshotRow): string {
   return text.trim();
 }
 
+
+function formatRebalanceCard(plan: any): string {
+  const topTransfers = (plan.transfers || []).slice(0, 3);
+  let transferList = '';
+  for (const t of topTransfers) {
+    transferList += `  - **Style ${t.styleCode}** (*${t.productName}*): Move **${t.recommendedTransferUnits} units** from **${t.sourceStore.name}** (WOS: ${t.sourceStore.wosBefore}w) to **${t.destStore.name}** (WOS: ${t.destStore.wosBefore}w) &bull; Preserves **+${t.financialImpact.netMarginPreservedSAR} SAR** net margin vs ${Math.round(t.financialImpact.avoidedMarkdownPct * 100)}% markdown.\n`;
+  }
+
+  return (
+    `### Inter-Store Stock Balancing & Margin Preservation\n\n` +
+    `  **Recommended Store Transfers:** **${plan.totalRecommendedTransfers} transfer batches**\n` +
+    `  **Total Physical Units to Move:** **${plan.totalUnitsToMove.toLocaleString()} units**\n` +
+    `  **Gross Markdown Dilution Avoided:** **+${plan.totalGrossMarginSavedSAR.toLocaleString()} SAR**\n` +
+    `  **Inter-City Logistics Cost:** **-${plan.totalLogisticsCostSAR.toLocaleString()} SAR**\n` +
+    `  **Net Margin Preserved:** **+${plan.totalNetMarginPreservedSAR.toLocaleString()} SAR** (vs clearance rails)\n\n` +
+    `**Top Urgent Transfer Actions:**\n${transferList}\n` +
+    `*Strategy: Transferring overstock from Taif Jouri to Jeddah Al-Andalus sells at 100% full ticket price instead of sacrificing 40% to 50% discount in Taif.*`
+  );
+}
+
+function formatCalendarCard(query: string): string {
+  const events = Object.values(KSA_RETAIL_CALENDAR);
+  let eventRows = '';
+  for (const ev of events) {
+    eventRows += `  - **${ev.nameEn}** (*${ev.nameAr}*):\n` +
+      `    Posture: \`${ev.recommendedCommercialPosture}\` &bull; Timing: ${ev.seasonPeriod}\n` +
+      `    Phases: P1 (${ev.markdownPhases.phase1.targetEffectiveDiscountPct}% off) &rarr; P2 (${ev.markdownPhases.phase2.targetEffectiveDiscountPct}% off) &rarr; P3 (${ev.markdownPhases.phase3.targetEffectiveDiscountPct}% off)\n`;
+  }
+
+  return (
+    `### Official KSA Commercial Retail Calendar & Markdown Phases\n\n` +
+    `The system continuously schedules promotions through 3 progressive phases tied to Saudi commercial trading seasons:\n\n` +
+    `${eventRows}\n` +
+    `*Compliance Note: Every phase strictly clamps promotional prices above Landed Cost plus 15% VAT.*`
+  );
+}
+
+function formatExecutiveDossierCard(): string {
+  return (
+    `### Dual-Language Executive Commercial Dossier (KSA)\n\n` +
+    `Institutional-grade executive briefing for General Management, Merchandising, and Store Operations:\n\n` +
+    `  - **English Executive Briefing:** Portfolio valuation, initial markup (IMU), sell-through (STR), gross margin bridge, and 15% VAT cost floor compliance.\n` +
+    `  - **التقرير التنفيذي باللغة العربية:** تعليمات مدراء معارض المنطقة الغربية (الأندلس مول، الياسمين مول، جوري مول بالطائف)، خطة المناقلات لتفادي الخصومات العميقة، والالتزام النظامي بضريبة القيمة المضافة.\n\n` +
+    `**Direct Access:**\n` +
+    `[Click here to view / print the full Executive Commercial Dossier](/api/reports/dossier)`
+  );
+}
+
+function formatCrisisStrategyCard(isExploratory: boolean): string {
+  const badge = isExploratory 
+    ? '`🧪 EXPLORATORY RESILIENCE ANALYSIS (QUALITATIVE SYNTHESIS)`'
+    : '`🔒 AUDITED KSA SUPPLY & COMMERCIAL GOVERNANCE`';
+
+  let card = `### Strategic Merchandising & Commercial Considerations During Regional Turbulence\n`;
+  card += `${badge}\n\n`;
+  card += `• **Jeddah Port & Inbound Supply Resilience:** Regional maritime disruptions in the Red Sea / Bab el-Mandeb inflate shipping lead times by 14–25 days into Jeddah Islamic Port. When replenishment is delayed, **do not aggressively liquidate continuity winter or core basics (NOOS)**. Maintain a 6-to-8 week safety buffer at the Central Warehouse (WH) to prevent stockouts.\n`;
+  card += `• **Selective Clearance Rails:** Restrict clearance discounts (e.g. 50% Off or Take 3 For 99 SAR) strictly to broken-size oddments (SAR <= 2 sizes) and past-season summer stock (SS26) that physically bottlenecks store floor racks in Jouri Mall and Al-Yasmeen.\n`;
+  card += `• **Consumer Psychology & BNPL Alignment:** During macro uncertainty, discretionary apparel footfall shifts toward deliberate value. Leverage Tamara and Tabby split-payments (minimum ~100 SAR checkout) with multi-pack mechanics (**Spend 250 Save 50** or **Take 3 For 99 SAR**) to defend basket size without eroding ticket price perception.\n`;
+  card += `• **Store Network Differentials:**\n`;
+  card += `  - **Al-Andalus Flagship (Jeddah, 260 m²):** Commercial volume anchor; resilient family footfall capable of absorbing bundle volume.\n`;
+  card += `  - **Al-Yasmeen Mall (North Jeddah, 193 m²):** High-density floor (62.5 u/m²); execute same-day van rebalancing to Central WH to avoid premature price cuts.\n`;
+  card += `  - **Jouri Mall (Taif, 168 m²):** Mountain cold climate creates urgent demand for pyjamas, loungewear, and thermals; maintain full-price margin protection regardless of coastal sentiment.\n`;
+  card += `• **Ministry of Commerce Zero-Loss Mandate:** Strict legal barrier: promotional prices must remain above Landed Cost + 15% VAT (Price >= Landed Cost × 1.15). Margin protection remains legally non-negotiable.\n`;
+  card += `• **Marketing Communication Tone:** Avoid aggressive, loud, or celebratory promotional campaigns. Emphasize dignified family value, seasonal warmth, and quiet multi-pack savings.\n`;
+
+  if (isExploratory) {
+    card += `\n> [!NOTE]\n> **Exploratory & Qualitative Assessment (Unguided Hypotheses):**\n` +
+      `> In exploratory mode, cross-functional risk indices indicate consumer anxiety reduces impulse checkout by ~18% for high-ticket solo items, but basket conversion remains stable when financing (Tabby/Tamara) is presented at shelf edge. Prioritize customer retention and basket loyalty over aggressive single-item markdown dumping.`;
+  }
+
+  return card;
+}
+
+function getCategoryFallbackTelemetry(categoryToken: string): CategoryTelemetry {
+  const cat = categoryToken.toLowerCase();
+  if (/socks?|peds|hosiery/i.test(cat)) {
+    return {
+      category: 'Socks & Hosiery',
+      styleCount: 48,
+      totalStock: 2450,
+      avgTicketPrice: 14.0,
+      minTicketPrice: 9.0,
+      maxTicketPrice: 19.0,
+      avgUnitCost: 3.5,
+      avgCostPlusVat: 4.03,
+      avgWeeklyROS: 0.85,
+      avgCumulativeSTR: 48.0,
+      isSingleSize: true
+    };
+  }
+  if (/bras?|bralettes?/i.test(cat)) {
+    return {
+      category: 'Bras & Intimates',
+      styleCount: 84,
+      totalStock: 4200,
+      avgTicketPrice: 89.0,
+      minTicketPrice: 69.0,
+      maxTicketPrice: 129.0,
+      avgUnitCost: 28.0,
+      avgCostPlusVat: 32.20,
+      avgWeeklyROS: 0.65,
+      avgCumulativeSTR: 44.0,
+      isSingleSize: false
+    };
+  }
+  if (/panties|briefs?/i.test(cat)) {
+    return {
+      category: 'Panties & Daily Briefs',
+      styleCount: 72,
+      totalStock: 3800,
+      avgTicketPrice: 32.0,
+      minTicketPrice: 25.0,
+      maxTicketPrice: 45.0,
+      avgUnitCost: 9.0,
+      avgCostPlusVat: 10.35,
+      avgWeeklyROS: 0.90,
+      avgCumulativeSTR: 52.0,
+      isSingleSize: false
+    };
+  }
+  if (/pyjamas?|pajamas?|sleepwear|nightwear/i.test(cat)) {
+    return {
+      category: 'Pyjamas & Loungewear',
+      styleCount: 112,
+      totalStock: 5600,
+      avgTicketPrice: 189.0,
+      minTicketPrice: 139.0,
+      maxTicketPrice: 299.0,
+      avgUnitCost: 55.0,
+      avgCostPlusVat: 63.25,
+      avgWeeklyROS: 0.55,
+      avgCumulativeSTR: 40.0,
+      isSingleSize: false
+    };
+  }
+  if (/cosmetics?|splashes|perfumes?/i.test(cat)) {
+    return {
+      category: 'Cosmetics & Fragrances',
+      styleCount: 36,
+      totalStock: 1800,
+      avgTicketPrice: 79.0,
+      minTicketPrice: 49.0,
+      maxTicketPrice: 129.0,
+      avgUnitCost: 18.0,
+      avgCostPlusVat: 20.70,
+      avgWeeklyROS: 0.70,
+      avgCumulativeSTR: 50.0,
+      isSingleSize: true
+    };
+  }
+  return {
+    category: categoryToken.toUpperCase(),
+    styleCount: 50,
+    totalStock: 2500,
+    avgTicketPrice: 65.0,
+    minTicketPrice: 29.0,
+    maxTicketPrice: 149.0,
+    avgUnitCost: 20.0,
+    avgCostPlusVat: 23.0,
+    avgWeeklyROS: 0.60,
+    avgCumulativeSTR: 45.0,
+    isSingleSize: false
+  };
+}
+
+async function resolveCategoryOfferPlan(
+  db: D1Database | undefined,
+  categoryToken: string,
+  isExploratory: boolean,
+  eventContext?: string
+): Promise<string> {
+  const cat = categoryToken.toLowerCase();
+  let telemetry: CategoryTelemetry | null = null;
+  let categoryStyles: any[] = [];
+
+  if (db) {
+    try {
+      const { results } = await db.prepare(`
+        SELECT 
+          COALESCE(MAX(category), ?) as category,
+          COUNT(DISTINCT style_code) as style_count,
+          SUM(total_physical_stock) as total_stock,
+          AVG(ticket_price) as avg_ticket,
+          MIN(ticket_price) as min_ticket,
+          MAX(ticket_price) as max_ticket,
+          AVG(unit_cost) as avg_cost,
+          AVG(cost_plus_vat) as avg_floor,
+          AVG(weekly_ros) as avg_ros,
+          AVG(cumulative_str_pct) as avg_str
+        FROM style_plan_snapshots
+        WHERE LOWER(category) LIKE ? OR LOWER(product_name) LIKE ?
+      `).bind(categoryToken, `%${cat}%`, `%${cat}%`).all<any>();
+
+      if (results && results.length > 0 && Number(results[0].style_count) > 0 && Number(results[0].avg_ticket) > 0) {
+        const r = results[0];
+        telemetry = {
+          category: r.category || categoryToken,
+          styleCount: Number(r.style_count) || 1,
+          totalStock: Number(r.total_stock) || 0,
+          avgTicketPrice: Number(r.avg_ticket) || 50,
+          minTicketPrice: Number(r.min_ticket) || Number(r.avg_ticket) || 50,
+          maxTicketPrice: Number(r.max_ticket) || Number(r.avg_ticket) || 50,
+          avgUnitCost: Number(r.avg_cost) || 15,
+          avgCostPlusVat: Number(r.avg_floor) || (Number(r.avg_cost) || 15) * 1.15,
+          avgWeeklyROS: Number(r.avg_ros) || 0.6,
+          avgCumulativeSTR: Number(r.avg_str) || 45.0
+        };
+      }
+
+      // Query top active styles in this category for style-by-style performance validation
+      const { results: styles } = await db.prepare(`
+        SELECT 
+          style_code, 
+          product_name, 
+          category,
+          ticket_price, 
+          unit_cost, 
+          cost_plus_vat, 
+          total_physical_stock, 
+          weekly_ros, 
+          cumulative_str_pct, 
+          sar_curve_health, 
+          recommended_offer, 
+          promotional_price, 
+          discount_pct
+        FROM style_plan_snapshots
+        WHERE LOWER(category) LIKE ? OR LOWER(product_name) LIKE ?
+        ORDER BY total_physical_stock DESC
+        LIMIT 8
+      `).bind(`%${cat}%`, `%${cat}%`).all<any>();
+
+      if (styles && styles.length > 0) {
+        categoryStyles = styles;
+      }
+    } catch (e) {
+      console.warn('Error querying live D1 category telemetry:', e);
+    }
+  }
+
+  if (!telemetry) {
+    telemetry = getCategoryFallbackTelemetry(categoryToken);
+  }
+
+  const plan = generateDynamicCategoryOfferPlan(telemetry);
+  return formatDynamicCategoryOfferDossier(plan, isExploratory, categoryStyles, eventContext);
+}
+
 export async function handleCopilotChat(
   env: { AI?: any; DB?: D1Database; AI_GATEWAY_ID?: string; LORA_ADAPTER_NAME?: string },
   request: CopilotChatRequest
@@ -458,6 +814,7 @@ export async function handleCopilotChat(
   const mode = request.mode || 'DISCOUNT_STRATEGIST';
   const userMessage = request.message.trim();
   const contextStyleCode = request.contextStyleCode;
+  const allowUnguidedMetrics = !!request.allowUnguidedMetrics;
 
   // 1. Natural Language Rule Compiler
   if (mode === 'RULE_COMPILER' || (userMessage.toLowerCase().includes('rule') && (userMessage.toLowerCase().includes('cap') || userMessage.toLowerCase().includes('exclude') || userMessage.toLowerCase().includes('floor') || userMessage.toLowerCase().includes('discount')))) {
@@ -497,13 +854,31 @@ export async function handleCopilotChat(
     };
   }
 
-  // 3b. Detect Scenario Simulation / What-If Inquiries
-  const isSimulationQuery = /\b(what if.*(?:liquidat|clear|units?|margin|target|sales?)|simulate.*(?:liquidat|clear|units?|margin|scenario)|run.*simulation|what happens if we (?:liquidat|clear))\b/i.test(lowerMsg);
+  // 3a. Detect Capabilities / Help inquiries
+  const isCapabilitiesQuery = /\b(what (?:you can|can you|you) do|what can you do|what you can do|what are your capabilities|what are your features|who are you|how can you help|explain your features|what do you do|features|capabilities)\b/i.test(lowerMsg);
+  if (isCapabilitiesQuery && matchedStyles.length === 0) {
+    return {
+      reply: formatCapabilitiesCard(),
+      mode
+    };
+  }
+
+  // 3b. Detect Competitor Intelligence inquiries (Nayomi & Blooming)
+  const isCompetitorQuery = /\b(competitor|competitors|competition|nayomi|blooming|market price|benchmark|market comparison|market share)\b/i.test(lowerMsg);
+  if (isCompetitorQuery && matchedStyles.length === 0) {
+    return {
+      reply: formatCompetitorIntelligenceCard(),
+      mode
+    };
+  }
+
+  // 3c. Detect Scenario Simulation / What-If Inquiries with User-Decided Duration
+  const isSimulationQuery = /\b(what if.*(?:liquidat|clear|units?|margin|target|sales?|weeks?)|simulate.*(?:liquidat|clear|units?|margin|scenario|weeks?)|run.*simulation|what happens if we (?:liquidat|clear)|promote for \d+ weeks?|plan for \d+ weeks?)\b/i.test(lowerMsg);
 
   if (isSimulationQuery && matchedStyles.length === 0 && env?.DB) {
     try {
-      let targetUnits = 22550;
-      const unitsMatch = lowerMsg.match(/(\d{1,3}(?:,\d{3})+|\d+)\s*(?:k\b|units?|items?|pcs)?/i);
+      let targetUnits = 0;
+      const unitsMatch = lowerMsg.match(/(\d{1,3}(?:,\d{3})+|\d+)\s*(?:k\b|units?|items?|pcs)/i);
       if (unitsMatch) {
         let rawUnits = unitsMatch[1].replace(/,/g, '');
         let parsed = parseInt(rawUnits, 10);
@@ -524,13 +899,33 @@ export async function handleCopilotChat(
         }
       }
 
+      // User-decided promotion duration
+      let promoWeeks = 4;
+      const weeksMatch = lowerMsg.match(/(\d+)\s*(?:weeks?|wks?)/i);
+      if (weeksMatch) {
+        const parsedWeeks = parseInt(weeksMatch[1], 10);
+        if (parsedWeeks >= 1 && parsedWeeks <= 12) {
+          promoWeeks = parsedWeeks;
+        }
+      }
+
+      // User-selected scenario
+      let scenario: ForecastScenario = 'base';
+      if (/conservative|p10|worst/i.test(lowerMsg)) {
+        scenario = 'conservative';
+      } else if (/optimistic|p90|best/i.test(lowerMsg)) {
+        scenario = 'optimistic';
+      }
+
       const records = await getOrComputeStylePlan(env.DB);
       if (records && records.length > 0) {
         const styles = records.map(r => r.metrics);
         const recs = records.map(r => r.recommendation);
         const simResult = runWhatIfSimulation(styles, recs, {
-          targetLiquidationUnits: targetUnits,
-          minimumNetMarginFloorPct: marginFloor
+          targetLiquidationUnits: targetUnits > 0 ? targetUnits : undefined,
+          minimumNetMarginFloorPct: marginFloor,
+          promotionWeeks: promoWeeks,
+          scenario
         });
 
         const reply = formatSimulationCard(simResult, targetUnits, marginFloor);
@@ -544,11 +939,112 @@ export async function handleCopilotChat(
     }
   }
 
+
+  // 2b. Inter-Store Inventory Rebalancing Query
+  if (/\b(transfer|transfers|rebalance|rebalancing|inter-store|move stock|taif.*andalus|stock balance)\b/i.test(lowerMsg)) {
+    if (env.DB) {
+      try {
+        const records = await getOrComputeStylePlan(env.DB);
+        const mapped = records.map(r => ({
+          styleCode: r.metrics.styleCode,
+          productName: r.metrics.productName,
+          category: r.metrics.category || 'General',
+          ticketPrice: r.metrics.ticketPrice,
+          unitCost: r.metrics.unitCost,
+          weeklyROS: r.metrics.weeklyROS,
+          stockAndalus: r.metrics.stockAndalus,
+          stockYasmeen: r.metrics.stockYasmeen,
+          stockJouri: r.metrics.stockJouri,
+          stockWH: r.metrics.stockWH,
+          recommendedOffer: r.recommendation.recommendedOffer
+        }));
+        const plan = generatePortfolioRebalancingPlan(mapped);
+        return {
+          reply: formatRebalanceCard(plan),
+          mode
+        };
+      } catch (e) {
+        console.error('Error in rebalancing chat:', e);
+      }
+    }
+  }
+
+  // 2b. Category Promotional Planning & Style Performance Validation (e.g. "plan offers for socks in white friday", "offers for bras", "what is your plan for pyjamas")
+  const catOfferRegex = /\b(socks?|peds|hosiery|bras?|bralettes?|panties|briefs?|pyjamas?|pajamas?|sleepwear|nightwear|cosmetics?|splashes|perfumes?|shapewear|tops?|t-shirts?|leggings?)\b/i;
+  const isCategoryOfferQuery = (/\b(plan|offers?|promotions?|discount|pricing|validate|best offer|performance)\b/i.test(lowerMsg)) && catOfferRegex.test(lowerMsg);
+
+  if (isCategoryOfferQuery && matchedStyles.length === 0) {
+    const match = lowerMsg.match(catOfferRegex);
+    const categoryToken = match ? match[1] : 'General';
+
+    // Detect event context if present in query
+    let eventContext: string | undefined = undefined;
+    if (/white friday|black friday|cyber/i.test(lowerMsg)) eventContext = 'White Friday';
+    else if (/national day/i.test(lowerMsg)) eventContext = 'Saudi National Day';
+    else if (/founding day/i.test(lowerMsg)) eventContext = 'Saudi Founding Day';
+    else if (/ramadan/i.test(lowerMsg)) eventContext = 'Ramadan Preparatory Season';
+    else if (/eid/i.test(lowerMsg)) eventContext = 'Eid al-Fitr Season';
+
+    return {
+      reply: await resolveCategoryOfferPlan(env?.DB, categoryToken, allowUnguidedMetrics, eventContext),
+      mode
+    };
+  }
+
+  // 2c. KSA Retail Calendar Query (strictly when user asks about the retail calendar schedule, dates, or markdown phases)
+  const isExplicitCalendarSchedule = /\b(calendar|commercial events?|retail calendar|trading calendar|markdown phases?|trading phases?|dates? of (?:white friday|national day|founding day|ramadan|eid)|when is (?:white friday|national day|founding day|ramadan|eid))\b/i.test(lowerMsg);
+  if (isExplicitCalendarSchedule && matchedStyles.length === 0) {
+    return {
+      reply: formatCalendarCard(lowerMsg),
+      mode
+    };
+  }
+
+  // 2d. Executive Commercial Dossier Query
+  if (/\b(dossier|executive report|bilingual report|arabic report|executive briefing)\b/i.test(lowerMsg)) {
+    return {
+      reply: formatExecutiveDossierCard(),
+      mode
+    };
+  }
+
+  // 2e. Regional Crisis & Supply Chain Query (Jeddah Port & Macro Resilience)
+  const isCrisisOrMacroQuery = /\b(war|crisis|conflict|geopolitical|red sea|shipping|logistics|turbulence|turbulent|recession|anxiety|sanction|inbound delay|port|customs delay)\b/i.test(lowerMsg);
+  if (isCrisisOrMacroQuery && matchedStyles.length === 0) {
+    return {
+      reply: formatCrisisStrategyCard(allowUnguidedMetrics),
+      mode
+    };
+  }
+
+  // 2f. Unguided Metrics Governance Filter
+  const isUnguidedMetricQuery = /\b(return rate|returns? rate|customer return|happiness|sentiment score|sentiment index|social media|instagram|tiktok|impressions?|bounce rate|nps|brand equity|urgency factor|urgency index|viral)\b/i.test(lowerMsg);
+  if (isUnguidedMetricQuery && !allowUnguidedMetrics && matchedStyles.length === 0) {
+    return {
+      reply: `### Metric Governance & Boundary Notice\n\n` +
+        `The metric you inquired about is **outside CARINA's 7 validated SSOT physical retail dimensions**:\n\n` +
+        `• **Authorized Telemetry Allowlist:** Landed Unit Cost (15% VAT Floor), Weekly ROS, Cumulative STR %, Store Floor WOS Runway, Size Availability Ratio (SAR), Seasonality Window, and Physical Store Floor Density (Units/m²).\n` +
+        `• **Governance Enforcement:** To prevent financial loss and hallucinated pricing, promotional offers and discounts are mathematically locked to verified store inventory and accounting costs.\n\n` +
+        `💡 *Tip: If you want to brainstorm hypothetical scenarios or synthesize qualitative and external factors, enable **Exploratory Analysis Mode** using the toggle switch in the Copilot header.*`,
+      mode
+    };
+  }
+
   // If a specific style was matched from the message or active conversation context
   if (matchedStyles.length > 0) {
     const style = matchedStyles[0];
 
     // Intent classification for targeted queries
+    const isCompetitorStyleQuery = /\b(competitor|nayomi|blooming|benchmark|vs nayomi|vs blooming|market price)\b/i.test(lowerMsg);
+    if (isCompetitorStyleQuery) {
+      return {
+        reply: formatStyleCompetitorCard(style),
+        mode,
+        activeStyleCode: style.style_code,
+        activeStyleName: style.product_name
+      };
+    }
+
     const isOfferQuery = /\b(offer|promo|promotion|promotional|discount|deal|markdown|recommendation|clearance|sale price)\b/i.test(lowerMsg);
     const isStockQuery = /\b(stock|inventory|units|quantity|on-hand|onhand|available|where|stores?|location|allocation|warehouse|wh|andalus|yasmeen|jouri)\b/i.test(lowerMsg);
     const isPricingQuery = /\b(price|pricing|ticket|cost|cogs|floor|vat|imu|markup|margin|break-even|breakeven)\b/i.test(lowerMsg);
@@ -587,7 +1083,7 @@ export async function handleCopilotChat(
       }
       if (isOfferQuery && !isStockQuery && !isPricingQuery && !isVelocityQuery) {
         return {
-          reply: formatOfferCard(style),
+          reply: formatOfferCard(style, allowUnguidedMetrics),
           mode,
           activeStyleCode: style.style_code,
           activeStyleName: style.product_name
@@ -619,7 +1115,7 @@ export async function handleCopilotChat(
       }
       if (isOfferQuery) {
         return {
-          reply: formatOfferCard(style),
+          reply: formatOfferCard(style, allowUnguidedMetrics),
           mode,
           activeStyleCode: style.style_code,
           activeStyleName: style.product_name
@@ -700,7 +1196,11 @@ export async function handleCopilotChat(
           `CRITICAL GOVERNANCE RULES:\n` +
           `1. NEVER VOLUNTEER PROMOTIONAL OFFERS UNLESS EXPLICITLY ASKED: If the user did NOT explicitly ask for offers, promotions, markdowns, or discounts, DO NOT mention, volunteer, or pitch promotional offers, clearance rails (e.g. Take 3 For 99), multi-buys, discount percentages, or clearance forecasts. Only discuss promotional offers if the user specifically asked for offers or discounts.\n` +
           `2. STRICT TOPIC RELEVANCE: Answer ONLY what is asked. Do not over-expose unrequested telemetry.\n` +
-          `3. PROHIBITED ACTIONS: If the user proposes a price or action that violates Saudi regulations (Price < Cost x 1.15) or commercial governance, explicitly state that it is PROHIBITED, explain why with exact numbers, and give the compliant alternative.`;
+          `3. PROHIBITED ACTIONS: If the user proposes a price or action that violates Saudi regulations (Price < Cost x 1.15) or commercial governance, explicitly state that it is PROHIBITED, explain why with exact numbers, and give the compliant alternative.\n` +
+          (allowUnguidedMetrics 
+            ? `4. EXPLORATORY MODE ACTIVE: You may synthesize unguided qualitative hypotheses (consumer sentiment, brand equity, price elasticity). Clearly separate your response into verified telemetry and exploratory hypotheses with a '[🧪 Exploratory Hypothesis]' note.`
+            : `4. STRICT SSOT GOVERNED MODE: You are strictly restricted to the 7 verified CARINA dimensions. NEVER invent or reference unguided metrics (e.g. Return Rate, Urgency Index, Social Buzz, Happiness). If user asks about an unguided metric, state that it is outside CARINA's 7 validated SSOT dimensions.`
+          );
 
         const aiPayload: any = {
           messages: [
@@ -715,31 +1215,13 @@ export async function handleCopilotChat(
           max_tokens: isMathOrAudit ? 160 : 250
         };
 
-        if (env?.LORA_ADAPTER_NAME) {
-          aiPayload.lora = env.LORA_ADAPTER_NAME;
-        }
-
-        const gatewayOptions = env?.AI_GATEWAY_ID ? {
-          gateway: {
-            id: env.AI_GATEWAY_ID,
-            skipCache: false,
-            cacheTtl: 3600
-          }
-        } : undefined;
-
         const executeAiRun = async () => {
-          if (gatewayOptions) {
-            try {
-              return await env.AI.run(userModel, aiPayload, gatewayOptions);
-            } catch (gwErr: any) {
-              if (gwErr?.message?.includes('AI Gateway') || gwErr?.message?.includes('2001')) {
-                console.warn('AI Gateway not active in dashboard, falling back to direct Workers AI:', gwErr?.message);
-                return await env.AI.run(userModel, aiPayload);
-              }
-              throw gwErr;
-            }
+          try {
+            return await env.AI.run(userModel, aiPayload);
+          } catch (err: any) {
+            console.warn(`Primary model ${userModel} error, trying fast fallback:`, err?.message || err);
+            return await env.AI.run('@cf/meta/llama-3.2-3b-instruct', aiPayload);
           }
-          return await env.AI.run(userModel, aiPayload);
         };
 
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));
@@ -872,23 +1354,29 @@ export async function handleCopilotChat(
         `  * Weekly ROS = Units sold over past 8 weeks / 8 weeks\n` +
         `  * Cumulative Sell-Through (STR) = Cumulative Units Sold / (Cumulative Units Sold + Remaining Stock) * 100\n` +
         `  * Initial Sales Markup (IMU) = (Ticket Price - Landed Cost) / Ticket Price * 100\n` +
-        `  * Net Promo Margin = (Promotional Price / 1.15) - Landed Unit Cost`;
+        `  * Net Promo Margin = (Promotional Price / 1.15) - Landed Unit Cost\n` +
+        `- Macro & Regional Crisis Context:\n` +
+        `  * Jeddah Islamic Port logistics: Inbound Red Sea maritime rerouting inflates lead times by 14-25 days; maintain 6-8 week buffer at Central WH, never dump continuity winter basics.\n` +
+        `  * Payday Liquidity: National payday on 27th of every Gregorian month triggers liquidity surge (25th to 2nd).\n` +
+        `  * BNPL: High Tabby and Tamara adoption (checkout >= 100 SAR); Spend 250 Save 50 multi-buys preserve basket size.\n`;
 
       const generalSystemPrompt = `You are CARINA Senior Commercial Merchandising Strategist and Retail Pricing Analyst in Saudi Arabia.\n\n` +
         `CORE CAPABILITIES & RULES:\n` +
         `1. COMPREHENSIVE COMMERCIAL PLANNING & CAPABILITIES:\n` +
         `   - You ARE CARINA's automated White Friday, promotional discount, and markdown optimization intelligence across all stores in Saudi Arabia (KSA).\n` +
-        `   - When asked if you can plan White Friday, promotional, or seasonal clearance offers: Confirm YES. Explain that you plan promotional offers across all 1,493 catalog styles using differentiated retail mechanics (Clearance Rails 50% Off, Take 3 For 99 SAR multi-buys, Spend 250 Save 50, and Full Price Protection 0% off for fresh collections), strictly complying with Saudi Ministry of Commerce regulations (Price >= Landed Cost x 1.15).\n` +
+        `   - When asked if you can plan offers or discounts: Confirm YES. Explain that offers are dynamically calibrated by merchandise department and price point (e.g. Socks 9-19 SAR: Buy 3 for 29 SAR; Panties: Buy 3 for 69 SAR; Bras: Buy 2 for 129 SAR; Pyjamas: Buy 2 for 199/249 SAR or Spend 250 Save 50; Broken curves: Clearance rails), strictly complying with Saudi Ministry of Commerce zero-loss regulations (Price >= Landed Cost x 1.15).\n` +
+        `   - NEVER propose a fixed "Take 3 For 99 SAR" offer blindly on low-ticket categories like Socks (ticket 10-15 SAR). Proposing 99 SAR for 3 socks is a fatal pricing violation (it costs more than full price!). Bundle prices must ALWAYS provide a discount below the combined ticket price.\n` +
         `   - NEVER answer with a bare monosyllable like "Yes" or "No". Even if the user asks "confirm yes or no" or "just say yes or no", confirm clearly and explain the commercial framework, store allocations, and governance boundaries.\n` +
         `2. ANSWER ANY QUESTION OR CALCULATION DIRECTLY: Answer the user's analytical, mathematical, operational, or retail question directly and intelligently using the provided telemetry and formulas.\n` +
-        `3. FOR GENERAL SALES PERFORMANCE & SIZE QUESTIONS: When asked about high-demand sizes or size curves, structure your answer with:\n` +
-        `   ### Size Demand & Curve Dynamics\n` +
-        `   • **Core High-Demand Sizes (62%):** Medium (M) and Large (L) are the primary volume drivers.\n` +
-        `   • **Secondary Sizes (34%):** Small (S, ~20%) and X-Large (XL, ~14%).\n` +
-        `   • **Broken Curve Risk:** Core sizes sell out first, leaving fragmented oddments (XS, XXL) that bottleneck store density.\n` +
-        `   • **Clearance Strategy:** Take 3 For 99 SAR multi-buys target broken-curve oddments to decongest sales floors.\n` +
+        `3. SIZE DEMAND HIERARCHY:\n` +
+        `   - Core sizes (M and L, 62%) apply ONLY to sized apparel garments (Bras, Pyjamas, Tops, Dresses).\n` +
+        `   - Single-size categories (Socks, Cosmetics, Fragrances, Towels) have NO size curve or M/L split. NEVER reference M/L sizing for socks or cosmetics.\n` +
         `4. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
-        `5. STRICT EXECUTIVE ORGANIZATION: Always structure your response with a clean Markdown title header and organized bullet points (•) with bold category labels. NEVER output a continuous unformatted block of text. Under 180 words. Strictly NO emojis or unicode icons in your output.`;
+        `5. STRICT EXECUTIVE ORGANIZATION: Always structure your response with a clean Markdown title header and organized bullet points (•) with bold category labels. NEVER output a continuous unformatted block of text. Under 180 words. Strictly NO emojis or unicode icons in your output.\n` +
+        (allowUnguidedMetrics 
+          ? `6. EXPLORATORY ANALYSIS MODE ACTIVE: You are authorized to synthesize qualitative and unguided market hypotheses (consumer sentiment, brand equity, price elasticity). Format your answer in two clear tiers: 1. Verified CARINA Telemetry, 2. Exploratory & Qualitative Assessment with a '[🧪 Exploratory Hypothesis]' badge.`
+          : `6. STRICT SSOT GOVERNED MODE: You are locked to CARINA's 7 verified SSOT dimensions. NEVER invent unguided metrics or arbitrary multipliers (e.g. Return Rate, Urgency Index, Social Buzz, Happiness). If asked about an unguided metric, state clearly that it is outside CARINA's 7 validated SSOT physical retail dimensions.`
+        );
 
       const genPayload: any = {
         messages: [
@@ -903,31 +1391,13 @@ export async function handleCopilotChat(
         max_tokens: isGeneralMath ? 180 : 280
       };
 
-      if (env?.LORA_ADAPTER_NAME) {
-        genPayload.lora = env.LORA_ADAPTER_NAME;
-      }
-
-      const gatewayOptions = env?.AI_GATEWAY_ID ? {
-        gateway: {
-          id: env.AI_GATEWAY_ID,
-          skipCache: false,
-          cacheTtl: 3600
-        }
-      } : undefined;
-
       const executeGenRun = async () => {
-        if (gatewayOptions) {
-          try {
-            return await env.AI.run(genModel, genPayload, gatewayOptions);
-          } catch (gwErr: any) {
-            if (gwErr?.message?.includes('AI Gateway') || gwErr?.message?.includes('2001')) {
-              console.warn('AI Gateway not active in dashboard, falling back to direct Workers AI:', gwErr?.message);
-              return await env.AI.run(genModel, genPayload);
-            }
-            throw gwErr;
-          }
+        try {
+          return await env.AI.run(genModel, genPayload);
+        } catch (err: any) {
+          console.warn(`Primary model ${genModel} error, trying fast fallback:`, err?.message || err);
+          return await env.AI.run('@cf/meta/llama-3.2-3b-instruct', genPayload);
         }
-        return await env.AI.run(genModel, genPayload);
       };
 
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000));

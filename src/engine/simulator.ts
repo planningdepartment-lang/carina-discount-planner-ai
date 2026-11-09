@@ -1,12 +1,20 @@
 import { StyleMetrics, RecommendationResult } from './lifecycleClassifier';
 import { STORE_SPACES } from '../config/constants';
+import { 
+  computeStyleStatisticalForecast, 
+  ForecastScenario 
+} from './statisticalForecaster';
 
 export interface SimulationParams {
   targetLiquidationUnits?: number;    // e.g. 20000
   minimumNetMarginFloorPct?: number;  // e.g. 48.0
+  promotionWeeks?: number;            // User-controlled promotion duration (1 to 8 weeks, default 4)
+  scenario?: ForecastScenario;        // 'conservative' | 'base' | 'optimistic'
 }
 
 export interface SimulationResult {
+  promotionWeeks: number;
+  scenario: ForecastScenario;
   projectedGrossRevenue: number;
   projectedNetRevenue: number;
   projectedCOGS: number;
@@ -32,15 +40,18 @@ export interface SimulationResult {
 }
 
 /**
- * Real-Time What-If Inventory Liquidation Simulator
- * Evaluates the impact of target liquidation volumes and minimum net margin floors
- * on cash generation, margin retention, and store physics.
+ * Real-Time What-If Statistical Inventory Liquidation Simulator
+ * Uses empirical velocity, log-log elasticity, broken-size walkout penalties,
+ * competitor substitution drag, and user-selected promotional duration.
  */
 export function runWhatIfSimulation(
   styles: StyleMetrics[],
   recommendations: RecommendationResult[],
   params?: SimulationParams
 ): SimulationResult {
+  const promotionWeeks = Math.max(1, Math.min(12, params?.promotionWeeks ?? 4));
+  const scenario = params?.scenario ?? 'base';
+
   let totalSold = 0;
   let totalGrossRev = 0;
   let totalNetRev = 0;
@@ -55,28 +66,39 @@ export function runWhatIfSimulation(
   let yasmeenSold = 0;
   let jouriSold = 0;
 
-  // 1. Global scale factor if user requested a specific liquidation volume target
+  // 1. Compute statistical baseline sales across catalog over the user's chosen promotion period
+  const statForecasts = styles.map((s, idx) => {
+    const r = recommendations[idx] || {
+      expectedClearancePct: 25,
+      promotionalPriceSAR: s.ticketPrice * 0.8
+    };
+    return computeStyleStatisticalForecast(s, r, {
+      promotionWeeks,
+      scenario,
+      applyCompetitorDrag: true
+    });
+  });
+
+  // 2. Global scale factor if user requested a specific liquidation volume target
   let globalClearanceScale = 1.0;
   if (params?.targetLiquidationUnits && params.targetLiquidationUnits > 0) {
-    let baselineForecastSold = 0;
-    for (let i = 0; i < styles.length; i++) {
-      baselineForecastSold += Math.round(styles[i].totalPhysicalStock * ((recommendations[i]?.expectedClearancePct || 35) / 100));
-    }
-    if (baselineForecastSold > 0) {
-      globalClearanceScale = params.targetLiquidationUnits / baselineForecastSold;
+    const baselineStatUnits = statForecasts.reduce((sum, f) => sum + f.forecastSoldUnits, 0);
+    if (baselineStatUnits > 0) {
+      globalClearanceScale = params.targetLiquidationUnits / baselineStatUnits;
     }
   }
 
-  // 2. Minimum Realized Net Margin Floor constraint (Hurdle Rate)
+  // 3. Minimum Realized Net Margin Floor constraint (Hurdle Rate)
   const marginFloorPct = params?.minimumNetMarginFloorPct ?? 48.0;
   const marginFloorRatio = Math.min(0.85, Math.max(0.10, marginFloorPct / 100));
 
   for (let i = 0; i < styles.length; i++) {
     const s = styles[i];
     const r = recommendations[i] || {
-      expectedClearancePct: 35,
+      expectedClearancePct: 25,
       promotionalPriceSAR: s.ticketPrice * 0.8
     };
+    const f = statForecasts[i];
 
     totalStartingStock += (s.totalPhysicalStock || 0);
     andalusStartingStock += (s.stockAndalus || 0);
@@ -88,17 +110,12 @@ export function runWhatIfSimulation(
     let elasticityDampener = 1.0;
 
     // Enforce Net Margin Floor: Net Revenue ex-VAT must satisfy (NetRev - Cost) / NetRev >= marginFloorRatio
-    // => NetRev >= Cost / (1 - marginFloorRatio)
-    // => PromoPrice (incl. 15% VAT) >= (Cost / (1 - marginFloorRatio)) * 1.15
     if (s.unitCost > 0 && marginFloorRatio > 0 && marginFloorRatio < 1.0) {
       const minNetPriceExVat = s.unitCost / (1 - marginFloorRatio);
       const minPromoPriceInclVat = Math.round(minNetPriceExVat * 1.15 * 100) / 100;
 
       if (basePromoPrice < minPromoPriceInclVat) {
-        // Price must be elevated to satisfy the executive net margin hurdle rate
         simPromoPrice = Math.min(s.ticketPrice, minPromoPriceInclVat);
-
-        // Shallower discount dampens clearance velocity
         const baseDiscount = s.ticketPrice > 0 ? Math.max(0, 1 - (basePromoPrice / s.ticketPrice)) : 0;
         const constrainedDiscount = s.ticketPrice > 0 ? Math.max(0, 1 - (simPromoPrice / s.ticketPrice)) : 0;
 
@@ -110,13 +127,12 @@ export function runWhatIfSimulation(
       }
     }
 
-    // Calculate scaled clearance units incorporating volume scaling and margin-floor elasticity
-    const baseClearance = r.expectedClearancePct || 35;
-    const scaledRate = Math.min(0.95, (baseClearance / 100) * globalClearanceScale * elasticityDampener);
-    const styleUnitsSold = Math.round((s.totalPhysicalStock || 0) * scaledRate);
+    // Scaled units sold based on statistical model, target liquidation multiplier, and elasticity dampener
+    const scaledUnits = Math.round(f.forecastSoldUnits * globalClearanceScale * elasticityDampener);
+    const styleUnitsSold = Math.min(s.totalPhysicalStock || 0, Math.max(0, scaledUnits));
 
     const grossRev = styleUnitsSold * simPromoPrice;
-    const netRev = grossRev / 1.15;
+    const netRev = grossRev / 1.15; // 15% VAT ex-tax
     const cogs = styleUnitsSold * (s.unitCost || 0);
 
     totalSold += styleUnitsSold;
@@ -125,9 +141,10 @@ export function runWhatIfSimulation(
     totalCOGS += cogs;
 
     // Distribute store-level clearance proportional to on-hand inventory
-    andalusSold += Math.round((s.stockAndalus || 0) * scaledRate);
-    yasmeenSold += Math.round((s.stockYasmeen || 0) * scaledRate);
-    jouriSold += Math.round((s.stockJouri || 0) * scaledRate);
+    const clearanceRatio = (s.totalPhysicalStock || 0) > 0 ? styleUnitsSold / s.totalPhysicalStock : 0;
+    andalusSold += Math.round((s.stockAndalus || 0) * clearanceRatio);
+    yasmeenSold += Math.round((s.stockYasmeen || 0) * clearanceRatio);
+    jouriSold += Math.round((s.stockJouri || 0) * clearanceRatio);
   }
 
   const grossProfit = totalNetRev - totalCOGS;
@@ -141,6 +158,8 @@ export function runWhatIfSimulation(
   const jouriStatus = jouriDensity <= 40 ? 'Clean' : (jouriDensity <= 55 ? 'Manageable' : 'Bottleneck');
 
   return {
+    promotionWeeks,
+    scenario,
     projectedGrossRevenue: Math.round(totalGrossRev) || 0,
     projectedNetRevenue: Math.round(totalNetRev) || 0,
     projectedCOGS: Math.round(totalCOGS) || 0,

@@ -13,6 +13,9 @@ import {
 } from './api/retrainingController';
 import { handleGatewayValidation } from './api/gatewayController';
 import { handleCampaignBriefing } from './api/reportController';
+import { handleGetCompetitorsSummary } from './api/competitorController';
+import { handleGetStoreRebalance } from './api/rebalancingController';
+import { handleGetExecutiveDossier, handleGetKsaCalendarEvents } from './api/dossierController';
 import { handleLogin, handleLogout, handleMe } from './api/authController';
 import { parseCookies, validateAdminSession, COOKIE_NAME } from './auth/adminAuth';
 
@@ -93,7 +96,7 @@ export default {
       }
 
       if (pathname === '/api/test-ai') {
-        const m = url.searchParams.get('model') || '@cf/meta/llama-3.1-8b-instruct';
+        const m = url.searchParams.get('model') || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
         try {
           const res = await env.AI.run(m, {
             messages: [{ role: 'user', content: 'Say hello in 3 words' }]
@@ -146,6 +149,26 @@ export default {
       // 8b. Universal Campaign & Executive Briefing API
       if (pathname === '/api/reports/campaign-briefing' && request.method === 'GET') {
         return await handleCampaignBriefing(request, env, corsHeaders);
+      }
+
+      // 8c. Autonomous Competitor Intelligence API (Nayomi & Blooming)
+      if (pathname === '/api/competitors/summary' && request.method === 'GET') {
+        return await handleGetCompetitorsSummary(request, env, corsHeaders);
+      }
+
+      // 8d. Inter-Store Inventory Rebalancing API (Transfer vs Markdown Optimizer)
+      if (pathname === '/api/stores/rebalance' && request.method === 'GET') {
+        return await handleGetStoreRebalance(request, env, corsHeaders);
+      }
+
+      // 8e. Dual-Language Arabic / English Executive Commercial Dossier API
+      if (pathname === '/api/reports/dossier' && request.method === 'GET') {
+        return await handleGetExecutiveDossier(request, env, corsHeaders);
+      }
+
+      // 8f. Autonomous KSA Commercial Retail Calendar & Markdown Phase Engine API
+      if (pathname === '/api/calendar/events' && request.method === 'GET') {
+        return await handleGetKsaCalendarEvents(request, env, corsHeaders);
       }
 
       // 9. Static Assets & Dashboard UI Gatekeeper

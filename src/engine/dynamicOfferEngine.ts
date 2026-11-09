@@ -177,3 +177,68 @@ export function computeDynamicBundle2(metrics: DynamicOfferMetrics): DynamicBund
     railCostCeilingSAR
   };
 }
+
+
+export interface EvaluatedOfferDecision {
+  styleCode: string;
+  productName: string;
+  ticketPrice: number;
+  unitCost: number;
+  costPlusVat: number;
+  zeroLossFloorSAR: number;
+  recommendedPriceSAR: number;
+  discountPct: number;
+  netMarginSAR: number;
+  netMarginPct: number;
+  isZeroLossCompliant: boolean;
+  expectedClearancePct: number;
+  forecastSoldUnits: number;
+  forecastNetProfitSAR: number;
+  posTag: string;
+}
+
+/**
+ * Deterministically evaluates the unit economics and commercial feasibility of a style offer
+ */
+export function evaluateOfferDecision(
+  metrics: DynamicOfferMetrics,
+  targetDiscountPct?: number
+): EvaluatedOfferDecision {
+  const costPlusVat = calculateZeroLossFloor(metrics.unitCost);
+  const discount = targetDiscountPct !== undefined ? targetDiscountPct : (metrics.storeFloorWOS > 35 ? 35 : 20);
+  const rawPromoPrice = metrics.ticketPrice * (1 - (discount / 100));
+  const safePromoPrice = Math.max(costPlusVat, Math.round(rawPromoPrice * 100) / 100);
+  const actualDiscountPct = metrics.ticketPrice > 0 
+    ? Math.round((1 - (safePromoPrice / metrics.ticketPrice)) * 100) 
+    : 0;
+
+  const netRevenue = safePromoPrice / 1.15;
+  const netMarginSAR = Math.round((netRevenue - metrics.unitCost) * 100) / 100;
+  const netMarginPct = netRevenue > 0 ? Math.round((netMarginSAR / netRevenue) * 1000) / 10 : 0;
+
+  const clearanceRate = actualDiscountPct >= 40 ? 0.50 : (actualDiscountPct >= 20 ? 0.35 : 0.20);
+  const forecastSold = Math.round(metrics.totalPhysicalStock * clearanceRate);
+  const forecastProfit = Math.round(forecastSold * netMarginSAR);
+
+  const posTag = actualDiscountPct > 0 
+    ? `RULE_${actualDiscountPct}PCT_${metrics.styleCode}` 
+    : `RULE_FULLPRICE_${metrics.styleCode}`;
+
+  return {
+    styleCode: metrics.styleCode,
+    productName: metrics.productName,
+    ticketPrice: metrics.ticketPrice,
+    unitCost: metrics.unitCost,
+    costPlusVat,
+    zeroLossFloorSAR: costPlusVat,
+    recommendedPriceSAR: safePromoPrice,
+    discountPct: actualDiscountPct,
+    netMarginSAR,
+    netMarginPct,
+    isZeroLossCompliant: safePromoPrice >= (costPlusVat - 0.01),
+    expectedClearancePct: Math.round(clearanceRate * 100),
+    forecastSoldUnits: forecastSold,
+    forecastNetProfitSAR: forecastProfit,
+    posTag
+  };
+}

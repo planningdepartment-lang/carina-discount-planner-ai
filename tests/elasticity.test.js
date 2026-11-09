@@ -34,10 +34,25 @@ function computeStyleElasticityCurve(
   if (cumulativeSTR < 30) priceElasticityCoeff = 2.1;
   else if (cumulativeSTR > 65) priceElasticityCoeff = 1.1;
 
-  const historicalAspEstimate = (historicalRealizedPrice && historicalRealizedPrice > 0)
-    ? historicalRealizedPrice
-    : (cumulativeSTR > 50 ? ticketPrice * 0.94 : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72));
-  const historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+  let historicalAspEstimate;
+  let historicalDiscountDepth;
+  let hasHistoricalSales = false;
+
+  if (historicalRealizedPrice && historicalRealizedPrice > 0) {
+    historicalAspEstimate = historicalRealizedPrice;
+    historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+    hasHistoricalSales = true;
+  } else if (cumulativeSTR > 0) {
+    historicalAspEstimate = cumulativeSTR > 50 
+      ? ticketPrice * 0.94 
+      : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72);
+    historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+    hasHistoricalSales = true;
+  } else {
+    historicalAspEstimate = ticketPrice;
+    historicalDiscountDepth = 0;
+    hasHistoricalSales = false;
+  }
 
   const tiers = [];
   let maxProfit = -Infinity;
@@ -99,7 +114,8 @@ function computeStyleElasticityCurve(
       sizeFulfillmentLabel,
       storeExposureRate,
       historicalAspEstimate,
-      historicalDiscountDepth
+      historicalDiscountDepth,
+      hasHistoricalSales
     }
   };
 }
@@ -157,5 +173,15 @@ describe('Dynamic Price Elasticity Engine', () => {
     assert.equal(curve.enhancementMetrics.historicalAspEstimate, 55.20);
     assert.equal(curve.enhancementMetrics.historicalDiscountDepth, 20);
     assert.equal(curve.enhancementMetrics.sizeFulfillmentRate, 1.00);
+  });
+
+  test('Zero Sales Guard: Unsold style (STR 0%) strictly reports 0% historical discount depth and full ticket ASP', () => {
+    // Style 58613: Pyjama Set (3PC) SS26-PJ-5242
+    // Ticket 299.00 SAR, Cost 77.20 SAR, weeklyROS 0.0, Stock 60, STR 0.0%, no historical sales
+    const curve = computeStyleElasticityCurve(299.00, 77.20, 0.0, 60, 0.0);
+
+    assert.equal(curve.enhancementMetrics.hasHistoricalSales, false, 'hasHistoricalSales must be false when STR is 0%');
+    assert.equal(curve.enhancementMetrics.historicalAspEstimate, 299.00, 'Realized ASP estimate must equal full ticket price for unsold items');
+    assert.equal(curve.enhancementMetrics.historicalDiscountDepth, 0, 'Discount depth must strictly be 0% when zero units were sold (never 28%)');
   });
 });

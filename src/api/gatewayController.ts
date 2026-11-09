@@ -21,7 +21,7 @@ export async function handleGatewayValidation(
 ): Promise<Response> {
   const startTime = Date.now();
   const gatewayId = env.AI_GATEWAY_ID || 'carina-ai-gateway';
-  const model = '@cf/meta/llama-3.1-8b-instruct';
+  const model = '@cf/meta/llama-3.2-3b-instruct';
 
   if (!env.AI) {
     return new Response(JSON.stringify({

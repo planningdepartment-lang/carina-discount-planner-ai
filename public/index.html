@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CARINA | Autonomous Merchandising Architecture &amp; Discount Intelligence</title>
-  <link rel="stylesheet" href="styles.css?v=20261031-multi-horizon-ros-v9">
+  <link rel="stylesheet" href="styles.css?v=20261108-scope-fix-v5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -38,32 +38,31 @@
           </select>
         </div>
 
-        <button id="campaignBriefingBtn" class="btn btn-luxury-secondary hud-btn">
+        <a href="/api/reports/dossier" target="_blank" id="dossierNavBtn" class="btn btn-luxury-secondary hud-btn" style="text-decoration: none;" title="Executive Commercial Dossier (Arabic & English)"><span class="btn-icon">📄</span><span>Dossier</span></a>
+        <button id="campaignBriefingBtn" class="btn btn-luxury-secondary hud-btn" title="Tactical Campaign Briefing (Shortcut: B)">
           <span class="btn-icon">📋</span>
-          <span>Campaign Briefing</span>
-          <span class="key-shortcut-hint">B</span>
+          <span>Briefing</span>
         </button>
 
-        <button id="rulesBtn" class="btn btn-luxury-secondary hud-btn">
+        <button id="rulesBtn" class="btn btn-luxury-secondary hud-btn" title="Commercial Governance Rules">
           <span class="btn-icon">⚖️</span>
-          <span>Governance Rules</span>
+          <span>Rules</span>
         </button>
 
-        <button id="exportCsvBtn" class="btn btn-luxury-gold hud-btn">
+        <button id="exportCsvBtn" class="btn btn-luxury-gold hud-btn" title="Export Live POS Execution Table">
           <span class="btn-icon">📥</span>
-          <span>Export POS CSV</span>
+          <span>Export CSV</span>
         </button>
 
-        <button id="toggleCopilotBtn" class="btn btn-luxury-ruby hud-btn">
-          <span>Ask Copilot</span>
-          <span class="key-shortcut-hint">C</span>
+        <button id="toggleCopilotBtn" class="btn btn-luxury-ruby hud-btn" title="AI Merchandising Copilot (Shortcut: C)">
+          <span>Copilot</span>
         </button>
 
         <div class="nav-divider"></div>
 
         <div id="adminUserPill" class="admin-user-pill" style="display: none;">
           <span class="admin-user-avatar">A</span>
-          <span id="adminUserEmail" class="admin-user-email">admin@carinawear.com</span>
+          <span id="adminUserEmail" class="admin-user-email" title="Logged in Administrator">admin@carinawear.com</span>
           <button id="logoutBtn" class="btn-logout" title="Log Out from Admin Portal">Log Out</button>
         </div>
       </div>
@@ -347,15 +346,36 @@
         <button id="resetSimBtn" class="btn btn-luxury-outline">↺ Reset to Baseline</button>
       </div>
 
-      <!-- Quick Scenario Presets -->
+      <!-- Quick Scenario Presets & Statistical Confidence Quantiles -->
       <div class="sim-presets-bar">
-        <span class="sim-presets-label">SCENARIO PRESETS:</span>
+        <span class="sim-presets-label">CONFIDENCE SCENARIO:</span>
+        <button type="button" class="btn-sim-scenario" data-scenario="conservative" title="P10 Risk-Averse lower bound (competitor drag active, size walkout penalties)">Conservative (P10)</button>
+        <button type="button" class="btn-sim-scenario active" data-scenario="base" title="P50 Expected statistical baseline demand">Expected Baseline (P50)</button>
+        <button type="button" class="btn-sim-scenario" data-scenario="optimistic" title="P90 Peak rush upper bound (White Friday / National Day traffic surge)">Optimistic Rush (P90)</button>
+      </div>
+
+      <div class="sim-presets-bar" style="margin-top: 6px;">
+        <span class="sim-presets-label">LIQUIDATION PRESETS:</span>
         <button type="button" class="btn-sim-preset" data-liq="10000" data-margin="55">Gentle Defense (10k u &bull; 55% Margin)</button>
         <button type="button" class="btn-sim-preset active" data-liq="22550" data-margin="48">Balanced Baseline (22.5k u &bull; 48% Margin)</button>
         <button type="button" class="btn-sim-preset" data-liq="35000" data-margin="38">Aggressive Clearance (35k u &bull; 38% Margin)</button>
       </div>
 
-      <div class="sim-controls-grid">
+      <div class="sim-controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+        <div class="sim-slider-box">
+          <div class="slider-head">
+            <label for="sliderPromotionWeeks">PROMOTION HORIZON (WEEKS)</label>
+            <span class="slider-value-pill" id="valPromotionWeeks">4 Weeks (Standard Campaign)</span>
+          </div>
+          <input type="range" id="sliderPromotionWeeks" min="1" max="8" step="1" value="4">
+          <div class="slider-range-ticks">
+            <span>1 Wk (Flash)</span>
+            <span>2 Wks (Push)</span>
+            <span>4 Wks (Standard)</span>
+            <span>8 Wks (Season Exit)</span>
+          </div>
+        </div>
+
         <div class="sim-slider-box">
           <div class="slider-head">
             <label for="sliderLiquidation">TARGET LIQUIDATION VOLUME</label>
@@ -408,6 +428,27 @@
           <span class="lbl">POST-EVENT TAIF DENSITY</span>
           <strong id="simJouriPostDensity" class="val text-sapphire">35.4 u/m²</strong>
           <span class="sub">Clean Commercial Hub</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Autonomous KSA Competitor Intelligence Radar (Nayomi & Blooming) -->
+    <section class="section-block luxury-panel hud-corner" id="competitorRadarSection" style="margin-bottom: 2rem;">
+      <div class="sim-header">
+        <div>
+          <h2 class="serif-title">Autonomous KSA Competitor Radar (Nayomi &amp; Blooming)</h2>
+          <p class="section-subtext">Autonomous real-time price indexing, promotional benchmarking, and tactical counter-strategies across Saudi retail corridors.</p>
+        </div>
+        <div class="status-radar-pill">
+          <span class="live-pulse-dot"></span>
+          <span>AUTONOMOUS BENCHMARKS ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="competitor-grid" id="competitorGrid">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px; color: var(--gold-light); grid-column: 1 / -1;">
+          <span class="luxury-spinner"></span>
+          <span>Synchronizing autonomous competitor benchmarks for Nayomi &amp; Blooming...</span>
         </div>
       </div>
     </section>
@@ -491,9 +532,11 @@
               <th>Category</th>
               <th>Season</th>
               <th>Physical Stock</th>
+              <th>Sold Units</th>
               <th>Store Allocation</th>
               <th>STR %</th>
               <th>Sales Velocity</th>
+              <th>Sales Lifecycle</th>
               <th>Size Curve</th>
               <th>Unit Cost</th>
               <th>Legal Floor (15% VAT)</th>
@@ -501,13 +544,14 @@
               <th>Recommended Offer</th>
               <th>Discount</th>
               <th>Promo Price</th>
+              <th>Market Benchmark</th>
               <th>Zero-Loss</th>
               <th>Manage</th>
             </tr>
           </thead>
           <tbody id="stylesTableBody">
             <tr>
-              <td colspan="17" class="loading-cell">
+              <td colspan="20" class="loading-cell">
                 <div class="table-spinner-wrap">
                   <span class="luxury-spinner"></span>
                   <span>Synchronizing live assortment and pricing intelligence...</span>
@@ -606,6 +650,20 @@
       <span id="retrainStatusText">Adapter: carina-retail-v1 &bull; Benchmark: 100% &bull; Next: in 7 days</span>
     </div>
 
+    <!-- Cognitive Analysis Mode Bar: Guided vs Unguided -->
+    <div class="drawer-mode-toggle-bar">
+      <span class="mode-toggle-label">REASONING MODE:</span>
+      <div class="mode-pill-toggle-group">
+        <button type="button" class="mode-toggle-btn active" id="btnModeGuidedTop" title="Guided Mode (Strict SSOT): 100% deterministic, locked to verified D1 metrics">
+          <span class="mode-dot dot-green"></span> 🔒 Guided (Strict SSOT)
+        </button>
+        <button type="button" class="mode-toggle-btn" id="btnModeUnguidedTop" title="Unguided Mode (Exploratory): Permitted to synthesize qualitative & unguided hypotheses">
+          <span class="mode-dot dot-amber"></span> 🧪 Unguided (Exploratory)
+        </button>
+      </div>
+      <input type="checkbox" id="copilotExploratoryToggle" style="display: none;">
+    </div>
+
     <div class="drawer-body">
       <!-- Active Style Focus Banner with 1-Click Clear -->
       <div id="activeContextBar" class="active-context-bar" style="display: none;">
@@ -618,12 +676,14 @@
         </button>
       </div>
 
-      <div class="quick-prompts">
-        <span class="quick-title">EXECUTIVE QUESTIONS:</span>
-        <button class="pill-btn" data-prompt="What is the recommended offer for style 59465?">Offer for Style 59465?</button>
-        <button class="pill-btn" data-prompt="How do we decongest Jouri Mall in Taif before December cold weather?">Decongest Jouri Mall</button>
-        <button class="pill-btn" data-prompt="Exclude all fresh Winter AW26 styles from any promotion">Exclude AW26</button>
-        <button class="pill-btn" data-prompt="Cap discount on bras at 25%">Cap Bra Discount at 25%</button>
+      <div class="quick-prompts" id="quickPromptsContainer">
+        <div class="quick-title-bar">
+          <span class="quick-title">DYNAMIC EXECUTIVE QUESTIONS:</span>
+          <button type="button" class="btn-refresh-prompts" id="btnRefreshPrompts" title="Shuffle & refresh commercial prompts">↻ Refresh</button>
+        </div>
+        <div class="prompts-grid" id="quickPromptsGrid">
+          <!-- Dynamic prompts injected by app.js based on active style focus, real catalog data & reasoning mode -->
+        </div>
       </div>
 
       <div class="chat-history" id="chatHistory">
@@ -780,6 +840,6 @@
   <!-- Luxury Toast Notifications Container -->
   <div id="luxuryToastContainer" class="luxury-toast-container"></div>
 
-  <script src="app.js?v=20261031-multi-horizon-ros-v9"></script>
+  <script src="app.js?v=20261108-scope-fix-v5"></script>
 </body>
 </html>

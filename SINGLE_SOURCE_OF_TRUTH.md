@@ -24,7 +24,7 @@
 1. **The Saudi 15% VAT Zero-Loss Floor:**
    $$\text{Promotional Price (VAT-inclusive)} \ge \text{Landed Unit Cost} \times 1.15$$
    * No product may ever be sold at a loss or below landed cost + 15% VAT.
-   * Enforced in `src/engine/zeroLossGuard.ts`.
+   * Enforced in `src/engine/metricsCalculator.ts`.
 2. **Physical Store Network Only:**
    * Active store locations:
      * `AND/Stock`: Al-Andalus Mall (**Jeddah**, 260 m²) — High-velocity volume hub.

@@ -1,5 +1,6 @@
 import { Env } from '../config/env';
 import { getOrComputeStylePlan } from './styleService';
+import { analyzeCompetitorPosition } from '../engine/competitorAnalyzer';
 
 export async function handleGetStyles(
   request: Request, 
@@ -14,10 +15,24 @@ export async function handleGetStyles(
 
   let filtered = records;
   if (search) {
-    filtered = filtered.filter(r => 
-      r.metrics.productName.toLowerCase().includes(search) || 
-      r.metrics.styleCode.toLowerCase().includes(search)
-    );
+    const s = search.trim();
+    const searchTerms = [s];
+    if (s.endsWith('s') && s.length > 3) searchTerms.push(s.slice(0, -1));
+    else if (!s.endsWith('s')) searchTerms.push(s + 's');
+
+    filtered = filtered.filter(r => {
+      const pName = r.metrics.productName.toLowerCase();
+      const sCode = r.metrics.styleCode.toLowerCase();
+      const cat = (r.metrics.category || '').toLowerCase();
+      const offer = (r.recommendation.recommendedOffer || '').toLowerCase();
+      
+      return searchTerms.some(term => 
+        pName.includes(term) || 
+        sCode.includes(term) || 
+        cat.includes(term) ||
+        offer.includes(term)
+      );
+    });
   }
   if (category && category !== 'ALL') {
     const c = category.toLowerCase();
@@ -29,6 +44,7 @@ export async function handleGetStyles(
       if (c === 'tops' || c === 'top') return cat.includes('top') || cat.includes('t-shirt') || cat.includes('shirt');
       if (c === 'brief' || c === 'panty') return cat.includes('brief') || cat.includes('panty') || cat.includes('bikini');
       if (c === 'short' || c === 'shorts') return cat.includes('short');
+      if (c === 'socks' || c === 'sock') return cat.includes('sock');
       return cat.includes(c);
     });
   }
@@ -62,11 +78,33 @@ export async function handleGetStyles(
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const paginated = filtered.slice((page - 1) * limit, page * limit);
 
+  // Autonomous competitor benchmark enrichment for live display
+  const enriched = paginated.map(r => {
+    const comp = analyzeCompetitorPosition(
+      r.metrics.category,
+      r.metrics.productName,
+      r.metrics.ticketPrice,
+      r.recommendation.promotionalPriceSAR,
+      r.metrics.unitCost
+    );
+    return {
+      ...r,
+      competitorBenchmark: {
+        category: comp.category,
+        posture: comp.competitivePosture,
+        priceIndexNayomi: comp.priceIndexVsNayomi,
+        priceIndexBlooming: comp.priceIndexVsBlooming,
+        blendedIndex: comp.blendedMarketPriceIndex,
+        tacticalOffer: comp.tacticalCounterOffer
+      }
+    };
+  });
+
   return new Response(JSON.stringify({
     total: filtered.length,
     page,
     limit,
-    data: paginated
+    data: enriched
   }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });

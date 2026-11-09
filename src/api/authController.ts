@@ -57,6 +57,7 @@ export async function handleLogin(
 
     return new Response(JSON.stringify({
       success: true,
+      token: sessionId,
       admin: {
         id: admin.id,
         email: admin.email,

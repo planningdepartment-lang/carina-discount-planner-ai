@@ -43,7 +43,14 @@ CREATE TABLE IF NOT EXISTS style_plan_snapshots (
     forecast_profit REAL,
     post_event_stock INTEGER,
     commercial_rationale TEXT,
-    last_computed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    last_computed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    weekly_ros_2wk REAL,
+    weekly_ros_4wk REAL,
+    momentum_ratio REAL,
+    active_weeks REAL,
+    momentum_label TEXT,
+    sold_units INTEGER DEFAULT 0,
+    sales_lifecycle_weeks REAL DEFAULT 0.0
 );
 
 -- 3. Post-Campaign Daily Sales Monitoring & Lift Tracker
@@ -68,23 +75,7 @@ CREATE TABLE IF NOT EXISTS plan_audit_log (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- ====================================================================
--- Initial Seed Governance Policies
--- ====================================================================
-
-INSERT OR REPLACE INTO business_rules (rule_id, rule_name, rule_category, target_scope, condition_operator, rule_value, enforcement_level, is_active)
-VALUES 
-('RULE_ZERO_LOSS_VAT', 'Saudi 15% VAT Zero-Loss Floor', 'MARGIN', 'GLOBAL', 'MIN', '0.0', 'HARD_BLOCK', 1),
-('RULE_EXCLUDE_AW26', 'Fresh Winter 2026 Exclusion', 'EXCLUSION', 'SEASON:AW26', 'EXCLUDE', '1', 'HARD_BLOCK', 1),
-('RULE_CAP_NOOS_DISCOUNT', 'Continuity Basic Discount Cap', 'DISCOUNT_CAP', 'SEASON:All Season 2018', 'MAX', '25.0', 'HARD_BLOCK', 1),
-('RULE_MIN_NET_MARGIN', 'Portfolio Net Margin Target Floor', 'MARGIN', 'GLOBAL', 'MIN', '45.0', 'WARNING', 1),
-('RULE_DECONGEST_JOURI', 'Taif Jouri Density Target', 'STOCK_TARGET', 'STORE:Jouri', 'MAX', '36.0', 'WARNING', 1),
-('RULE_DECONGEST_YASMEEN', 'Jeddah Yasmeen Density Target', 'STOCK_TARGET', 'STORE:Yasmeen', 'MAX', '35.0', 'WARNING', 1);
-
-
--- ====================================================================
 -- 5. AI Continuous Retraining & LoRA Configuration
--- ====================================================================
 CREATE TABLE IF NOT EXISTS ai_retraining_settings (
     id TEXT PRIMARY KEY,
     retraining_period TEXT DEFAULT 'weekly', -- 'daily', 'weekly', 'biweekly', 'monthly', 'manual'
@@ -97,17 +88,7 @@ CREATE TABLE IF NOT EXISTS ai_retraining_settings (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT OR IGNORE INTO ai_retraining_settings (
-    id, retraining_period, auto_enabled, active_lora_adapter, 
-    last_trained_at, next_scheduled_at, dataset_sample_count, benchmark_accuracy
-) VALUES (
-    'GLOBAL', 'weekly', 1, 'carina-retail-v1',
-    CURRENT_TIMESTAMP, datetime('now', '+7 days'), 1493, 100.0
-);
-
--- ====================================================================
 -- 6. Merchandiser Feedback & Alignment Ledger (RLHF / DPO Preference Signal)
--- ====================================================================
 CREATE TABLE IF NOT EXISTS copilot_feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_query TEXT NOT NULL,
@@ -117,4 +98,57 @@ CREATE TABLE IF NOT EXISTS copilot_feedback (
     rating INTEGER, -- 1 = Upvote, -1 = Downvote
     override_reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Enterprise Admin Authentication & Session Security
+CREATE TABLE IF NOT EXISTS admin_users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS admin_sessions (
+    session_id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(admin_id) REFERENCES admin_users(id) ON DELETE CASCADE
+);
+
+-- ====================================================================
+-- Initial Seed Governance Policies & Initial Super-Admin
+-- ====================================================================
+
+INSERT OR REPLACE INTO business_rules (rule_id, rule_name, rule_category, target_scope, condition_operator, rule_value, enforcement_level, is_active)
+VALUES 
+('RULE_ZERO_LOSS_VAT', 'Saudi 15% VAT Zero-Loss Floor', 'MARGIN', 'GLOBAL', 'MIN', '0.0', 'HARD_BLOCK', 1),
+('RULE_EXCLUDE_AW26', 'Fresh Winter 2026 Exclusion', 'EXCLUSION', 'SEASON:AW26', 'EXCLUDE', '1', 'HARD_BLOCK', 1),
+('RULE_CAP_NOOS_DISCOUNT', 'Continuity Basic Discount Cap', 'DISCOUNT_CAP', 'SEASON:All Season 2018', 'MAX', '25.0', 'HARD_BLOCK', 1),
+('RULE_MIN_NET_MARGIN', 'Portfolio Net Margin Target Floor', 'MARGIN', 'GLOBAL', 'MIN', '45.0', 'WARNING', 1),
+('RULE_DECONGEST_JOURI', 'Taif Jouri Density Target', 'STOCK_TARGET', 'STORE:Jouri', 'MAX', '36.0', 'WARNING', 1),
+('RULE_DECONGEST_YASMEEN', 'Jeddah Yasmeen Density Target', 'STOCK_TARGET', 'STORE:Yasmeen', 'MAX', '35.0', 'WARNING', 1);
+
+INSERT OR IGNORE INTO ai_retraining_settings (
+    id, retraining_period, auto_enabled, active_lora_adapter, 
+    last_trained_at, next_scheduled_at, dataset_sample_count, benchmark_accuracy
+) VALUES (
+    'GLOBAL', 'weekly', 1, 'carina-retail-v1',
+    CURRENT_TIMESTAMP, datetime('now', '+7 days'), 1493, 100.0
+);
+
+INSERT OR REPLACE INTO admin_users (id, email, password_hash, salt, display_name, is_active)
+VALUES (
+    'ADMIN_PRIMARY',
+    'admin@carinawear.com',
+    '1344d68c8f6a4a623dcf3b77f1a297da204b4272949cd87a5ef319c8ea00825e',
+    'e8adbc9e7e8f7bde826fbcb68c762e47',
+    'CARINA Commercial Strategist',
+    1
 );

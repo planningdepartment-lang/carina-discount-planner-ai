@@ -213,7 +213,9 @@ export async function fetchStylePlanSnapshots(db: D1Database): Promise<StylePlan
         cumulativeSTR: row.cumulative_str_pct,
         storeFloorWOS: row.store_floor_wos || 0,
         activeSizeCount: row.sar_curve_health?.includes('>=3') ? 4 : (row.sar_curve_health?.includes('Single') ? 1 : 2),
-        isSingleSize: row.sar_curve_health?.includes('Single') || false
+        isSingleSize: row.sar_curve_health?.includes('Single') || false,
+        soldUnits: Number(row.sold_units) || 0,
+        salesLifecycleWeeks: Number(row.sales_lifecycle_weeks) || 0.0
       },
       recommendation: {
         tier: row.recommended_offer?.includes('Clearance') ? 'CLEARANCE' : 'ACTIVE',
@@ -245,8 +247,9 @@ export async function saveStylePlanSnapshots(db: D1Database, records: StylePlanR
         recommended_offer, promotional_price, discount_pct,
         zero_loss_status, forecast_sold, forecast_profit, post_event_stock,
         commercial_rationale, last_computed_at,
-        weekly_ros_2wk, weekly_ros_4wk, momentum_ratio, active_weeks, momentum_label
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
+        weekly_ros_2wk, weekly_ros_4wk, momentum_ratio, active_weeks, momentum_label,
+        sold_units, sales_lifecycle_weeks
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // D1 batches up to 50 statements per roundtrip
@@ -295,7 +298,9 @@ export async function saveStylePlanSnapshots(db: D1Database, records: StylePlanR
           metrics.weeklyROS4wk ?? metrics.weeklyROS,
           metrics.momentumRatio ?? 1.0,
           metrics.activeWeeks ?? 8.0,
-          metrics.momentumLabel ?? 'Stable'
+          metrics.momentumLabel ?? 'Stable',
+          (metrics.soldUnits ?? 0),
+          (metrics.salesLifecycleWeeks ?? 0.0)
         );
       });
       await db.batch(statements);
@@ -341,6 +346,7 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         WHEN location_dest_id_name = 'Partners/Customers' AND date >= datetime('now', '-56 days')
         THEN COALESCE(quantity, qty_done, 0) ELSE 0 END) AS sold_8wk,
 
+      MIN(CASE WHEN location_dest_id_name = 'Partners/Customers' THEN date END) AS first_sale_date,
       ROUND(MAX(1.0, julianday('now') - julianday(MIN(date))), 1) AS days_active,
 
       COUNT(DISTINCT 
@@ -411,6 +417,12 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
       const floorStock = stockAnd + stockYas + stockJou;
       const wos = weeklyROS > 0 ? Math.round((floorStock / weeklyROS) * 10) / 10 : 999.0;
 
+      let salesLifecycleWeeks = 0.0;
+      if (lifetimeSold > 0 && row.first_sale_date) {
+        const msDiff = Date.now() - new Date(row.first_sale_date).getTime();
+        salesLifecycleWeeks = Math.max(0.0, Math.round((msDiff / (7 * 24 * 3600 * 1000)) * 10) / 10);
+      }
+
       return {
         styleCode: row.style_code,
         productName: row.product_name,
@@ -432,6 +444,8 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         cumulativeSTR: Math.round(strPct * 10) / 10,
         storeFloorWOS: wos,
         activeSizeCount: row.size_count || 1,
+        soldUnits: lifetimeSold,
+        salesLifecycleWeeks: salesLifecycleWeeks,
         historicalASP: row.historical_asp ? Number(row.historical_asp) : undefined
       };
     });

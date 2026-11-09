@@ -20,6 +20,8 @@ export interface StyleMetrics {
   activeSizeCount: number;
   isSingleSize?: boolean;
   historicalASP?: number;
+  soldUnits?: number;
+  salesLifecycleWeeks?: number;
   // Multi-Horizon Velocity & Floor Tenure
   activeWeeks?: number;
   weeklyROS2wk?: number;
@@ -314,18 +316,26 @@ export function classifyStyleAndRecommend(metrics: StyleMetrics): Recommendation
     }
   }
 
-  // Fallback Steady Active (Spend & Save Multi-pack Driver)
+  // Fallback Steady Active (Spend & Save Multi-pack Driver / Impulse Add-On)
   const rawSpendSave = Math.round(metrics.ticketPrice * 0.80 * 100) / 100;
   const spendSavePrice = Math.max(costPlusVat, rawSpendSave);
   const discPct = metrics.ticketPrice > 0 ? Math.round((1 - (spendSavePrice / metrics.ticketPrice)) * 100) : 0;
 
+  const isMicroTicket = metrics.ticketPrice <= 15.0;
+  const offerLabel = isMicroTicket
+    ? `Impulse Checkout Add-On (20% Off: ${spendSavePrice.toFixed(2)} SAR)`
+    : 'Spend & Save Eligible (~20% Off)';
+  const rationaleText = isMicroTicket
+    ? 'Micro-ticket impulse accessory. Deployed at point-of-sale checkout to drive units per transaction (UPT) above cost floor.'
+    : 'Core continuity basic pack. Basket driver protects 75%+ stock for December/January peak winter trading.';
+
   return {
     tier: LIFECYCLE_TIERS.STEADY_ACTIVE,
-    recommendedOffer: 'Spend & Save Eligible (~20% Off)',
+    recommendedOffer: offerLabel,
     discountPct: discPct,
     promotionalPriceSAR: spendSavePrice,
     expectedClearancePct: 25,
-    rationale: 'Core continuity basic pack. Basket driver protects 75%+ stock for December/January peak winter trading.',
+    rationale: rationaleText,
     zeroLossStatus: 'YES',
     bundleQuantity: 1,
     bundlePriceSAR: spendSavePrice,

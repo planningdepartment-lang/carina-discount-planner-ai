@@ -11,42 +11,58 @@ Discount planner AI/
 ├── .github/
 │   └── workflows/
 │       ├── deploy-prod.yml          # GitHub Actions: Auto-deploy to Cloudflare on push to main
-│       └── test-dev.yml             # Run unit tests & policy checks on pull requests
+│       └── deploy-dev.yml           # GitHub Actions: Auto-deploy to Cloudflare dev on push to dev
 ├── public/                          # Cloudflare Pages Static Dashboard Assets
 │   ├── index.html                   # Executive Single-Page Application (SPA)
+│   ├── login.html                   # Secure Enterprise Admin Sign-In
 │   ├── app.js                       # Frontend reactive logic, What-If slider, copilot drawer
 │   └── styles.css                   # Responsive executive styling & store health cards
+├── schemas/                         # Cloudflare D1 Migration Scripts
+│   ├── 0001_rebuild_snapshots.sql   # Rebuilds snapshot table from stock move lines
+│   ├── 0002_admin_security.sql      # Admin users, credentials seed & session store
+│   └── 0003_retraining_and_feedback.sql # Continuous retraining & merchandiser feedback ledger
 ├── src/
 │   ├── index.ts                     # Worker entry point & HTTP router (GET/POST endpoints)
 │   ├── config/
-│   │   ├── constants.ts             # Tax rate (15%), store areas (260, 193, 168 m²), thresholds
-│   │   └── env.ts                   # Cloudflare Env interface (DB, AI, KV, SECRETS)
+│   │   ├── constants.ts             # Tax rate (15%), store areas (260, 193, 168 m²), charm prices
+│   │   └── env.ts                   # Cloudflare Env interface (DB, AI, ASSETS, SECRETS)
+│   ├── auth/
+│   │   └── adminAuth.ts             # PBKDF2-SHA256 crypto & session validation
 │   ├── db/
-│   │   ├── schema.sql               # Auxiliary D1 tables (business_rules, snapshots, audit_log)
-│   │   ├── d1Client.ts              # Resilient D1 database wrapper
-│   │   └── queries.ts               # High-speed SQL queries for stock moves & product master
+│   │   ├── schema.sql               # Auxiliary D1 master schema & seed governance
+│   │   └── queries.ts               # Resilient D1 SQL queries for stock moves & snapshots
 │   ├── engine/                      # WORKER A: Pure Deterministic Merchandising Math
-│   │   ├── metricsCalculator.ts     # STR%, WOS, ROS (8-wk), SAR (Curve Health)
-│   │   ├── zeroLossGuard.ts         # P_promo >= Cost * 1.15 hard mathematical floor
-│   │   ├── lifecycleClassifier.ts   # 5-Stage Lifecycle State Machine
+│   │   ├── metricsCalculator.ts     # STR%, WOS, ROS, SAR, and zero-loss floor calculations
+│   │   ├── lifecycleClassifier.ts   # 7-Tier Style Lifecycle State Machine
+│   │   ├── dynamicOfferEngine.ts    # Saudi charm pricing, Dynamic Bundle 2, shared rail tags
+│   │   ├── elasticityEngine.ts      # Price elasticity curve & profit peak optimizer
 │   │   ├── rulePipeline.ts          # Middleware engine for dynamic D1 business rules
 │   │   ├── simulator.ts             # Real-time What-If liquidation simulation calculator
-│   │   └── posExporter.ts           # Formats & streams Odoo POS CSV pricelist
+│   │   └── posExporter.ts           # Formats & streams Odoo POS CSV pricelist & Master CSV
+│   ├── api/                         # Edge API Endpoints & Route Controllers
+│   │   ├── authController.ts        # Admin login/logout & session verification
+│   │   ├── stylesController.ts      # Style catalog filtering & manual override modal
+│   │   ├── styleService.ts          # Snapshot caching & on-demand aggregation
+│   │   ├── metricsController.ts     # Network KPIs & store density summaries
+│   │   ├── simulationController.ts  # What-If liquidation simulation endpoint
+│   │   ├── exportController.ts      # Odoo POS CSV pricelist stream
+│   │   ├── reportController.ts      # Universal campaign briefings & archetypes
+│   │   ├── rulesController.ts       # Dynamic governance rules CRUD
+│   │   ├── retrainingController.ts  # Model retraining schedules & feedback ledger
+│   │   └── gatewayController.ts     # AI Gateway diagnostics & latency validation
 │   └── ai/                          # WORKER B: Cloudflare Workers AI Copilot
 │       ├── copilot.ts               # Workers AI orchestrator (Llama 3.3 70B Instruct)
-│       ├── promptTemplates.ts       # Structured system prompts & chain-of-thought rules
 │       └── skills/
 │           ├── ksaRetailContext.ts  # Payday (27th), VAT compliance, Jeddah vs Taif physics
 │           ├── competitorPlaybook.ts# Counter-strategies for Centrepoint, Max, H&M, Nayomi
 │           └── ruleParser.ts        # Compiles natural language requests into D1 JSON rules
-├── tests/                           # Verification & Automated Test Suite
-│   ├── zeroLossGuard.test.ts        # Verifies 0% below-cost sales across all styles
-│   ├── metrics.test.ts              # Validates STR, ROS, WOS calculations
-│   └── d1Resilience.test.ts         # Validates SQL queries with whitespace & split SKUs
+├── tests/                           # Verification & Automated Test Suite (node:test)
 ├── .gitignore                       # Protects secrets, node_modules, .wrangler
 ├── package.json                     # Node/Wrangler scripts and dependencies
 ├── tsconfig.json                    # Strict TypeScript configuration
 ├── wrangler.toml                    # Cloudflare Worker, D1 DB, and AI bindings
+├── SINGLE_SOURCE_OF_TRUTH.md        # Definitive Single Source of Truth & project anchor
+├── CODING_AND_LOGIC_SSOT.md         # Canonical algorithms, math formulas & TS signatures
 ├── SYSTEM_MAP.md                    # Complete system blueprint & architectural map
 └── INSTRUCTIONS.md                  # Comprehensive operational, developer & security guide
 ```

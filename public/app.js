@@ -1,8 +1,27 @@
-// Global fetch interceptor to catch 401 Unauthorized and redirect to login
+// Global fetch interceptor to attach Bearer token and handle 401 Unauthorized
 const originalFetch = window.fetch;
-window.fetch = async function(...args) {
-  const response = await originalFetch.apply(this, args);
+window.fetch = async function(resource, init = {}) {
+  const options = { ...init };
+  const token = localStorage.getItem('carina_admin_session');
+
+  // Attach credentials and Bearer token for internal API calls
+  if (typeof resource === 'string' && resource.startsWith('/api/')) {
+    options.credentials = options.credentials || 'same-origin';
+    if (token) {
+      options.headers = options.headers || {};
+      if (options.headers instanceof Headers) {
+        if (!options.headers.has('Authorization')) {
+          options.headers.set('Authorization', `Bearer ${token}`);
+        }
+      } else if (!options.headers['Authorization']) {
+        options.headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+  }
+
+  const response = await originalFetch.call(this, resource, options);
   if (response.status === 401 && !window.location.pathname.endsWith('/login.html')) {
+    localStorage.removeItem('carina_admin_session');
     window.location.href = '/login.html';
   }
   return response;
@@ -38,7 +57,228 @@ let currentPage = 1;
 let pageSize = 15;
 let debounceTimer = null;
 let activeContextStyle = null; // Session memory for Copilot multi-turn chat
+let currentLoadedStyles = []; // Dynamic catalog styles for executive prompt generation
+let promptShuffleOffset = 0; // Offset for rotating dynamic questions
+let isExploratoryMode = localStorage.getItem('carina_copilot_exploratory') === 'true'; // Global Cognitive Mode state
+let currentPromotionWeeks = 4;
+let currentScenario = 'base';
 let currentBriefingMarkdown = ''; // Memory for executive briefing markdown copy
+
+/**
+ * Toggles and synchronizes Cognitive Analysis Mode (Guided vs Unguided) across entire app.
+ */
+function setCognitiveMode(exploratory) {
+  isExploratoryMode = exploratory;
+  localStorage.setItem('carina_copilot_exploratory', isExploratoryMode ? 'true' : 'false');
+  const copilotExploratoryToggle = document.getElementById('copilotExploratoryToggle');
+  const btnModeGuidedTop = document.getElementById('btnModeGuidedTop');
+  const btnModeUnguidedTop = document.getElementById('btnModeUnguidedTop');
+
+  if (copilotExploratoryToggle) copilotExploratoryToggle.checked = isExploratoryMode;
+
+  if (isExploratoryMode) {
+    if (btnModeGuidedTop) btnModeGuidedTop.classList.remove('active');
+    if (btnModeUnguidedTop) btnModeUnguidedTop.classList.add('active');
+  } else {
+    if (btnModeUnguidedTop) btnModeUnguidedTop.classList.remove('active');
+    if (btnModeGuidedTop) btnModeGuidedTop.classList.add('active');
+  }
+  renderDynamicExecutivePrompts();
+}
+
+/**
+ * Dynamically generates 4 high-leverage executive prompt pills based on live catalog data,
+ * active style focus, and selected reasoning mode.
+ */
+function renderDynamicExecutivePrompts(forceShuffle = false) {
+  const container = document.getElementById('quickPromptsGrid');
+  if (!container) return;
+
+  if (forceShuffle) {
+    promptShuffleOffset++;
+  }
+
+  container.innerHTML = '';
+  const prompts = [];
+
+  if (activeContextStyle) {
+    const matched = currentLoadedStyles.find(s => s.metrics && s.metrics.styleCode === activeContextStyle);
+    const code = activeContextStyle;
+    const cat = matched?.metrics?.category || 'Apparel';
+
+    prompts.push({
+      label: `Offer & Margin for Style ${code}`,
+      tag: 'OFFER',
+      tagClass: 'tag-style',
+      query: `What is the recommended offer, zero-loss floor, and clearance projection for style ${code}?`
+    });
+
+    prompts.push({
+      label: `Benchmark vs Nayomi & Blooming`,
+      tag: 'COMPETITOR',
+      tagClass: 'tag-cat',
+      query: `How is style ${code} (${cat}) positioned against Nayomi and Blooming retail benchmarks?`
+    });
+
+    prompts.push({
+      label: `Runway & Store Balance`,
+      tag: 'LOGISTICS',
+      tagClass: 'tag-risk',
+      query: `What is the store stock distribution and replenishment runway for style ${code}?`
+    });
+
+    prompts.push({
+      label: `Simulate Markdown Yield (20% vs 30%)`,
+      tag: 'SIMULATE',
+      tagClass: 'tag-mode',
+      query: `Simulate price elasticity and margin yield for style ${code} at 20% vs 30% discount`
+    });
+  } else {
+    // 1. Live Overstock / Clearance Style Risk
+    if (currentLoadedStyles.length > 0) {
+      const sortedByRisk = [...currentLoadedStyles].sort((a, b) => (b.metrics?.weeksOfSupply || 0) - (a.metrics?.weeksOfSupply || 0));
+      const targetRisk = sortedByRisk[promptShuffleOffset % sortedByRisk.length];
+      if (targetRisk && targetRisk.metrics) {
+        const rCode = targetRisk.metrics.styleCode;
+        const rWos = Math.round(targetRisk.metrics.weeksOfSupply || 0);
+        prompts.push({
+          label: `Clearance Plan: Style ${rCode} (${rWos} WOS)`,
+          tag: 'RISK',
+          tagClass: 'tag-risk',
+          query: `What is the recommended promotional clearance plan for style ${rCode}?`
+        });
+      }
+    }
+
+    // Fallback if no styles loaded yet
+    if (prompts.length === 0) {
+      prompts.push({
+        label: `Offer for Style 59465?`,
+        tag: 'OFFER',
+        tagClass: 'tag-style',
+        query: `What is the recommended offer for style 59465?`
+      });
+    }
+
+    // 2. Category Bundles (Rotates: Socks -> Bras -> Pyjamas -> Cosmetics)
+    const categoryOptions = [
+      {
+        label: 'Plan Dynamic Offers for Socks',
+        tag: 'SOCKS',
+        tagClass: 'tag-cat',
+        query: 'I want to plan promotional offers for socks, what is your plan?'
+      },
+      {
+        label: 'Plan Duo Bundles for Bras',
+        tag: 'BRAS',
+        tagClass: 'tag-cat',
+        query: 'What is the dynamic bundle plan for bras?'
+      },
+      {
+        label: 'Loungewear & Pyjama Bundles',
+        tag: 'PYJAMAS',
+        tagClass: 'tag-cat',
+        query: 'Plan promotional offers for pyjamas & nightwear'
+      },
+      {
+        label: 'Cosmetics & Fragrance Add-Ons',
+        tag: 'BEAUTY',
+        tagClass: 'tag-cat',
+        query: 'What is the multi-buy basket booster for cosmetics?'
+      }
+    ];
+    prompts.push(categoryOptions[promptShuffleOffset % categoryOptions.length]);
+
+    // 3. Store Bottleneck Rebalancing
+    const logisticsOptions = [
+      {
+        label: 'Decongest Taif / Jouri Mall',
+        tag: 'TRANSFER',
+        tagClass: 'tag-risk',
+        query: 'How do we decongest Taif Jouri Mall and rebalance stock to Riyadh flagships?'
+      },
+      {
+        label: 'Replenish Al-Andalus Mall Flagship',
+        tag: 'REPLENISH',
+        tagClass: 'tag-risk',
+        query: 'Which warehouse inventory should be dispatched to Al-Andalus Mall Flagship?'
+      }
+    ];
+    prompts.push(logisticsOptions[promptShuffleOffset % logisticsOptions.length]);
+
+    // 4. Reasoning Mode Specific Prompt (Guided vs Unguided)
+    if (isExploratoryMode) {
+      const exploratoryOptions = [
+        {
+          label: 'War & Macro Turbulence Strategy',
+          tag: 'EXPLORATORY',
+          tagClass: 'tag-mode',
+          query: 'What do you think about selling now in KSA during war consequences?'
+        },
+        {
+          label: 'Nayomi Tactical Counter-Plan',
+          tag: 'COMPETITOR',
+          tagClass: 'tag-cat',
+          query: 'What tactical counter-strategies do we have against Nayomi in loungewear?'
+        },
+        {
+          label: 'Basket Booster UPT Lift Potential',
+          tag: 'BASKET',
+          tagClass: 'tag-mode',
+          query: 'How can impulse add-ons at checkout increase store units per transaction?'
+        }
+      ];
+      prompts.push(exploratoryOptions[promptShuffleOffset % exploratoryOptions.length]);
+    } else {
+      const guidedOptions = [
+        {
+          label: 'Zero-Loss Margin Floor Audit',
+          tag: 'GOVERNANCE',
+          tagClass: 'tag-mode',
+          query: 'Which styles are closest to the 15% VAT zero-loss margin floor?'
+        },
+        {
+          label: 'Executive Commercial Dossier',
+          tag: 'BRIEFING',
+          tagClass: 'tag-style',
+          query: 'Generate the bilingual Executive Commercial Dossier for KSA retail'
+        },
+        {
+          label: 'KSA Retail Trading Calendar',
+          tag: 'CALENDAR',
+          tagClass: 'tag-cat',
+          query: 'Show upcoming KSA retail commercial events and trading windows'
+        }
+      ];
+      prompts.push(guidedOptions[promptShuffleOffset % guidedOptions.length]);
+    }
+  }
+
+  // Render interactive prompt buttons
+  const chatInput = document.getElementById('chatInput');
+  prompts.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'pill-btn';
+    btn.type = 'button';
+    btn.setAttribute('data-prompt', p.query);
+    btn.innerHTML = `
+      <div class="pill-prompt-meta">
+        <span>${escapeHtml(p.label)}</span>
+        <span class="pill-prompt-tag ${p.tagClass}">${escapeHtml(p.tag)}</span>
+      </div>
+    `;
+    btn.addEventListener('click', () => {
+      if (chatInput) {
+        chatInput.value = p.query;
+        submitCopilotChat(p.query);
+        chatInput.value = '';
+        chatInput.style.height = '';
+        chatInput.style.overflowY = 'hidden';
+      }
+    });
+    container.appendChild(btn);
+  });
+}
 
 /**
  * Computes multi-point price elasticity of demand and profit curve for a style.
@@ -62,10 +302,26 @@ function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhy
   else if (cumulativeSTR > 65) priceElasticityCoeff = 1.1;
 
   // 3. Historical Realized ASP & Discount Depth (from sales_price or estimated from STR velocity)
-  const historicalAspEstimate = (historicalRealizedPrice && historicalRealizedPrice > 0)
-    ? historicalRealizedPrice
-    : (cumulativeSTR > 50 ? ticketPrice * 0.94 : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72));
-  const historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+  let historicalAspEstimate;
+  let historicalDiscountDepth;
+  let hasHistoricalSales = false;
+
+  if (historicalRealizedPrice && historicalRealizedPrice > 0) {
+    historicalAspEstimate = historicalRealizedPrice;
+    historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+    hasHistoricalSales = true;
+  } else if (cumulativeSTR > 0) {
+    historicalAspEstimate = cumulativeSTR > 50 
+      ? ticketPrice * 0.94 
+      : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72);
+    historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+    hasHistoricalSales = true;
+  } else {
+    // Zero sales (0 units sold / 0% STR): item has strictly sat at full ticket price with 0% discount depth
+    historicalAspEstimate = ticketPrice;
+    historicalDiscountDepth = 0;
+    hasHistoricalSales = false;
+  }
 
   const tiers = [];
   let maxProfit = -Infinity;
@@ -138,7 +394,8 @@ function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhy
       sizeFulfillmentLabel,
       storeExposureRate: storeSharePct,
       historicalAspEstimate,
-      historicalDiscountDepth
+      historicalDiscountDepth,
+      hasHistoricalSales
     }
   };
 }
@@ -175,6 +432,7 @@ async function initApp() {
   });
 
   loadSummary();
+  loadCompetitorRadar();
   loadStyles();
   loadRules(); // Preload rules proactively so modal renders instantaneously
   initRetrainingAndGateway();
@@ -245,6 +503,34 @@ async function initApp() {
   });
 
   // What-If Sliders
+  
+  // Promotion Horizon Slider & Statistical Confidence Scenarios
+  const sliderPromotionWeeks = document.getElementById('sliderPromotionWeeks');
+  if (sliderPromotionWeeks) {
+    sliderPromotionWeeks.addEventListener('input', (e) => {
+      currentPromotionWeeks = parseInt(e.target.value) || 4;
+      const label = currentPromotionWeeks === 1 ? '1 Week (Flash Clearance)' :
+                    currentPromotionWeeks === 2 ? '2 Weeks (Tactical Push)' :
+                    currentPromotionWeeks === 4 ? '4 Weeks (Standard Campaign)' :
+                    `${currentPromotionWeeks} Weeks (Extended Campaign)`;
+      const pill = document.getElementById('valPromotionWeeks');
+      if (pill) pill.textContent = label;
+      triggerSimulationDebounced();
+    });
+  }
+
+  document.querySelectorAll('.btn-sim-scenario').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-sim-scenario').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentScenario = btn.getAttribute('data-scenario') || 'base';
+      triggerSimulationDebounced();
+      const scenarioName = currentScenario === 'conservative' ? 'Conservative (P10 Risk-Averse)' :
+                           currentScenario === 'optimistic' ? 'Optimistic Rush (P90)' : 'Expected Baseline (P50)';
+      showLuxuryToast(`Activated confidence scenario: ${scenarioName}`, 'info');
+    });
+  });
+
   const sliderLiquidation = document.getElementById('sliderLiquidation');
   const sliderMarginFloor = document.getElementById('sliderMarginFloor');
 
@@ -306,6 +592,16 @@ async function initApp() {
     });
   }
 
+  // Cognitive Analysis Mode Toggle (Guided vs Unguided - Header Bar)
+  const btnModeGuidedTop = document.getElementById('btnModeGuidedTop');
+  const btnModeUnguidedTop = document.getElementById('btnModeUnguidedTop');
+
+  if (btnModeGuidedTop) btnModeGuidedTop.addEventListener('click', () => setCognitiveMode(false));
+  if (btnModeUnguidedTop) btnModeUnguidedTop.addEventListener('click', () => setCognitiveMode(true));
+
+  // Initialize button states
+  setCognitiveMode(isExploratoryMode);
+
   const toggleCopilotBtn = document.getElementById('toggleCopilotBtn');
   if (toggleCopilotBtn && copilotDrawer) {
     toggleCopilotBtn.addEventListener('click', (e) => {
@@ -341,23 +637,25 @@ async function initApp() {
       if (chatInput) {
         chatInput.placeholder = 'Ask about styles, pricing, velocity, or commercial policies...';
       }
+      renderDynamicExecutivePrompts();
     });
   }
+
+  // Refresh dynamic prompts button
+  const btnRefreshPrompts = document.getElementById('btnRefreshPrompts');
+  if (btnRefreshPrompts) {
+    btnRefreshPrompts.addEventListener('click', (e) => {
+      e.preventDefault();
+      renderDynamicExecutivePrompts(true);
+    });
+  }
+
+  // Initial render of dynamic prompts
+  renderDynamicExecutivePrompts();
 
   // Quick Prompt Pills
   const chatInput = document.getElementById('chatInput');
   const chatForm = document.getElementById('chatForm');
-
-  document.querySelectorAll('.pill-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const promptText = btn.getAttribute('data-prompt');
-      chatInput.value = promptText;
-      submitCopilotChat(promptText);
-      chatInput.value = '';
-      chatInput.style.height = '';
-      chatInput.style.overflowY = 'hidden';
-    });
-  });
 
   // Copilot Chat Form & Keyboard Shortcuts: Enter sends, Shift+Enter new line
   chatForm.addEventListener('submit', (e) => {
@@ -515,6 +813,99 @@ async function loadSummary() {
 /**
  * Loads paginated styles with search, category, and tier filters.
  */
+
+/**
+ * Autonomous KSA Competitor Radar: Loads and renders Nayomi and Blooming benchmarks.
+ */
+async function loadCompetitorRadar() {
+  const grid = document.getElementById('competitorGrid');
+  if (!grid) return;
+
+  try {
+    const res = await fetch('/api/competitors/summary');
+    if (!res.ok) {
+      grid.innerHTML = '<div style="color: var(--text-muted); padding: 1.5rem; grid-column: 1 / -1; text-align: center;">Unable to load competitor benchmarks.</div>';
+      return;
+    }
+    const data = await res.json();
+    if (!data.categories || data.categories.length === 0) {
+      grid.innerHTML = '<div style="color: var(--text-muted); padding: 1.5rem; grid-column: 1 / -1; text-align: center;">No competitor benchmarks available.</div>';
+      return;
+    }
+
+    grid.innerHTML = data.categories.map(catItem => {
+      const cat = catItem.category;
+      const nay = catItem.nayomi;
+      const blm = catItem.blooming;
+
+      let catTitle = cat;
+      let carinaStrategy = '';
+      if (cat === 'Pyjamas') {
+        catTitle = 'Pyjamas & Sleepwear';
+        carinaStrategy = 'Dynamic Bundle 2 at 149 SAR (74.50 SAR/u) &bull; Undercuts Nayomi by 25% while defending 52% margin';
+      } else if (cat === 'Bra') {
+        catTitle = 'Bras & Intimates';
+        carinaStrategy = 'Dynamic Bundle 2 (2 for 99 SAR) &bull; Matches Blooming parity & undercuts Nayomi (74.50 SAR/u)';
+      } else if (cat === 'Brief') {
+        catTitle = 'Briefs & Panties';
+        carinaStrategy = 'Multipack 3 for 59 SAR Rail (19.67 SAR/u) &bull; Balances Blooming volume & defends VAT floor';
+      } else if (cat === 'Shapewear') {
+        catTitle = 'Shapewear & Basics';
+        carinaStrategy = 'Spend 250 Save 50 Basket Driver &bull; High-ticket protection against discount erosion';
+      } else if (cat === 'Cosmetics') {
+        catTitle = 'Cosmetics & Fragrances';
+        carinaStrategy = 'Spend 250 Save 50 (Basket Pack) & 0% Off Ticket &bull; Preserves 70%+ gross margin at checkout';
+      }
+
+      return `
+        <div class="comp-card hud-corner">
+          <div class="comp-card-head">
+            <span class="comp-card-title">${catTitle}</span>
+            <span class="comp-card-badge">KSA BENCHMARK</span>
+          </div>
+
+          <div class="comp-benchmarks-row">
+            <div class="comp-bench-box nayomi-box">
+              <div class="comp-brand-label">
+                <strong>Nayomi</strong>
+                <span class="comp-subtext">${escapeHtml(nay.subCategory || 'Core Assortment')}</span>
+              </div>
+              <div class="comp-offer-tag">${escapeHtml(nay.promotionalOffer)}</div>
+              <div class="comp-prices">
+                <span class="comp-promo-price">${nay.effectivePromoPriceSAR.toFixed(2)} SAR/u</span>
+                <span class="comp-ticket-price">Reg ${nay.regularTicketSAR.toFixed(2)} SAR</span>
+                <span class="comp-discount-pill">-${nay.impliedDiscountPct.toFixed(0)}%</span>
+              </div>
+            </div>
+
+            <div class="comp-bench-box blooming-box">
+              <div class="comp-brand-label">
+                <strong>Blooming</strong>
+                <span class="comp-subtext">${escapeHtml(blm.subCategory || 'Core Assortment')}</span>
+              </div>
+              <div class="comp-offer-tag">${escapeHtml(blm.promotionalOffer)}</div>
+              <div class="comp-prices">
+                <span class="comp-promo-price">${blm.effectivePromoPriceSAR.toFixed(2)} SAR/u</span>
+                <span class="comp-ticket-price">Reg ${blm.regularTicketSAR.toFixed(2)} SAR</span>
+                <span class="comp-discount-pill">-${blm.impliedDiscountPct.toFixed(0)}%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="comp-strategy-foot">
+            <span class="comp-strat-label">CARINA COUNTER-STRATEGY</span>
+            <p class="comp-strat-text">${carinaStrategy}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+  } catch (err) {
+    console.error('Failed to load competitor radar:', err);
+    grid.innerHTML = '<div style="color: var(--text-muted); padding: 1.5rem; grid-column: 1 / -1; text-align: center;">Error synchronizing competitor intelligence.</div>';
+  }
+}
+
 async function loadStyles() {
   const tbody = document.getElementById('stylesTableBody');
   const search = document.getElementById('searchInput').value;
@@ -527,15 +918,36 @@ async function loadStyles() {
     const res = await fetch(url);
     if (!res.ok) return;
     const result = await res.json();
+    currentLoadedStyles = result.data || [];
+    renderDynamicExecutivePrompts();
 
     tbody.innerHTML = '';
     if (!result.data || result.data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="17" class="loading-cell">No styles matching filter criteria.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="20" class="loading-cell">No styles matching filter criteria.</td></tr>';
       document.getElementById('pageInfo').textContent = 'Showing 0 styles';
       return;
     }
 
-    result.data.forEach(({ metrics, recommendation }) => {
+    result.data.forEach((item) => {
+      const { metrics, recommendation, competitorBenchmark } = item;
+      const comp = competitorBenchmark;
+      let compBadgeHtml = '';
+      if (comp) {
+        const postureClass = comp.posture === 'VALUE_LEADER' ? 'badge-comp-value' :
+                             comp.posture === 'PREMIUM_EXPOSURE' ? 'badge-comp-prem' : 'badge-comp-par';
+        const postureLabel = comp.posture === 'VALUE_LEADER' ? 'Value Leader' :
+                             comp.posture === 'PREMIUM_EXPOSURE' ? 'Premium Exposure' : 'Market Parity';
+        const catLabel = comp.category ? ` (${comp.category})` : '';
+        const tooltip = `Nayomi${catLabel}: ${comp.priceIndexNayomi}% | Blooming${catLabel}: ${comp.priceIndexBlooming}% | Tactical: ${comp.tacticalOffer}`;
+        compBadgeHtml = `
+          <div class="comp-benchmark-cell" title="${escapeHtml(tooltip)}">
+            <span class="badge ${postureClass}">${postureLabel}</span>
+            <small class="comp-index-text">PI ${comp.blendedIndex}</small>
+          </div>
+        `;
+      } else {
+        compBadgeHtml = '<span class="comp-index-text">-</span>';
+      }
       const tr = document.createElement('tr');
       const isSingleSize = metrics.isSingleSize || 
         /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) || 
@@ -569,12 +981,18 @@ async function loadStyles() {
         momentumBadgeHtml = `<span class="momentum-badge momentum-stable" title="${escapeHtml(momentumLabel)}">⚖️</span>`;
       }
 
+      const soldDisplay = metrics.soldUnits !== undefined ? metrics.soldUnits : 0;
+      const lifecycleDisplay = (soldDisplay > 0 && metrics.salesLifecycleWeeks > 0)
+        ? `<span style="font-weight: 500; color: var(--gold-light);">${metrics.salesLifecycleWeeks.toFixed(1)} wks</span>`
+        : `<span style="color: var(--text-muted);">0 wks</span>`;
+
       tr.innerHTML = `
         <td><span class="style-code-badge clickable-style-badge" data-style="${metrics.styleCode}" data-name="${escapeHtml(metrics.productName)}" title="Focus Copilot on Style ${metrics.styleCode}">${metrics.styleCode}</span></td>
         <td>${metrics.productName}</td>
         <td>${metrics.category}</td>
         <td>${metrics.season}</td>
         <td><strong>${metrics.totalPhysicalStock}</strong></td>
+        <td><strong style="color: var(--text-main);">${soldDisplay}</strong></td>
         <td><small>${breakdown}</small></td>
         <td>${metrics.cumulativeSTR.toFixed(1)}%</td>
         <td>
@@ -583,6 +1001,7 @@ async function loadStyles() {
             ${momentumBadgeHtml}
           </div>
         </td>
+        <td>${lifecycleDisplay}</td>
         <td>${curveTag}</td>
         <td>${metrics.unitCost.toFixed(2)}</td>
         <td><strong>${(metrics.unitCost * 1.15).toFixed(2)}</strong></td>
@@ -600,6 +1019,8 @@ async function loadStyles() {
               data-promo="${recommendation.promotionalPriceSAR}"
               data-discount="${recommendation.discountPct}"
               data-stock="${metrics.totalPhysicalStock}"
+              data-sold-units="${soldDisplay}"
+              data-sales-lifecycle="${metrics.salesLifecycleWeeks !== undefined ? metrics.salesLifecycleWeeks.toFixed(1) : '0.0'}"
               data-str="${metrics.cumulativeSTR.toFixed(1)}"
               data-ros="${metrics.weeklyROS.toFixed(1)}"
               data-ros-2wk="${metrics.weeklyROS2wk !== undefined ? metrics.weeklyROS2wk.toFixed(1) : metrics.weeklyROS.toFixed(1)}"
@@ -622,6 +1043,7 @@ async function loadStyles() {
         </td>
         <td>${recommendation.discountPct.toFixed(0)}%</td>
         <td><strong class="text-success">${recommendation.promotionalPriceSAR.toFixed(2)} SAR</strong></td>
+        <td>${compBadgeHtml}</td>
         <td>${zeroLossBadge}</td>
         <td>
           <button class="btn-sm btn-outline override-btn"
@@ -1273,11 +1695,15 @@ function attachTableActionListeners() {
                 </div>
                 <div>
                   <span style="color: var(--text-main); font-weight: 500;">Historical Realized ASP:</span> 
-                  <span style="color: var(--gold-primary); font-weight: 600;">${elasticityCurve.enhancementMetrics.historicalAspEstimate.toFixed(2)} SAR</span>
+                  ${elasticityCurve.enhancementMetrics.hasHistoricalSales 
+                    ? `<span style="color: var(--gold-primary); font-weight: 600;">${elasticityCurve.enhancementMetrics.historicalAspEstimate.toFixed(2)} SAR</span>`
+                    : `<span style="color: var(--text-muted); font-style: italic;">None (Ticket Baseline: ${ticket.toFixed(2)} SAR)</span>`}
                 </div>
                 <div>
                   <span style="color: var(--text-main); font-weight: 500;">Historical Discount Depth:</span> 
-                  <span style="color: var(--text-main);">${elasticityCurve.enhancementMetrics.historicalDiscountDepth}% off ticket (${ticket.toFixed(2)} SAR)</span>
+                  ${elasticityCurve.enhancementMetrics.hasHistoricalSales
+                    ? `<span style="color: var(--text-main);">${elasticityCurve.enhancementMetrics.historicalDiscountDepth}% off ticket (${ticket.toFixed(2)} SAR)</span>`
+                    : `<span style="color: #10b981; font-weight: 600;">0% (Never Discounted / Zero Prior Sales)</span>`}
                 </div>
               </div>
             </div>
@@ -1381,6 +1807,7 @@ function attachTableActionListeners() {
  */
 function focusStyleInCopilot(code, name) {
   activeContextStyle = code;
+  renderDynamicExecutivePrompts();
   const bar = document.getElementById('activeContextBar');
   const nameEl = document.getElementById('activeContextName');
   if (bar && nameEl) {
@@ -1678,7 +2105,9 @@ async function runSimulation() {
         targetLiquidationUnits: targetLiquidation, 
         targetLiquidation: targetLiquidation,
         minimumNetMarginFloorPct: marginFloor,
-        marginFloor: marginFloor
+        marginFloor: marginFloor,
+        promotionWeeks: currentPromotionWeeks,
+        scenario: currentScenario
       })
     });
     if (!res.ok) return;
@@ -1762,10 +2191,27 @@ async function submitCopilotChat(message) {
         message, 
         mode, 
         model, 
-        contextStyleCode: activeContextStyle 
+        contextStyleCode: activeContextStyle,
+        allowUnguidedMetrics: isExploratoryMode
       })
     });
     const data = await res.json();
+
+    if (!res.ok || !data || !data.reply) {
+      if (res.status === 401) {
+        loadingDiv.innerHTML = `
+          <div style="color: #ef4444; padding: 6px 0;">
+            <strong>⚠️ Authentication Required</strong><br>
+            Your session has expired. 
+            <a href="/login.html" style="color: var(--gold-primary); text-decoration: underline; font-weight: 600;">Click here to authenticate</a>
+          </div>
+        `;
+        return;
+      }
+      const errText = data?.error || `Server responded with status ${res.status}`;
+      loadingDiv.innerHTML = `<span style="color: #ef4444;">⚠️ ${escapeHtml(errText)}</span>`;
+      return;
+    }
 
     // Track active style code across conversation turns (or reset if not returned)
     activeContextStyle = data.activeStyleCode || null;
@@ -1781,12 +2227,13 @@ async function submitCopilotChat(message) {
       const chatInput = document.getElementById('chatInput');
       if (chatInput) chatInput.placeholder = 'Ask about styles, pricing, velocity, or commercial policies...';
     }
+    renderDynamicExecutivePrompts();
 
     // Process reply and render interactive rule execution buttons if present
     let formattedReply = formatMarkdown(data.reply);
 
     // Parse [APPLY_RULE:...] tag into clickable execution button
-    if (data.reply.includes('[APPLY_RULE:')) {
+    if (data.reply && typeof data.reply === 'string' && data.reply.includes('[APPLY_RULE:')) {
       const match = data.reply.match(/\[APPLY_RULE:(.*?)\]/);
       if (match) {
         try {
@@ -1817,6 +2264,13 @@ async function submitCopilotChat(message) {
         <span>Helpful?</span>
         <button type="button" class="btn-feedback btn-fb-up" title="Upvote this response">[+] Helpful</button>
         <button type="button" class="btn-feedback btn-fb-down" title="Downvote / Report issue">[-] Unhelpful</button>
+        <div class="feedback-reason-chips" style="display: none; gap: 4px; margin-top: 6px; width: 100%; flex-wrap: wrap;">
+          <span style="font-size: 0.725rem; color: #94a3b8; display: block; width: 100%; margin-bottom: 2px;">What can be improved?</span>
+          <button type="button" class="btn-reason-chip" data-reason="Too Generic">Too Generic</button>
+          <button type="button" class="btn-reason-chip" data-reason="Wrong Numbers">Wrong Numbers</button>
+          <button type="button" class="btn-reason-chip" data-reason="Unrealistic Offer">Unrealistic Offer</button>
+          <button type="button" class="btn-reason-chip" data-reason="Too Verbose">Too Verbose</button>
+        </div>
       </div>
     `;
     scrollChatToLatest(loadingDiv);
@@ -1843,23 +2297,33 @@ async function submitCopilotChat(message) {
           });
         } catch(e) {}
       });
-      fbDown.addEventListener('click', async () => {
-        fbDown.classList.add('active-negative');
+      fbDown.addEventListener('click', () => {
         fbUp.style.display = 'none';
-        fbDown.textContent = 'Reported';
-        try {
-          await fetch('/api/copilot/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_query: message,
-              style_code: data.activeStyleCode || activeContextStyle || null,
-              model_used: model,
-              response_text: data.reply,
-              rating: -1
-            })
+        fbDown.style.display = 'none';
+        const chipsDiv = loadingDiv.querySelector('.feedback-reason-chips');
+        if (chipsDiv) {
+          chipsDiv.style.display = 'flex';
+          chipsDiv.querySelectorAll('.btn-reason-chip').forEach(chip => {
+            chip.addEventListener('click', async () => {
+              const reason = chip.getAttribute('data-reason');
+              chipsDiv.innerHTML = '<span style="color: #ef4444; font-size: 0.75rem; font-weight: 600;">Reported: ' + reason + ' (Learning Logged)</span>';
+              try {
+                await fetch('/api/copilot/feedback', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    user_query: message,
+                    style_code: data.activeStyleCode || activeContextStyle || null,
+                    model_used: model,
+                    response_text: data.reply,
+                    rating: -1,
+                    override_reason: reason
+                  })
+                });
+              } catch(e) {}
+            });
           });
-        } catch(e) {}
+        }
       });
     }
 
@@ -1891,8 +2355,28 @@ async function submitCopilotChat(message) {
       });
     });
 
+    // Attach listener for 1-click What-If Simulator actions from Decision Dossiers
+    loadingDiv.querySelectorAll('a[href^="action:simulate:"]').forEach(link => {
+      link.classList.add('btn-simulate-action');
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const parts = link.getAttribute('href').split(':');
+        const styleCode = parts[2];
+        if (styleCode) {
+          const searchInput = document.getElementById('searchBar') || document.getElementById('searchInput') || document.querySelector('.search-input');
+          if (searchInput) {
+            searchInput.value = styleCode;
+            searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          const stylesNavBtn = document.querySelector('[data-tab="styles"]') || document.getElementById('tabStyles') || document.querySelector('.nav-btn');
+          if (stylesNavBtn && stylesNavBtn.click) stylesNavBtn.click();
+        }
+      });
+    });
+
   } catch (err) {
-    loadingDiv.textContent = 'Failed to connect to Merchandising Copilot.';
+    console.error('Copilot Chat Connection Error:', err);
+    loadingDiv.innerHTML = `<span style="color: #ef4444;">⚠️ Connection Error: ${escapeHtml(err.message || 'Failed to connect to Merchandising Copilot')}. Please refresh or check session.</span>`;
   }
 }
 
@@ -2749,8 +3233,18 @@ function initKeyboardShortcuts() {
       e.preventDefault();
       const searchInput = document.getElementById('searchInput');
       if (searchInput) {
-        searchInput.focus();
+        searchInput.focus({ preventScroll: true });
         searchInput.select();
+        const section = searchInput.closest('.section-block');
+        if (section) {
+          const rect = section.getBoundingClientRect();
+          if (rect.top < 85 || rect.top > window.innerHeight * 0.6) {
+            window.scrollTo({
+              top: window.pageYOffset + rect.top - 90,
+              behavior: 'smooth'
+            });
+          }
+        }
         showLuxuryToast('Focused style search', 'info');
       }
     } else if (e.key === 'c' || e.key === 'C') {

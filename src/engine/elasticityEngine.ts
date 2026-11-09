@@ -32,6 +32,7 @@ export interface StyleElasticityCurve {
     storeExposureRate: number;
     historicalAspEstimate: number;
     historicalDiscountDepth: number;
+    hasHistoricalSales?: boolean;
   };
 }
 
@@ -75,10 +76,27 @@ export function computeStyleElasticityCurve(
   }
 
   // 3. Historical Realized ASP & Discount Depth (from sales_price or estimated from STR velocity)
-  const historicalAspEstimate = historicalRealizedPrice && historicalRealizedPrice > 0 
-    ? historicalRealizedPrice 
-    : (cumulativeSTR > 50 ? ticketPrice * 0.94 : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72));
-  const historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+  let historicalAspEstimate: number;
+  let historicalDiscountDepth: number;
+  let hasHistoricalSales = false;
+
+  if (historicalRealizedPrice && historicalRealizedPrice > 0) {
+    historicalAspEstimate = historicalRealizedPrice;
+    historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+    hasHistoricalSales = true;
+  } else if (cumulativeSTR > 0) {
+    // Has proven sales velocity: estimate realized ASP based on sell-through tiers
+    historicalAspEstimate = cumulativeSTR > 50 
+      ? ticketPrice * 0.94 
+      : (cumulativeSTR > 25 ? ticketPrice * 0.82 : ticketPrice * 0.72);
+    historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
+    hasHistoricalSales = true;
+  } else {
+    // Zero sales (0 units sold / 0% STR): item was never discounted in POS; strictly sits at full ticket price
+    historicalAspEstimate = ticketPrice;
+    historicalDiscountDepth = 0;
+    hasHistoricalSales = false;
+  }
 
   const tiers: ElasticityTierResult[] = [];
   let maxProfit = -Infinity;
@@ -167,7 +185,8 @@ export function computeStyleElasticityCurve(
       sizeFulfillmentLabel,
       storeExposureRate,
       historicalAspEstimate,
-      historicalDiscountDepth
+      historicalDiscountDepth,
+      hasHistoricalSales
     }
   };
 }
