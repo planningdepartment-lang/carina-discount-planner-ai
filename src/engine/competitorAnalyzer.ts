@@ -338,37 +338,83 @@ function resolveSafeBundlePrice(
   quantity: number,
   unitCost: number,
   ticketPrice: number
-): { bundlePrice: number; unitPrice: number; isElevatedForFloor: boolean; legalFloor: number } {
+): { bundlePrice: number; unitPrice: number; isElevatedForFloor: boolean; isBundleApplicable: boolean; legalFloor: number } {
   const legalUnitFloor = unitCost > 0 ? Math.ceil(unitCost * 1.15 * 100) / 100 : 0;
-  const totalFloor = legalUnitFloor * quantity;
-  const totalTicket = ticketPrice * quantity;
+  const totalFloor = Math.round(legalUnitFloor * quantity * 100) / 100;
+  const totalTicket = Math.round(ticketPrice * quantity * 100) / 100;
 
-  if (totalFloor <= 0 || preferredPrice >= totalFloor) {
+  // If even at combined full ticket the legal floor cannot be cleared, no bundle discount is possible
+  if (totalTicket > 0 && totalFloor >= totalTicket) {
+    return {
+      bundlePrice: totalTicket,
+      unitPrice: Math.round((ticketPrice) * 100) / 100,
+      isElevatedForFloor: true,
+      isBundleApplicable: false,
+      legalFloor: legalUnitFloor
+    };
+  }
+
+  const meetsFloor = totalFloor <= 0 || preferredPrice >= totalFloor;
+  const beatsTicket = totalTicket <= 0 || preferredPrice < totalTicket;
+
+  if (meetsFloor && beatsTicket) {
     return {
       bundlePrice: preferredPrice,
       unitPrice: Math.round((preferredPrice / quantity) * 100) / 100,
       isElevatedForFloor: false,
+      isBundleApplicable: true,
       legalFloor: legalUnitFloor
     };
   }
 
-  // Preferred price violates zero-loss floor! Find lowest charm point >= totalFloor and < totalTicket
+  // Pick a charm price >= totalFloor and strictly < totalTicket
   const safeCandidates = SAUDI_CHARM_PRICE_POINTS.filter(p => p >= totalFloor && (totalTicket <= 0 || p < totalTicket));
   if (safeCandidates.length > 0) {
-    const safeBundle = safeCandidates[0];
+    // If preferred exceeded ticket, pick closest charm below ticket (~15-25% discount); if below floor, pick lowest >= floor
+    const chosen = !beatsTicket
+      ? safeCandidates[safeCandidates.length - 1]
+      : safeCandidates[0];
     return {
-      bundlePrice: safeBundle,
-      unitPrice: Math.round((safeBundle / quantity) * 100) / 100,
-      isElevatedForFloor: true,
+      bundlePrice: chosen,
+      unitPrice: Math.round((chosen / quantity) * 100) / 100,
+      isElevatedForFloor: !meetsFloor,
+      isBundleApplicable: true,
       legalFloor: legalUnitFloor
     };
   }
 
-  const fallbackBundle = Math.ceil(totalFloor);
+  // No charm point fits in the narrow (totalFloor, totalTicket) band — try integer or 0.5 SAR step below totalTicket
+  const targetBandPrice = Math.min(
+    Math.floor((totalTicket - 0.5) * 100) / 100,
+    Math.max(totalFloor, Math.round(totalTicket * 0.85 * 100) / 100)
+  );
+  const clampedBand = Math.max(Math.ceil(totalFloor * 100) / 100, Math.round(targetBandPrice));
+  if (totalTicket <= 0 || clampedBand < totalTicket) {
+    return {
+      bundlePrice: clampedBand,
+      unitPrice: Math.round((clampedBand / quantity) * 100) / 100,
+      isElevatedForFloor: !meetsFloor,
+      isBundleApplicable: true,
+      legalFloor: legalUnitFloor
+    };
+  }
+
+  const midpoint = Math.round(((totalFloor + totalTicket) / 2) * 100) / 100;
+  if (midpoint >= totalFloor && midpoint < totalTicket) {
+    return {
+      bundlePrice: midpoint,
+      unitPrice: Math.round((midpoint / quantity) * 100) / 100,
+      isElevatedForFloor: !meetsFloor,
+      isBundleApplicable: true,
+      legalFloor: legalUnitFloor
+    };
+  }
+
   return {
-    bundlePrice: fallbackBundle,
-    unitPrice: Math.round((fallbackBundle / quantity) * 100) / 100,
+    bundlePrice: totalTicket,
+    unitPrice: ticketPrice,
     isElevatedForFloor: true,
+    isBundleApplicable: false,
     legalFloor: legalUnitFloor
   };
 }
@@ -428,57 +474,112 @@ export function analyzeCompetitorPosition(
 
   // Micro/Low-Ticket Accessories & Socks (Ticket <= 15 SAR)
   if (carinaTicketSAR > 0 && carinaTicketSAR <= 15.0) {
-    tacticalCounterOffer = `Impulse Multipack (Buy 3 For 15 SAR / 5.00 SAR/u) or Impulse Add-On (${carinaPromoPriceSAR.toFixed(2)} SAR)`;
-    tacticalRationale = `Low-ticket impulse accessory. Merchandised at POS cash counter to drive basket UPT and beat Blooming's 5.00 SAR unit pricing.`;
+    const threeUnitFloor = (unitCost > 0 ? Math.ceil(unitCost * 1.15 * 100) / 100 : 0) * 3;
+    const preferredTotal = carinaTicketSAR * 3 > 15.0 && threeUnitFloor <= 15.0
+      ? 15
+      : Math.min(29, Math.floor(carinaTicketSAR * 3 * 0.80));
+    const safe3 = resolveSafeBundlePrice(preferredTotal, 3, unitCost, carinaTicketSAR);
+    if (safe3.isBundleApplicable) {
+      tacticalCounterOffer = `Impulse Multipack (Buy 3 For ${safe3.bundlePrice} SAR / ${safe3.unitPrice.toFixed(2)} SAR/u) or Impulse Add-On (${carinaPromoPriceSAR.toFixed(2)} SAR)`;
+      tacticalRationale = safe3.isElevatedForFloor
+        ? `Low-ticket impulse accessory elevated to ${safe3.bundlePrice} SAR (${safe3.unitPrice.toFixed(2)} SAR/u) to strictly clear the ${safe3.legalFloor.toFixed(2)} SAR Saudi zero-loss floor.`
+        : `Low-ticket impulse accessory. Merchandised at POS cash counter to drive basket UPT while maintaining genuine discount below ${(carinaTicketSAR * 3).toFixed(2)} SAR combined ticket.`;
+    } else {
+      tacticalCounterOffer = `Impulse Add-On (${Math.max(safe3.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+      tacticalRationale = `Low-ticket impulse accessory near legal cost floor (${safe3.legalFloor.toFixed(2)} SAR); merchandised at full/floor checkout rate without below-cost bundling.`;
+    }
   } else if (normCat === 'Socks') {
-    tacticalCounterOffer = 'Multipack Bundle (Buy 2 Packs For 35 SAR)';
-    tacticalRationale = `Matches Blooming's bundle price point directly while defending landed cost floor.`;
+    const safeSocks = resolveSafeBundlePrice(35, 2, unitCost, carinaTicketSAR);
+    if (safeSocks.isBundleApplicable) {
+      tacticalCounterOffer = `Multipack Bundle (Buy 2 Packs For ${safeSocks.bundlePrice} SAR / ${safeSocks.unitPrice.toFixed(2)} SAR/u)`;
+      tacticalRationale = safeSocks.isElevatedForFloor
+        ? `Socks multipack calibrated to ${safeSocks.bundlePrice} SAR (${safeSocks.unitPrice.toFixed(2)} SAR/u) to strictly enforce the ${safeSocks.legalFloor.toFixed(2)} SAR legal floor.`
+        : `Competitively counters Blooming's socks multipack while guaranteeing discount below ${(carinaTicketSAR * 2).toFixed(2)} SAR ticket and clearing cost floor.`;
+    } else {
+      tacticalCounterOffer = `Margin-Protected Single Pack (${Math.max(safeSocks.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+      tacticalRationale = `Cost floor (${safeSocks.legalFloor.toFixed(2)} SAR) precludes a 2-pack discount below combined ticket.`;
+    }
   } else if (normCat === 'Pyjamas') {
     if (carinaTicketSAR >= 90.0) {
       if (competitivePosture === 'PREMIUM_EXPOSURE') {
         const safe = resolveSafeBundlePrice(149, 2, unitCost, carinaTicketSAR);
-        tacticalCounterOffer = `Dynamic Bundle 2 at ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u)`;
-        tacticalRationale = safe.isElevatedForFloor
-          ? `Nayomi runs 2 for 199 SAR. Tactical bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to strictly enforce the ${safe.legalFloor.toFixed(2)} SAR Saudi zero-loss floor (cost ${unitCost.toFixed(2)} SAR + 15% VAT).`
-          : `Nayomi is running 2 for 199 SAR and Blooming 3 for 99 SAR. CARINA Dynamic Bundle 2 at 149 SAR defeats Nayomi by 25% while defending gross margin above cost floor.`;
+        if (safe.isBundleApplicable) {
+          tacticalCounterOffer = `Dynamic Bundle 2 at ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u)`;
+          tacticalRationale = safe.isElevatedForFloor
+            ? `Nayomi runs 2 for 199 SAR. Tactical bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to strictly enforce the ${safe.legalFloor.toFixed(2)} SAR Saudi zero-loss floor (cost ${unitCost.toFixed(2)} SAR + 15% VAT).`
+            : `Nayomi is running 2 for 199 SAR and Blooming 3 for 99 SAR. CARINA Dynamic Bundle 2 at 149 SAR defeats Nayomi by 25% while defending gross margin above cost floor.`;
+        } else {
+          tacticalCounterOffer = `Margin-Protected Single Offer (${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+          tacticalRationale = `Unit cost (${unitCost.toFixed(2)} SAR, floor ${safe.legalFloor.toFixed(2)} SAR) precludes 2-unit bundle discount below ticket vs Nayomi.`;
+        }
       } else {
         const safe = resolveSafeBundlePrice(159, 2, unitCost, carinaTicketSAR);
-        tacticalCounterOffer = `Dynamic Bundle 2 at ${safe.bundlePrice} SAR or Spend 250 Save 50`;
-        tacticalRationale = safe.isElevatedForFloor
-          ? `Current CARINA promo (${carinaPromoPriceSAR.toFixed(2)} SAR) is competitive. Tactical bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to enforce the ${safe.legalFloor.toFixed(2)} SAR zero-loss floor.`
-          : `Current CARINA promo (${carinaPromoPriceSAR.toFixed(2)} SAR) is highly competitive against Nayomi (${nayomi.effectivePromoPriceSAR} SAR). Leverage multi-buy to drive 2.0 UPT.`;
+        if (safe.isBundleApplicable) {
+          tacticalCounterOffer = `Dynamic Bundle 2 at ${safe.bundlePrice} SAR or Spend 250 Save 50`;
+          tacticalRationale = safe.isElevatedForFloor
+            ? `Current CARINA promo (${carinaPromoPriceSAR.toFixed(2)} SAR) is competitive. Tactical bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to enforce the ${safe.legalFloor.toFixed(2)} SAR zero-loss floor.`
+            : `Current CARINA promo (${carinaPromoPriceSAR.toFixed(2)} SAR) is highly competitive against Nayomi (${nayomi.effectivePromoPriceSAR} SAR). Leverage multi-buy to drive 2.0 UPT.`;
+        } else {
+          tacticalCounterOffer = `Spend 250 Save 50 (Margin Protected)`;
+          tacticalRationale = `Current CARINA promo (${carinaPromoPriceSAR.toFixed(2)} SAR) sits close to the ${safe.legalFloor.toFixed(2)} SAR floor; protect unit margin via cart-level threshold.`;
+        }
       }
     } else {
       const safe = resolveSafeBundlePrice(69, 2, unitCost, carinaTicketSAR);
-      tacticalCounterOffer = `Dynamic Bundle 2 (2 for ${safe.bundlePrice} SAR)`;
-      tacticalRationale = safe.isElevatedForFloor
-        ? `Mid-ticket sleepwear bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to defend zero-loss floor.`
-        : `Mid-ticket sleepwear separates bundled to encourage complete loungewear outfit building.`;
+      if (safe.isBundleApplicable) {
+        tacticalCounterOffer = `Dynamic Bundle 2 (2 for ${safe.bundlePrice} SAR)`;
+        tacticalRationale = safe.isElevatedForFloor
+          ? `Mid-ticket sleepwear bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to defend zero-loss floor.`
+          : `Mid-ticket sleepwear separates bundled to encourage complete loungewear outfit building.`;
+      } else {
+        tacticalCounterOffer = `Spend & Save Eligible (${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+        tacticalRationale = `Mid-ticket separates near cost floor (${safe.legalFloor.toFixed(2)} SAR); protect single-unit margin.`;
+      }
     }
   } else if (normCat === 'Bra') {
     const safe = resolveSafeBundlePrice(99, 2, unitCost, carinaTicketSAR);
-    tacticalCounterOffer = `Dynamic Bundle 2 (2 Bras for ${safe.bundlePrice} SAR)`;
-    tacticalRationale = safe.isElevatedForFloor
-      ? `Bra bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to strictly defend the ${safe.legalFloor.toFixed(2)} SAR Saudi zero-loss floor.`
-      : `Matches Blooming's 2 for 99 SAR price point directly and severely undercuts Nayomi (74.50 SAR/u), winning footfall in shared mall corridors.`;
+    if (safe.isBundleApplicable) {
+      tacticalCounterOffer = `Dynamic Bundle 2 (2 Bras for ${safe.bundlePrice} SAR)`;
+      tacticalRationale = safe.isElevatedForFloor
+        ? `Bra bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to strictly defend the ${safe.legalFloor.toFixed(2)} SAR Saudi zero-loss floor.`
+        : `Matches Blooming's 2 for 99 SAR price point directly and severely undercuts Nayomi (74.50 SAR/u), winning footfall in shared mall corridors.`;
+    } else {
+      tacticalCounterOffer = `Margin-Protected Bra Offer (${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+      tacticalRationale = `Protected at ${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR to enforce the ${safe.legalFloor.toFixed(2)} SAR legal floor.`;
+    }
   } else if (normCat === 'Brief') {
     const safe = resolveSafeBundlePrice(59, 3, unitCost, carinaTicketSAR);
-    tacticalCounterOffer = `Multipack 3 for ${safe.bundlePrice} SAR Rail`;
-    tacticalRationale = safe.isElevatedForFloor
-      ? `Multipack elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to comply with Saudi VAT zero-loss regulation.`
-      : `Positioned between Blooming (15.80 SAR/u) and Nayomi (23.00 SAR/u), capturing volume while defending Saudi VAT compliance.`;
+    if (safe.isBundleApplicable) {
+      tacticalCounterOffer = `Multipack 3 for ${safe.bundlePrice} SAR Rail`;
+      tacticalRationale = safe.isElevatedForFloor
+        ? `Multipack elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to comply with Saudi VAT zero-loss regulation.`
+        : `Positioned between Blooming (15.80 SAR/u) and Nayomi (23.00 SAR/u), capturing volume while defending Saudi VAT compliance.`;
+    } else {
+      tacticalCounterOffer = `Margin-Protected Single Offer (${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+      tacticalRationale = `Protected near ${safe.legalFloor.toFixed(2)} SAR floor to comply with Saudi VAT zero-loss regulation.`;
+    }
   } else if (normCat === 'Basics') {
     const safe = resolveSafeBundlePrice(59, 2, unitCost, carinaTicketSAR);
-    tacticalCounterOffer = `Dynamic Bundle 2 (2 for ${safe.bundlePrice} SAR)`;
-    tacticalRationale = safe.isElevatedForFloor
-      ? `Basics bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to defend zero-loss floor.`
-      : `Matches Blooming's 2 for 59 SAR promotional rail while protecting gross margin above landed cost.`;
+    if (safe.isBundleApplicable) {
+      tacticalCounterOffer = `Dynamic Bundle 2 (2 for ${safe.bundlePrice} SAR)`;
+      tacticalRationale = safe.isElevatedForFloor
+        ? `Basics bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to defend zero-loss floor.`
+        : `Matches Blooming's 2 for 59 SAR promotional rail while protecting gross margin above landed cost.`;
+    } else {
+      tacticalCounterOffer = `Spend & Save Eligible (${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+      tacticalRationale = `Basics style near cost floor (${safe.legalFloor.toFixed(2)} SAR); maintain margin compliance.`;
+    }
   } else if (normCat === 'Accessories') {
     const safe = resolveSafeBundlePrice(39, 2, unitCost, carinaTicketSAR);
-    tacticalCounterOffer = `Multi-Buy Bundle (Buy 2 For ${safe.bundlePrice} SAR) or Basket Add-On`;
-    tacticalRationale = safe.isElevatedForFloor
-      ? `Accessory bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to defend zero-loss floor.`
-      : `Encourages impulse home and bath gifting additions during seasonal footfall surges.`;
+    if (safe.isBundleApplicable) {
+      tacticalCounterOffer = `Multi-Buy Bundle (Buy 2 For ${safe.bundlePrice} SAR) or Basket Add-On`;
+      tacticalRationale = safe.isElevatedForFloor
+        ? `Accessory bundle elevated to ${safe.bundlePrice} SAR (${safe.unitPrice.toFixed(2)} SAR/u) to defend zero-loss floor.`
+        : `Encourages impulse home and bath gifting additions during seasonal footfall surges.`;
+    } else {
+      tacticalCounterOffer = `Basket Add-On (${Math.max(safe.legalFloor, carinaPromoPriceSAR).toFixed(2)} SAR)`;
+      tacticalRationale = `Accessory near legal floor (${safe.legalFloor.toFixed(2)} SAR); positioned as full/floor checkout add-on.`;
+    }
   } else if (normCat === 'Cosmetics') {
     tacticalCounterOffer = 'Spend 250 Save 50 (Basket Pack) & 0% Off Ticket';
     tacticalRationale = `Maintain full ticket protection on single-unit sales to preserve 70%+ gross margin, using cosmetics as checkout add-ons rather than clearance rails.`;

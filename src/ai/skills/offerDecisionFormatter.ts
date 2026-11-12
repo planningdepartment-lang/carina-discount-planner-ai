@@ -28,6 +28,7 @@ export interface OfferDecisionData {
   forecastSold?: number;
   forecastProfit?: number;
   posTag?: string;
+  rationale?: string;
   isExploratory?: boolean;
   exploratoryHypothesis?: string;
 }
@@ -63,6 +64,10 @@ export function formatOfferDecisionCard(data: OfferDecisionData): string {
   card += `| **Physical Network Inventory** | **${data.totalStock.toLocaleString()} units** | Floor Runway: **${data.storeFloorWOS.toFixed(1)} wks** (${data.sarHealth}) |\n`;
   card += `| **Projected 14-Day Clearance** | **~${forecastSold.toLocaleString()} units** | Estimated Net Realized Cash: **+${forecastProfit.toLocaleString()} SAR** |\n`;
   card += `| **Odoo POS Automation Tag** | \`${posTag}\` | Ready for cash register pricelist deployment |\n\n`;
+
+  if (data.rationale) {
+    card += `**Why This Decision:** ${data.rationale}\n\n`;
+  }
 
   if (data.storeStock) {
     card += `**📍 Store Floor Allocation:** Andalus: \`${data.storeStock.andalus}u\` | Yasmeen: \`${data.storeStock.yasmeen}u\` | Jouri (Taif): \`${data.storeStock.jouri}u\` | Central WH: \`${data.storeStock.wh}u\`\n\n`;

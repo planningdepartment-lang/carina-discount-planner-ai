@@ -57,6 +57,7 @@ let currentPage = 1;
 let pageSize = 15;
 let debounceTimer = null;
 let activeContextStyle = null; // Session memory for Copilot multi-turn chat
+let copilotMessagesHistory = []; // Multi-turn chat history sent to Copilot backend
 let currentLoadedStyles = []; // Dynamic catalog styles for executive prompt generation
 let promptShuffleOffset = 0; // Offset for rotating dynamic questions
 window.isExploratoryMode = localStorage.getItem('carina_copilot_exploratory') === 'true'; // Global Cognitive Mode state
@@ -285,17 +286,19 @@ function renderDynamicExecutivePrompts(forceShuffle = false) {
 /**
  * Computes multi-point price elasticity of demand and profit curve for a style.
  */
-function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhysicalStock, cumulativeSTR = 40.0, activeSizeCount = 4, isSingleSize = false, storeSharePct = 50, historicalRealizedPrice = null) {
+function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhysicalStock, cumulativeSTR = 40.0, activeSizeCount = 4, isSingleSize = false, storeSharePct = 50, historicalRealizedPrice = null, hasCoreSizes = true, soldUnits = undefined) {
   const costPlusVat = unitCost > 0 ? Math.round(unitCost * 1.15 * 100) / 100 : 0;
   const discountSteps = [0, 10, 20, 30, 40, 50];
   const baseWeeklySales = Math.max(0.2, weeklyROS);
   const baselineSales = Math.max(1, Math.round(baseWeeklySales * 4));
 
   // 1. Assortment Size Curve Walkout Factor
-  const isBrokenCurve = !isSingleSize && activeSizeCount <= 2;
+  const isBrokenCurve = !isSingleSize && (activeSizeCount <= 2 || hasCoreSizes === false);
   const sizeFulfillmentRate = isBrokenCurve ? 0.70 : 1.00;
-  const sizeFulfillmentLabel = isBrokenCurve 
-    ? `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`
+  const sizeFulfillmentLabel = isBrokenCurve
+    ? (hasCoreSizes === false
+        ? `Non-Core Size Curve (${activeSizeCount} sizes active, missing core S/M/L/XL) — 30% walkout loss applied`
+        : `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`)
     : (isSingleSize ? 'Complete Assortment — 100% Single-Size fulfillment' : `Healthy Curve (${activeSizeCount} sizes active) — 100% fulfillment`);
 
   // 2. Price sensitivity coefficient
@@ -308,7 +311,12 @@ function computeClientElasticityCurve(ticketPrice, unitCost, weeklyROS, totalPhy
   let historicalDiscountDepth;
   let hasHistoricalSales = false;
 
-  if (historicalRealizedPrice && historicalRealizedPrice > 0) {
+  if (soldUnits !== undefined && soldUnits <= 0) {
+    // Zero lifetime sales -> item never sold at a markdown
+    historicalAspEstimate = ticketPrice;
+    historicalDiscountDepth = 0;
+    hasHistoricalSales = false;
+  } else if (historicalRealizedPrice && historicalRealizedPrice > 0) {
     historicalAspEstimate = historicalRealizedPrice;
     historicalDiscountDepth = Math.round(Math.max(0, 1 - (historicalAspEstimate / (ticketPrice || 1))) * 100);
     hasHistoricalSales = true;
@@ -433,10 +441,12 @@ async function initApp() {
     });
   });
 
+  await loadStyles(); // Sequence first load so cold-cache D1 aggregation runs strictly once
   loadSummary();
   loadCompetitorRadar();
-  loadStyles();
   loadRules(); // Preload rules proactively so modal renders instantaneously
+  initCampaignModeSwitcher();
+  initMonitoringModal();
   initRetrainingAndGateway();
   initAntigravitySpatialEngine();
   initKeyboardShortcuts();
@@ -537,9 +547,12 @@ async function initApp() {
   const sliderMarginFloor = document.getElementById('sliderMarginFloor');
 
   sliderLiquidation.addEventListener('input', (e) => {
-    const units = parseInt(e.target.value);
-    const pct = ((units / 53999) * 100).toFixed(1);
+    const units = parseInt(e.target.value, 10) || 0;
+    const catalogTotal = window.totalCatalogStock || 1;
+    const pct = ((units / catalogTotal) * 100).toFixed(1);
     document.getElementById('valLiquidation').textContent = `${units.toLocaleString()} Units (${pct}%)`;
+    const cockpitTarget = document.getElementById('cockpitLiquidationTarget');
+    if (cockpitTarget) cockpitTarget.textContent = `${units.toLocaleString()} u LIQUIDATION`;
     triggerSimulationDebounced();
   });
 
@@ -551,8 +564,12 @@ async function initApp() {
   document.getElementById('resetSimBtn').addEventListener('click', () => {
     sliderLiquidation.value = 22550;
     sliderMarginFloor.value = 48;
-    document.getElementById('valLiquidation').textContent = '22,550 Units (42.8%)';
+    const catalogTotal = window.totalCatalogStock || 1;
+    const pct = ((22550 / catalogTotal) * 100).toFixed(1);
+    document.getElementById('valLiquidation').textContent = `22,550 Units (${pct}%)`;
     document.getElementById('valMarginFloor').textContent = '48.0%';
+    const cockpitTarget = document.getElementById('cockpitLiquidationTarget');
+    if (cockpitTarget) cockpitTarget.textContent = '22,550 u LIQUIDATION';
     document.querySelectorAll('.btn-sim-preset').forEach(b => b.classList.remove('active'));
     const defPreset = document.querySelector('.btn-sim-preset[data-liq="22550"]');
     if (defPreset) defPreset.classList.add('active');
@@ -565,15 +582,18 @@ async function initApp() {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.btn-sim-preset').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const liq = parseInt(btn.getAttribute('data-liq')) || 22550;
-      const margin = parseInt(btn.getAttribute('data-margin')) || 48;
+      const liq = parseInt(btn.getAttribute('data-liq'), 10) || 22550;
+      const margin = parseInt(btn.getAttribute('data-margin'), 10) || 48;
 
       sliderLiquidation.value = liq;
       sliderMarginFloor.value = margin;
 
-      const pct = ((liq / 53999) * 100).toFixed(1);
+      const catalogTotal = window.totalCatalogStock || 1;
+      const pct = ((liq / catalogTotal) * 100).toFixed(1);
       document.getElementById('valLiquidation').textContent = `${liq.toLocaleString()} Units (${pct}%)`;
       document.getElementById('valMarginFloor').textContent = `${margin}.0%`;
+      const cockpitTarget = document.getElementById('cockpitLiquidationTarget');
+      if (cockpitTarget) cockpitTarget.textContent = `${liq.toLocaleString()} u LIQUIDATION`;
 
       triggerSimulationDebounced();
       showLuxuryToast(`Activated preset: ${btn.textContent.trim()}`, 'success');
@@ -623,7 +643,11 @@ async function initApp() {
   // Close copilot drawer on outside click
   document.addEventListener('click', (e) => {
     if (copilotDrawer && copilotDrawer.classList.contains('open')) {
-      if (!copilotDrawer.contains(e.target) && !e.target.closest('#toggleCopilotBtn') && !e.target.closest('.clickable-style-badge')) {
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      const clickedInsideDrawer = path.includes(copilotDrawer) || (e.target && e.target.isConnected && copilotDrawer.contains(e.target));
+      if (clickedInsideDrawer) return;
+      if (e.target && !e.target.isConnected) return;
+      if (!e.target.closest('#toggleCopilotBtn') && !e.target.closest('.clickable-style-badge')) {
         copilotDrawer.classList.remove('open');
       }
     }
@@ -791,11 +815,39 @@ async function loadSummary() {
     if (!res.ok) return;
     const data = await res.json();
 
+    window.totalCatalogStock = data.totalPhysicalStock || 1;
+    const heroStockEl = document.getElementById('heroTotalStock');
+    if (heroStockEl) heroStockEl.textContent = data.totalPhysicalStock.toLocaleString();
+
     document.getElementById('kpiTotalStock').textContent = data.totalPhysicalStock.toLocaleString();
     document.getElementById('kpiTotalCost').textContent = data.totalCostCapitalSAR.toLocaleString() + ' SAR';
     document.getElementById('kpiRetailValue').textContent = Math.round(data.totalRetailValueSAR * 0.65).toLocaleString() + ' SAR';
     document.getElementById('kpiBlendedIMU').textContent = data.blendedIMU.toFixed(1) + '%';
-    document.getElementById('kpiCurveHealth').textContent = '57.8%';
+    const imuBarEl = document.getElementById('kpiBlendedIMUBar');
+    if (imuBarEl) imuBarEl.style.width = `${Math.min(100, Math.max(0, data.blendedIMU)).toFixed(1)}%`;
+
+    const winterPct = data.winterProtectedPct !== undefined
+      ? Number(data.winterProtectedPct)
+      : (data.assortmentRetentionPct !== undefined ? Number(data.assortmentRetentionPct) : 0);
+    const healthyPct = data.healthyCurvesPct !== undefined ? Number(data.healthyCurvesPct) : 0;
+
+    document.getElementById('kpiCurveHealth').textContent = winterPct.toFixed(1) + '%';
+    const curveBarEl = document.getElementById('kpiCurveHealthBar');
+    if (curveBarEl) curveBarEl.style.width = `${Math.min(100, Math.max(0, winterPct)).toFixed(1)}%`;
+    const curveSubEl = document.getElementById('kpiCurveHealthSub');
+    if (curveSubEl) {
+      curveSubEl.textContent = `Winter Depth Protected | ${healthyPct.toFixed(1)}% Healthy S/M/L/XL Curves`;
+    }
+
+    const sliderLiq = document.getElementById('sliderLiquidation');
+    const valLiq = document.getElementById('valLiquidation');
+    const cockpitTarget = document.getElementById('cockpitLiquidationTarget');
+    if (sliderLiq) {
+      const units = parseInt(sliderLiq.value, 10) || 22550;
+      const pct = ((units / window.totalCatalogStock) * 100).toFixed(1);
+      if (valLiq) valLiq.textContent = `${units.toLocaleString()} Units (${pct}%)`;
+      if (cockpitTarget) cockpitTarget.textContent = `${units.toLocaleString()} u LIQUIDATION`;
+    }
 
     const { andalus, yasmeen, jouri } = data.storeDensities;
     
@@ -951,15 +1003,22 @@ async function loadStyles() {
         compBadgeHtml = '<span class="comp-index-text">-</span>';
       }
       const tr = document.createElement('tr');
-      const isSingleSize = metrics.isSingleSize || 
-        /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) || 
-        /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName);
+      const isSingleSize = typeof metrics.isSingleSize === 'boolean'
+        ? metrics.isSingleSize
+        : (
+            /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|socks|head\s*band|puncho|poncho|prayer|abaya|stripes\s*robe/i.test(metrics.category) ||
+            /\b(\d+ml|free size|one size|os|free|socks|puncho|poncho|head\s*band)\b/i.test(metrics.productName)
+          );
 
+      const hasCoreSizes = metrics.hasCoreSizes !== false;
+      const activeSizesVal = metrics.activeSizeCount !== undefined ? metrics.activeSizeCount : 0;
       let curveTag;
       if (isSingleSize) {
         curveTag = '<span class="badge badge-single-size">Single Size (Complete)</span>';
-      } else if (metrics.activeSizeCount >= 3) {
+      } else if (activeSizesVal >= 3 && hasCoreSizes) {
         curveTag = '<span class="badge badge-yes">Healthy (≥3 Sizes)</span>';
+      } else if (!hasCoreSizes) {
+        curveTag = '<span class="badge badge-flag">Broken (Non-Core Sizes)</span>';
       } else {
         curveTag = '<span class="badge badge-flag">Broken (≤2 Sizes)</span>';
       }
@@ -1030,13 +1089,21 @@ async function loadStyles() {
               data-active-weeks="${metrics.activeWeeks !== undefined ? metrics.activeWeeks.toFixed(1) : '8.0'}"
               data-momentum-ratio="${momentumRatio.toFixed(2)}"
               data-momentum-label="${escapeHtml(momentumLabel)}"
-              data-sizes="${metrics.activeSizeCount}"
+              data-sizes="${activeSizesVal}"
+              data-has-core-sizes="${hasCoreSizes ? 'true' : 'false'}"
+              data-is-single-size="${isSingleSize ? 'true' : 'false'}"
+              data-size-breakdown="${escapeHtml(JSON.stringify(metrics.sizeBreakdown || {}))}"
               data-andalus="${metrics.stockAndalus}"
               data-yasmeen="${metrics.stockYasmeen}"
               data-jouri="${metrics.stockJouri}"
               data-wh="${metrics.stockWH}"
               data-historical-asp="${metrics.historicalASP || ''}"
               data-clearance-pct="${recommendation.expectedClearancePct || 0}"
+              data-speed-band="${escapeHtml(recommendation.speedBand || '')}"
+              data-str-pace="${recommendation.strVelocityPctPerWeek !== undefined ? Number(recommendation.strVelocityPctPerWeek).toFixed(1) : '0.0'}"
+              data-tenure-wks="${recommendation.effectiveTenureWeeks !== undefined ? Number(recommendation.effectiveTenureWeeks).toFixed(1) : (metrics.salesLifecycleWeeks !== undefined ? Number(metrics.salesLifecycleWeeks).toFixed(1) : '0.0')}"
+              data-clearance-scope="${escapeHtml(recommendation.clearanceScope || 'NONE')}"
+              data-campaign-mode="${escapeHtml(recommendation.campaignMode || 'REGULAR_DROP_CYCLE')}"
               data-offer="${escapeHtml(recommendation.recommendedOffer)}"
               data-rationale="${escapeHtml(recommendation.rationale)}">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;display:inline-block;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -1057,7 +1124,9 @@ async function loadStyles() {
             data-ticket="${metrics.ticketPrice}"
             data-promo="${recommendation.promotionalPriceSAR}"
             data-discount="${recommendation.discountPct}"
-            data-sizes="${metrics.activeSizeCount || 2}"
+            data-sizes="${activeSizesVal}"
+            data-has-core-sizes="${hasCoreSizes ? 'true' : 'false'}"
+            data-is-single-size="${isSingleSize ? 'true' : 'false'}"
             data-str="${metrics.cumulativeSTR.toFixed(1)}"
             data-ros="${metrics.weeklyROS.toFixed(1)}"
             data-offer="${escapeHtml(recommendation.recommendedOffer)}">Override</button>
@@ -1114,7 +1183,9 @@ function attachTableActionListeners() {
       const ticket = parseFloat(btn.getAttribute('data-ticket')) || 0;
       const promo = parseFloat(btn.getAttribute('data-promo')) || ticket;
       const discount = parseFloat(btn.getAttribute('data-discount')) || 0;
-      const stock = parseInt(btn.getAttribute('data-stock')) || 0;
+      const stock = parseInt(btn.getAttribute('data-stock'), 10) || 0;
+      const rawSoldUnits = parseInt(btn.getAttribute('data-sold-units'), 10);
+      const soldUnits = isNaN(rawSoldUnits) ? 0 : rawSoldUnits;
       const str = parseFloat(btn.getAttribute('data-str')) || 0;
       const ros = parseFloat(btn.getAttribute('data-ros')) || 0;
       const ros2wk = parseFloat(btn.getAttribute('data-ros-2wk')) || ros;
@@ -1122,25 +1193,44 @@ function attachTableActionListeners() {
       const activeWeeks = parseFloat(btn.getAttribute('data-active-weeks')) || 8.0;
       const momentumRatio = parseFloat(btn.getAttribute('data-momentum-ratio')) || 1.0;
       const momentumLabel = btn.getAttribute('data-momentum-label') || 'Stable';
-      const sizes = parseInt(btn.getAttribute('data-sizes')) || 2;
-      const andalus = parseInt(btn.getAttribute('data-andalus')) || 0;
-      const yasmeen = parseInt(btn.getAttribute('data-yasmeen')) || 0;
-      const jouri = parseInt(btn.getAttribute('data-jouri')) || 0;
-      const wh = parseInt(btn.getAttribute('data-wh')) || 0;
+      const rawSizes = parseInt(btn.getAttribute('data-sizes'), 10);
+      const sizes = isNaN(rawSizes) ? 0 : rawSizes;
+      const hasCoreSizes = btn.getAttribute('data-has-core-sizes') !== 'false';
+      const rawSingleSizeAttr = btn.getAttribute('data-is-single-size');
+      let sizeBreakdown = {};
+      try {
+        sizeBreakdown = JSON.parse(btn.getAttribute('data-size-breakdown') || '{}') || {};
+      } catch {
+        sizeBreakdown = {};
+      }
+      const andalus = parseInt(btn.getAttribute('data-andalus'), 10) || 0;
+      const yasmeen = parseInt(btn.getAttribute('data-yasmeen'), 10) || 0;
+      const jouri = parseInt(btn.getAttribute('data-jouri'), 10) || 0;
+      const wh = parseInt(btn.getAttribute('data-wh'), 10) || 0;
       const offer = btn.getAttribute('data-offer') || 'Regular';
       let rationale = btn.getAttribute('data-rationale') || '';
       const rawClearancePct = parseFloat(btn.getAttribute('data-clearance-pct')) || 0;
+      const speedBand = btn.getAttribute('data-speed-band') || '';
+      const strPace = parseFloat(btn.getAttribute('data-str-pace')) || 0;
+      const tenureWks = parseFloat(btn.getAttribute('data-tenure-wks')) || parseFloat(btn.getAttribute('data-sales-lifecycle')) || 0;
+      const clearanceScope = btn.getAttribute('data-clearance-scope') || 'NONE';
+      const campaignMode = btn.getAttribute('data-campaign-mode') || 'REGULAR_DROP_CYCLE';
 
-      // Detect single-size items (cosmetics, accessories, towels)
-      const isSingleSize = /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(category) || 
-                           /\b(\d+ml|free size|one size|os)\b/i.test(name);
+      // Trust server-computed single-size flag; fall back cleanly only when absent
+      const isSingleSize = rawSingleSizeAttr !== null
+        ? rawSingleSizeAttr === 'true'
+        : (
+            /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|socks|head\s*band|puncho|poncho|prayer|abaya|stripes\s*robe/i.test(category) ||
+            /\b(\d+ml|free size|one size|os|free|socks|puncho|poncho|head\s*band)\b/i.test(name)
+          );
 
       // Determine Dynamic Clearance Rate based on merchandising tier
+      const normSeason = (season || '').toUpperCase().replace(/\s+/g, '');
       let clearancePct = rawClearancePct;
       if (clearancePct <= 0 || isNaN(clearancePct)) {
         if (cost * 1.15 > ticket || offer.includes('FLAGGED')) {
           clearancePct = 5;
-        } else if (season.toUpperCase().includes('AW26') || season.toUpperCase().includes('WINTER 2026')) {
+        } else if (normSeason.includes('AW26') || normSeason.includes('FW26') || normSeason.includes('WINTER2026') || normSeason.includes('SS27')) {
           clearancePct = 15;
         } else if (offer.includes('0% Off') || discount === 0) {
           clearancePct = 20;
@@ -1150,9 +1240,9 @@ function attachTableActionListeners() {
           clearancePct = 40;
         } else if (isSingleSize) {
           clearancePct = 45;
-        } else if (str >= 70 && sizes >= 3) {
+        } else if (str >= 70 && sizes >= 3 && hasCoreSizes) {
           clearancePct = 20;
-        } else if (season.toUpperCase().includes('SS26') || season.toUpperCase().includes('SUMMER 2026') || offer.includes('40% Off')) {
+        } else if (normSeason.includes('SS26') || normSeason.includes('SUMMER2026') || offer.includes('40% Off')) {
           clearancePct = 45;
         } else if (offer.includes('50% Off')) {
           clearancePct = 50;
@@ -1242,34 +1332,57 @@ function attachTableActionListeners() {
       const forecastProfit = Math.round(forecastNetRevenue - forecastCOGS);
 
       // Assortment Curve Label
-      const curveLabel = isSingleSize ? 'Single Size (Complete Assortment)' : (sizes >= 3 ? `Healthy Curve (${sizes} Sizes Active)` : `Broken Curve (${sizes} Sizes Remaining)`);
-      const curveBadgeClass = isSingleSize ? 'badge-blue' : (sizes >= 3 ? 'badge-green' : 'badge-amber');
+      const curveLabel = isSingleSize
+        ? 'Single Size (Complete Assortment)'
+        : (!hasCoreSizes
+            ? 'Broken Curve (Non-Core Sizes)'
+            : (sizes >= 3 ? `Healthy Curve (${sizes} Sizes Active)` : `Broken Curve (${sizes} Sizes Remaining)`));
+      const curveBadgeClass = isSingleSize ? 'badge-blue' : ((sizes >= 3 && hasCoreSizes) ? 'badge-green' : 'badge-amber');
 
-      // STR Benchmark Classification
+      // STR & Time-Bounded 2-Month Drop-Cycle Benchmark Classification
+      const strPaceText = `${strPace.toFixed(1)}% STR/wk over ${tenureWks.toFixed(1)} wks`;
       let strBenchmark = '';
       let strBadgeClass = 'badge-green';
-      if (isSingleSize) {
-        if (str >= 50) {
-          strBenchmark = 'Strong Single-Size Velocity (STR >= 50%): Organic consumer demand qualifies for full price margin protection.';
+      if (speedBand === 'LAUNCH_SHIELD') {
+        strBenchmark = `New Drop Launch Shield (${tenureWks.toFixed(1)} wks <= 3.0w window): Style is within its 2-month drop debut window. Protected at full margin while store demand stabilizes.`;
+        strBadgeClass = 'badge-blue';
+      } else if (speedBand === 'FAST_HERO') {
+        strBenchmark = `True 2-Month Fast Hero (${str.toFixed(1)}% STR in ${tenureWks.toFixed(1)} wks; pace ${strPace.toFixed(1)}%/wk): Proved rapid pull within the drop window and maintains healthy runway.`;
+        strBadgeClass = 'badge-green';
+      } else if (speedBand === 'ACTIVE_CONTINUITY_HERO') {
+        strBenchmark = `Active Continuity Captain (${str.toFixed(1)}% STR @ ${ros.toFixed(1)} u/wk live pull): Replenished NOOS hero with >=2.5 u/wk demand and healthy core sizes.`;
+        strBadgeClass = 'badge-green';
+      } else if (speedBand === 'SLOW_OVERSTOCK' && str >= 50) {
+        strBenchmark = `Aged High-STR Tortoise Disqualified (${str.toFixed(1)}% STR took ${tenureWks.toFixed(1)} wks; current pace ${strPace.toFixed(1)}%/wk, ROS ${ros.toFixed(1)} u/wk): Lifetime STR looks high only because stock sat too long; active movement stalled so cash recovery is prioritized.`;
+        strBadgeClass = 'badge-amber';
+      } else if (speedBand === 'MEDIUM_2A' || speedBand === 'MEDIUM_2B') {
+        strBenchmark = `Medium Mover Tier (${strPaceText}, ROS ${ros.toFixed(1)} u/wk): Not slow enough for 50% clearance and not fast enough for Hero protection; routed to ${speedBand === 'MEDIUM_2B' ? 'pre-drop ~30% escalation' : 'gentle ~20% multi-buy / basket booster'}.`;
+        strBadgeClass = speedBand === 'MEDIUM_2B' ? 'badge-amber' : 'badge-blue';
+      } else if (isSingleSize) {
+        if (str >= 50 && ros >= 2.0) {
+          strBenchmark = `Strong Single-Size Velocity (STR >= 50% @ ${ros.toFixed(1)} u/wk): Organic consumer demand qualifies for full price margin protection.`;
           strBadgeClass = 'badge-green';
         } else if (stock > 100) {
-          strBenchmark = `Steady Single-Size Stock (${stock} u): High gross margin qualifies for Spend 250 Save 50 (~20% basket discount) rather than apparel clearance dumping.`;
+          strBenchmark = `Steady Single-Size Stock (${stock} u, ${strPaceText}): High gross margin qualifies for Spend 250 Save 50 (~20% basket discount) rather than apparel clearance dumping.`;
           strBadgeClass = 'badge-blue';
         } else {
-          strBenchmark = `Limited Single-Size Oddment (${stock} u): Targeted via Beauty Multi-Buy (Buy 2 Get 1 Free) to drive unit turnover.`;
+          strBenchmark = `Limited Single-Size Oddment (${stock} u, ${strPaceText}): Targeted via Beauty Multi-Buy (Buy 2 Get 1 Free) to drive unit turnover.`;
           strBadgeClass = 'badge-amber';
         }
-      } else if (str >= 70) {
-        strBenchmark = 'High Sell-Through (>=70%): Strong organic demand qualifies for full price margin protection.';
+      } else if (str >= 70 && tenureWks <= 12 && ros >= 1.5) {
+        strBenchmark = `High Sell-Through (>=70% within 12 wks, ROS ${ros.toFixed(1)} u/wk): Rapid organic demand qualifies for full price margin protection.`;
         strBadgeClass = 'badge-green';
+      } else if (str >= 70) {
+        strBenchmark = `Aged High STR (${str.toFixed(1)}% over ${tenureWks.toFixed(1)} wks; live ROS ${ros.toFixed(1)} u/wk): High lifetime STR reflects older stock age; live 2-month velocity governs pricing rather than lifetime % alone.`;
+        strBadgeClass = 'badge-amber';
       } else if (str >= 30) {
-        strBenchmark = 'Active Turnover (30%-69%): Healthy consumer movement qualifies for Spend & Save continuity pack (~20% Off).';
+        strBenchmark = `Active Turnover (${str.toFixed(1)}% STR, ${strPaceText}): Healthy consumer movement qualifies for continuity 2-pack / Spend & Save (~20% Off).`;
         strBadgeClass = 'badge-blue';
       } else if (str >= 10) {
-        strBenchmark = 'Sluggish Velocity (10%-29%): Slow momentum requires seasonal markdown (~40% Off) to decongest floor.';
+        strBenchmark = `Sluggish Velocity (${str.toFixed(1)}% STR, ${strPaceText}): Slow momentum after 2-month drop window requires markdown escalation to decongest floor.`;
         strBadgeClass = 'badge-amber';
       } else {
-        strBenchmark = 'Stagnant Stock (<10%): Inactive capital requires clearance rail (50% Off / 99 SAR) to recover cash.';
+        strBenchmark = `Stagnant Stock (${str.toFixed(1)}% STR, ${strPaceText}): Inactive capital requires clearance rail / event markdown to recover cash.`;
         strBadgeClass = 'badge-rose';
       }
 
@@ -1304,8 +1417,8 @@ function attachTableActionListeners() {
       const isUnderwater = origMargin < 0 || ticket < floor;
 
       // Dynamic Price Elasticity Calculation for Popover
-      const historicalAspVal = parseFloat(btn.getAttribute('data-historical-asp')) || null;
-      const elasticityCurve = computeClientElasticityCurve(ticket, cost, ros, stock, str, sizes, isSingleSize, storeSharePct, historicalAspVal);
+      const historicalAspVal = soldUnits > 0 ? (parseFloat(btn.getAttribute('data-historical-asp')) || null) : null;
+      const elasticityCurve = computeClientElasticityCurve(ticket, cost, ros, stock, str, sizes, isSingleSize, storeSharePct, historicalAspVal, hasCoreSizes, soldUnits);
       const elasticityRowsHtml = elasticityCurve.tiers.map(t => {
         const isRec = Math.abs(t.discountPct - discount) < 5;
         const highlightStyle = t.isOptimalProfitPeak 
@@ -1439,6 +1552,36 @@ function attachTableActionListeners() {
             <span class="journey-step-chip">6. Cash Yield</span>
           </div>
 
+          <!-- 5-SECOND DROP-CYCLE SPEED & RAIL SCORECARD -->
+          <div class="popover-card" style="border: 1px solid rgba(212,175,55,0.35); background: rgba(212,175,55,0.06);">
+            <div class="popover-card-header">
+              <span class="popover-card-title text-gold">[5-SECOND STYLE SCORECARD: 2-MONTH DROP ENGINE]</span>
+              <span class="popover-criteria-badge ${strBadgeClass}">${escapeHtml(speedBand || 'EVALUATED')}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center;">
+              <div style="background: rgba(0,0,0,0.28); padding: 6px; border-radius: 6px;">
+                <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase;">Drop Age</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #fff;">${tenureWks.toFixed(1)} wks</div>
+                <div style="font-size: 0.6rem; color: var(--text-muted);">8.7w Drop Cycle</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.28); padding: 6px; border-radius: 6px;">
+                <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase;">STR Pace</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: var(--gold-light);">${strPace.toFixed(1)}%/wk</div>
+                <div style="font-size: 0.6rem; color: var(--text-muted);">${str.toFixed(1)}% Total STR</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.28); padding: 6px; border-radius: 6px;">
+                <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase;">Live ROS</div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: #fff;">${ros.toFixed(1)} u/wk</div>
+                <div style="font-size: 0.6rem; color: var(--text-muted);">Floor: ${storeWos} WOS</div>
+              </div>
+              <div style="background: rgba(0,0,0,0.28); padding: 6px; border-radius: 6px;">
+                <div style="font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase;">Placement</div>
+                <div style="font-size: 0.78rem; font-weight: 700; color: #fff; line-height: 1.2; margin-top: 2px;">${clearanceScope === 'PERMANENT_ODDMENT_RAIL' ? 'Clearance Rail' : (clearanceScope === 'EVENT_CLEARANCE' ? 'Event Markdown' : 'Active Floor')}</div>
+                <div style="font-size: 0.6rem; color: var(--text-muted);">${escapeHtml(campaignMode)}</div>
+              </div>
+            </div>
+          </div>
+
           <!-- STAGE 1: PRODUCT & SUPPLY REALITY (Baseline Inputs) -->
           <div class="popover-card">
             <div class="popover-card-header">
@@ -1552,10 +1695,18 @@ function attachTableActionListeners() {
                 </div>
                 <div class="popover-criteria-desc">
                   ${isSingleSize 
-                    ? 'Non-sized volumetric product; zero risk of size brokenness. Routed to multi-buy basket driver rather than broken apparel clearance rail.' 
-                    : (sizes >= 3 
-                        ? 'Broad size spectrum (>=3 sizes) active. Retains strong customer conversion without broken-curve walkout penalties.' 
-                        : 'Fragmented orphan oddments (<=2 sizes). High customer walkout risk; liquidated via Take 3 For 99 SAR or 50% clearance rail.')}
+                    ? 'Non-sized or single-size item by design; zero risk of core-size brokenness. Merchandised via basket builders or full price rather than broken-curve clearance.' 
+                    : (!hasCoreSizes
+                        ? 'Missing Core Sizes (S, M, L, XL &ge; 2 u/size required). Incomplete core size coverage triggers walkout losses and prioritizes floor-safe clearance.'
+                        : (sizes >= 3 
+                            ? 'Complete Core Curve (S, M, L, XL &ge; 2 u/size active). Retains full conversion without broken-curve walkout penalties.' 
+                            : 'Fragmented orphan oddments (&le;2 sizes remaining). High customer walkout risk; routed to floor-safe clearance rails.'))}
+                  ${(() => {
+                    const entries = Object.entries(sizeBreakdown || {}).filter(([, q]) => Number(q) > 0);
+                    if (entries.length === 0) return '';
+                    const chips = entries.map(([sz, q]) => `<span style="display:inline-block;padding:1px 6px;margin:2px 3px 0 0;border-radius:4px;font-size:0.68rem;background:rgba(255,255,255,0.06);border:1px solid ${Number(q) >= 2 ? 'rgba(16,185,129,0.45)' : 'rgba(245,158,11,0.45)'};color:${Number(q) >= 2 ? '#a7f3d0' : '#fde68a'};">${escapeHtml(sz)}: ${Number(q)}</span>`).join('');
+                    return `<div style="margin-top:5px;">${chips}</div>`;
+                  })()}
                 </div>
               </div>
 
@@ -1760,7 +1911,7 @@ function attachTableActionListeners() {
         popoverOverrideBtn.addEventListener('click', (ev) => {
           ev.stopPropagation();
           popover.style.display = 'none';
-          openOverrideModal(styleCode, name, cost, ticket, promo, offer, category, season, str, ros, sizes);
+          openOverrideModal(styleCode, name, cost, ticket, promo, offer, category, season, str, ros, sizes, hasCoreSizes, isSingleSize);
         });
       }
     });
@@ -1784,12 +1935,16 @@ function attachTableActionListeners() {
       const ticket = parseFloat(btn.getAttribute('data-ticket')) || 0;
       const promo = parseFloat(btn.getAttribute('data-promo')) || 0;
       const discount = parseFloat(btn.getAttribute('data-discount')) || 0;
-      const sizes = parseInt(btn.getAttribute('data-sizes')) || 2;
+      const rawSizes = parseInt(btn.getAttribute('data-sizes'), 10);
+      const sizes = isNaN(rawSizes) ? 0 : rawSizes;
+      const hasCoreSizes = btn.getAttribute('data-has-core-sizes') !== 'false';
+      const rawSingle = btn.getAttribute('data-is-single-size');
+      const isSingleSize = rawSingle !== null ? rawSingle === 'true' : null;
       const str = parseFloat(btn.getAttribute('data-str')) || 0;
       const ros = parseFloat(btn.getAttribute('data-ros')) || 0;
       const offer = btn.getAttribute('data-offer') || 'Regular';
 
-      openOverrideModal(styleCode, name, cost, ticket, promo, offer, category, season, str, ros, sizes);
+      openOverrideModal(styleCode, name, cost, ticket, promo, offer, category, season, str, ros, sizes, hasCoreSizes, isSingleSize);
     });
   });
 
@@ -1808,6 +1963,9 @@ function attachTableActionListeners() {
  * Focuses the Copilot drawer on a specific style.
  */
 function focusStyleInCopilot(code, name) {
+  if (activeContextStyle && activeContextStyle !== code) {
+    copilotMessagesHistory = [];
+  }
   activeContextStyle = code;
   renderDynamicExecutivePrompts();
   const bar = document.getElementById('activeContextBar');
@@ -1843,14 +2001,18 @@ function setupOverrideModal() {
   let currentCost = 0;
   let currentTicket = 0;
 
-  window.openOverrideModal = function(styleCode, name, cost, ticket, promo, offer, category = '', season = '', str = 0, ros = 0, sizes = 2) {
+  window.openOverrideModal = function(styleCode, name, cost, ticket, promo, offer, category = '', season = '', str = 0, ros = 0, sizes = 0, hasCoreSizes = true, isSingleSizeOverride = null) {
     currentCost = cost;
     currentTicket = ticket;
     document.getElementById('overrideStyleCode').value = styleCode;
 
     const floor = Math.round(cost * 1.15 * 100) / 100;
-    const isSingleSize = /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(category) || 
-                         /\b(\d+ml|free size|one size|os)\b/i.test(name);
+    const isSingleSize = isSingleSizeOverride !== null
+      ? isSingleSizeOverride
+      : (
+          /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|socks|head\s*band|puncho|poncho|prayer|abaya|stripes\s*robe/i.test(category) ||
+          /\b(\d+ml|free size|one size|os|free|socks|puncho|poncho|head\s*band)\b/i.test(name)
+        );
 
     // 1. Build contextual AI candidate offers tailored specifically to this style
     const candidateOffers = [];
@@ -1866,7 +2028,7 @@ function setupOverrideModal() {
     if (isSingleSize) {
       // Cosmetics & Single-Size Assortments (No broken curve clearance)
       const spend250Price = Math.max(floor, Math.round(ticket * 0.80 * 100) / 100);
-      if (!offer.toLowerCase().includes('spend 250')) {
+      if (!offer.toLowerCase().includes('spend 250') && spend250Price < ticket) {
         candidateOffers.push({
           strategy: 'Spend 250 Save 50 (Basket Pack)',
           price: spend250Price,
@@ -1875,7 +2037,8 @@ function setupOverrideModal() {
       }
 
       const beautyMultiPrice = Math.max(floor, Math.round(ticket * (2 / 3) * 100) / 100);
-      if (!offer.toLowerCase().includes('buy 2') && !offer.toLowerCase().includes('beauty multi')) {
+      const isBeautyOrSplash = /cosmetics|body\s*splash|perfume|fragrance|spray|lotion|mist|cream/i.test(category + ' ' + name);
+      if (isBeautyOrSplash && !offer.toLowerCase().includes('buy 2') && !offer.toLowerCase().includes('beauty multi') && beautyMultiPrice < ticket) {
         candidateOffers.push({
           strategy: 'Beauty Multi-Buy (Buy 2 Get 1 Free)',
           price: beautyMultiPrice,
@@ -1883,7 +2046,7 @@ function setupOverrideModal() {
         });
       }
 
-      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off')) {
+      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off') && ticket >= floor) {
         candidateOffers.push({
           strategy: 'Full Price Margin Protection (0% Off)',
           price: ticket,
@@ -1892,44 +2055,44 @@ function setupOverrideModal() {
       }
 
       const mark40Price = Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
-      if (!offer.toLowerCase().includes('40% off')) {
+      if (!offer.toLowerCase().includes('40% off') && mark40Price < ticket) {
         candidateOffers.push({
           strategy: 'Category Markdown 40% Off',
           price: mark40Price,
-          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR (40% Off)`
+          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR`
         });
       }
 
       const clear50Price = Math.max(floor, Math.round(ticket * 0.50 * 100) / 100);
-      if (!offer.toLowerCase().includes('50% off')) {
+      if (!offer.toLowerCase().includes('50% off') && clear50Price < ticket) {
         candidateOffers.push({
           strategy: '50% Off Dedicated Clearance Rail',
           price: clear50Price,
-          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR (50% Off)`
+          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR`
         });
       }
-    } else if (sizes >= 3) {
-      // Healthy Sized Apparel Curve (>= 3 active sizes)
+    } else if (sizes >= 3 && hasCoreSizes !== false) {
+      // Healthy Sized Apparel Curve (Core S, M, L, XL complete)
       const bundleUnitPrice = Math.max(floor, Math.round(ticket * 0.75 * 100) / 100);
       const bundlePairPrice = Math.round(bundleUnitPrice * 2 * 100) / 100;
-      if (!offer.toLowerCase().includes('bundle 2') && !offer.toLowerCase().includes('take 2')) {
+      if (!offer.toLowerCase().includes('bundle 2') && !offer.toLowerCase().includes('take 2') && bundleUnitPrice < ticket) {
         candidateOffers.push({
           strategy: `Dynamic Bundle 2 (Take 2 For ${bundlePairPrice} SAR)`,
           price: bundleUnitPrice,
-          label: `Dynamic Bundle 2 (Take 2 For ${bundlePairPrice} SAR) — ${bundleUnitPrice.toFixed(2)} SAR/u (25% Off)`
+          label: `Dynamic Bundle 2 (Take 2 For ${bundlePairPrice} SAR) — ${bundleUnitPrice.toFixed(2)} SAR/u`
         });
       }
 
       const spendSavePrice = Math.max(floor, Math.round(ticket * 0.80 * 100) / 100);
-      if (!offer.toLowerCase().includes('spend & save')) {
+      if (!offer.toLowerCase().includes('spend & save') && spendSavePrice < ticket) {
         candidateOffers.push({
           strategy: 'Spend & Save Eligible (~20% Off)',
           price: spendSavePrice,
-          label: `Spend & Save Eligible (~20% Off) — ${spendSavePrice.toFixed(2)} SAR (20% Off)`
+          label: `Spend & Save Eligible (~20% Off) — ${spendSavePrice.toFixed(2)} SAR`
         });
       }
 
-      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off')) {
+      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off') && ticket >= floor) {
         candidateOffers.push({
           strategy: 'Full Price Margin Protection (0% Off)',
           price: ticket,
@@ -1938,52 +2101,51 @@ function setupOverrideModal() {
       }
 
       const mark40Price = Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
-      if (!offer.toLowerCase().includes('40% off')) {
+      if (!offer.toLowerCase().includes('40% off') && mark40Price < ticket) {
         candidateOffers.push({
           strategy: 'Category Markdown 40% Off',
           price: mark40Price,
-          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR (40% Off)`
+          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR`
         });
       }
 
       const clear50Price = Math.max(floor, Math.round(ticket * 0.50 * 100) / 100);
-      if (!offer.toLowerCase().includes('50% off')) {
+      if (!offer.toLowerCase().includes('50% off') && clear50Price < ticket) {
         candidateOffers.push({
           strategy: '50% Off Dedicated Clearance Rail',
           price: clear50Price,
-          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR (50% Off)`
+          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR`
         });
       }
     } else {
-      // Broken Curve Apparel (<= 2 active sizes)
-      const rail33Price = Math.max(floor, 33.00);
-      if (!offer.toLowerCase().includes('99') && !offer.toLowerCase().includes('3 for 99')) {
+      // Broken Curve Apparel (missing Core S/M/L/XL or <= 2 active sizes)
+      if (ticket >= 40 && floor <= 33 && !offer.toLowerCase().includes('99') && !offer.toLowerCase().includes('3 for 99')) {
         candidateOffers.push({
           strategy: 'Take 3 For 99 SAR Rail (33 SAR/u)',
-          price: rail33Price,
-          label: `Take 3 For 99 SAR Rail — ${rail33Price.toFixed(2)} SAR/u`
+          price: 33.00,
+          label: 'Take 3 For 99 SAR Rail — 33.00 SAR/u'
         });
       }
 
       const clear50Price = Math.max(floor, Math.round(ticket * 0.50 * 100) / 100);
-      if (!offer.toLowerCase().includes('50% off')) {
+      if (!offer.toLowerCase().includes('50% off') && clear50Price < ticket) {
         candidateOffers.push({
           strategy: '50% Off Dedicated Clearance Rail',
           price: clear50Price,
-          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR (50% Off)`
+          label: `50% Off Dedicated Clearance Rail — ${clear50Price.toFixed(2)} SAR`
         });
       }
 
       const mark40Price = Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
-      if (!offer.toLowerCase().includes('40% off')) {
+      if (!offer.toLowerCase().includes('40% off') && mark40Price < ticket) {
         candidateOffers.push({
           strategy: 'Category Markdown 40% Off',
           price: mark40Price,
-          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR (40% Off)`
+          label: `Category Markdown 40% Off — ${mark40Price.toFixed(2)} SAR`
         });
       }
 
-      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off')) {
+      if (Math.abs(promo - ticket) > 0.05 && !offer.toLowerCase().includes('0% off') && ticket >= floor) {
         candidateOffers.push({
           strategy: 'Full Price Margin Protection (0% Off)',
           price: ticket,
@@ -2118,16 +2280,20 @@ async function runSimulation() {
     const grossRev = Number(sim.projectedGrossRevenue) || 0;
     const netProfit = Number(sim.projectedNetProfit ?? sim.projectedGrossProfit) || 0;
     const rawMargin = Number(sim.realizedMarginPct ?? sim.realizedNetMarginPct);
-    const realizedMargin = isNaN(rawMargin) ? 48.0 : rawMargin;
+    const realizedMargin = isNaN(rawMargin) ? 0 : rawMargin;
     const rawStock = Number(sim.retainedStockUnits ?? sim.retainedWinterUnits);
-    const retainedStock = isNaN(rawStock) ? 30182 : rawStock;
+    const retainedStock = isNaN(rawStock) ? 0 : rawStock;
     const rawPct = Number(sim.retainedStockPct ?? sim.retainedWinterPct);
-    const retainedPct = isNaN(rawPct) ? 57.2 : rawPct;
+    const retainedPct = isNaN(rawPct) ? 0 : rawPct;
 
     document.getElementById('simGrossRev').textContent = Math.round(grossRev).toLocaleString() + ' SAR';
     document.getElementById('simNetProfit').textContent = (netProfit >= 0 ? '+' : '') + Math.round(netProfit).toLocaleString() + ' SAR';
     document.getElementById('simRealizedMargin').textContent = realizedMargin.toFixed(1) + '%';
     document.getElementById('simRetainedStock').textContent = `${retainedStock.toLocaleString()} Units (${retainedPct.toFixed(1)}%)`;
+    const retainedSubEl = document.getElementById('simRetainedSub');
+    if (retainedSubEl) retainedSubEl.textContent = `${retainedPct.toFixed(1)}% Assortment Retention`;
+    const cockpitTarget = document.getElementById('cockpitLiquidationTarget');
+    if (cockpitTarget) cockpitTarget.textContent = `${targetLiquidation.toLocaleString()} u LIQUIDATION`;
 
     const marginSub = document.getElementById('simMarginSub');
     if (marginSub) {
@@ -2197,7 +2363,11 @@ async function submitCopilotChat(message) {
   // Add Loading indicator
   const loadingDiv = document.createElement('div');
   loadingDiv.className = 'chat-bubble ai';
-  loadingDiv.textContent = model.includes('70b') ? 'Thinking with Llama 3.3 70B (Deep Reasoning)...' : 'Thinking with Copilot...';
+  loadingDiv.textContent = model.includes('deepseek')
+    ? 'Thinking with DeepSeek R1 (Deep Reasoning)...'
+    : model.includes('70b')
+      ? 'Thinking with Llama 3.3 70B (Deep Reasoning)...'
+      : 'Thinking with Copilot...';
   history.appendChild(loadingDiv);
   scrollChatToLatest(loadingDiv);
 
@@ -2210,7 +2380,8 @@ async function submitCopilotChat(message) {
         mode, 
         model, 
         contextStyleCode: activeContextStyle,
-        allowUnguidedMetrics: isExploratoryMode
+        allowUnguidedMetrics: isExploratoryMode,
+        history: copilotMessagesHistory.slice(-6)
       })
     });
     const data = await res.json();
@@ -2226,9 +2397,16 @@ async function submitCopilotChat(message) {
         `;
         return;
       }
-      const errText = data?.error || `Server responded with status ${res.status}`;
+      const errText = data?.error || (res.ok ? 'AI model returned an empty response after reasoning. Please try again.' : `Server responded with status ${res.status}`);
       loadingDiv.innerHTML = `<span style="color: #ef4444;">⚠️ ${escapeHtml(errText)}</span>`;
       return;
+    }
+
+    // Store successful turn in local session history for multi-turn continuity
+    copilotMessagesHistory.push({ role: 'user', content: message });
+    copilotMessagesHistory.push({ role: 'assistant', content: String(data.reply).slice(0, 700) });
+    if (copilotMessagesHistory.length > 10) {
+      copilotMessagesHistory = copilotMessagesHistory.slice(-10);
     }
 
     // Track active style code across conversation turns (or reset if not returned)
@@ -2297,7 +2475,8 @@ async function submitCopilotChat(message) {
     const fbUp = loadingDiv.querySelector('.btn-fb-up');
     const fbDown = loadingDiv.querySelector('.btn-fb-down');
     if (fbUp && fbDown) {
-      fbUp.addEventListener('click', async () => {
+      fbUp.addEventListener('click', async (e) => {
+        e.stopPropagation();
         fbUp.classList.add('active-positive');
         fbDown.style.display = 'none';
         fbUp.textContent = 'Feedback Recorded';
@@ -2315,16 +2494,21 @@ async function submitCopilotChat(message) {
           });
         } catch(e) {}
       });
-      fbDown.addEventListener('click', () => {
+      fbDown.addEventListener('click', (e) => {
+        e.stopPropagation();
         fbUp.style.display = 'none';
         fbDown.style.display = 'none';
         const chipsDiv = loadingDiv.querySelector('.feedback-reason-chips');
         if (chipsDiv) {
           chipsDiv.style.display = 'flex';
           chipsDiv.querySelectorAll('.btn-reason-chip').forEach(chip => {
-            chip.addEventListener('click', async () => {
-              const reason = chip.getAttribute('data-reason');
-              chipsDiv.innerHTML = '<span style="color: #ef4444; font-size: 0.75rem; font-weight: 600;">Reported: ' + reason + ' (Learning Logged)</span>';
+            chip.addEventListener('click', async (chipEvent) => {
+              chipEvent.stopPropagation();
+              const reason = chip.getAttribute('data-reason') || 'General Feedback';
+              const statusSpan = document.createElement('span');
+              statusSpan.style.cssText = 'color: #ef4444; font-size: 0.75rem; font-weight: 600;';
+              statusSpan.textContent = `Reported: ${reason} (Learning Logged)`;
+              chipsDiv.replaceChildren(statusSpan);
               try {
                 await fetch('/api/copilot/feedback', {
                   method: 'POST',
@@ -2347,7 +2531,8 @@ async function submitCopilotChat(message) {
 
     // Attach listener for newly rendered rule buttons in chat
     loadingDiv.querySelectorAll('.btn-apply-rule').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const ruleData = JSON.parse(btn.getAttribute('data-rule'));
         btn.disabled = true;
         btn.textContent = 'Activating Policy...';
@@ -3043,7 +3228,7 @@ async function initRetrainingAndGateway() {
     btnTrigger.addEventListener('click', async () => {
       btnTrigger.disabled = true;
       btnTrigger.textContent = 'Retraining...';
-      if (statusText) statusText.textContent = 'Curating 1,493 snapshot pairs & validating benchmarks...';
+      if (statusText) statusText.textContent = 'Curating active catalog snapshot pairs & validating benchmarks...';
       try {
         const res = await fetch('/api/retraining/trigger', {
           method: 'POST',
@@ -3316,17 +3501,22 @@ function initKeyboardShortcuts() {
     if (e.key === 'Escape') {
       const rulesModal = document.getElementById('rulesModal');
       const campaignModal = document.getElementById('campaignBriefingModal');
+      const monitoringModal = document.getElementById('monitoringModal');
       const overrideModal = document.getElementById('overrideModal');
       const copilotDrawer = document.getElementById('copilotDrawer');
       const calcPopover = document.getElementById('calcPopover');
 
       let closedAny = false;
-      if (rulesModal && rulesModal.classList.contains('active')) {
-        rulesModal.classList.remove('active');
+      if (rulesModal && (rulesModal.classList.contains('open') || rulesModal.classList.contains('active'))) {
+        rulesModal.classList.remove('open', 'active');
         closedAny = true;
       }
       if (campaignModal && campaignModal.classList.contains('open')) {
         campaignModal.classList.remove('open');
+        closedAny = true;
+      }
+      if (monitoringModal && monitoringModal.classList.contains('open')) {
+        monitoringModal.classList.remove('open');
         closedAny = true;
       }
       if (overrideModal && overrideModal.classList.contains('active')) {
@@ -3377,4 +3567,237 @@ function initKeyboardShortcuts() {
       if (campaignBriefingBtn) campaignBriefingBtn.click();
     }
   });
+}
+
+/**
+ * Campaign Mode Switcher: separates Permanent Everyday Clearance Rail (2-Month Drop Cycle)
+ * from Commercial Events (White Friday, National Day, Eid Al-Fitr, Seasonal Exits).
+ */
+async function initCampaignModeSwitcher() {
+  const select = document.getElementById('campaignModeSelect');
+  if (!select) return;
+
+  try {
+    const res = await fetch('/api/campaign/mode');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.campaignMode) {
+        select.value = data.campaignMode;
+      }
+    }
+  } catch (err) {
+    console.warn('Unable to load initial campaign mode:', err);
+  }
+
+  select.addEventListener('change', async () => {
+    const newMode = select.value;
+    const prevDisabled = select.disabled;
+    select.disabled = true;
+    showLuxuryToast(`Switching to ${select.options[select.selectedIndex]?.text || newMode}...`, 'info');
+
+    try {
+      const res = await fetch('/api/campaign/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignMode: newMode })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const s = data.summary || {};
+        showLuxuryToast(
+          `Applied ${data.label || newMode}: ${s.heroes || 0} Heroes, ${(s.medium2A || 0) + (s.medium2B || 0)} Medium Movers, ${(s.permanentRail || 0) + (s.eventClearance || 0)} Clearance`,
+          'success'
+        );
+        currentPage = 1;
+        await Promise.all([loadSummary(), loadStyles()]);
+      } else {
+        showLuxuryToast(data.error || 'Failed to switch campaign mode', 'error');
+      }
+    } catch (err) {
+      console.error('Campaign mode switch error:', err);
+      showLuxuryToast('Network error switching campaign mode', 'error');
+    } finally {
+      select.disabled = prevDisabled;
+    }
+  });
+}
+
+/**
+ * Trust & Monitoring Modal: surfaces AI calibration, VAT Zero-Loss compliance,
+ * and EARLY_SELLOUT / PROMO_STALL post-launch alerts.
+ */
+function initMonitoringModal() {
+  const modal = document.getElementById('monitoringModal');
+  const openBtn = document.getElementById('monitoringBtn');
+  const closeBtn = document.getElementById('closeMonitoringModalBtn');
+  const saveBtn = document.getElementById('saveMonitoringSnapshotBtn');
+  if (!modal || !openBtn) return;
+
+  openBtn.addEventListener('click', () => {
+    modal.classList.add('open');
+    loadMonitoringReport();
+  });
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      modal.classList.remove('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.remove('open');
+  });
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      const origText = saveBtn.textContent;
+      saveBtn.textContent = 'Saving Audit...';
+      try {
+        const res = await fetch('/api/monitoring/snapshot', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showLuxuryToast(`Saved daily audit snapshot (${data.recordedCount || 'live'} styles recorded)`, 'success');
+        } else {
+          showLuxuryToast(data.error || 'Failed to save audit snapshot', 'error');
+        }
+      } catch (err) {
+        showLuxuryToast('Network error saving daily audit snapshot', 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = origText;
+      }
+    });
+  }
+}
+
+async function loadMonitoringReport() {
+  const body = document.getElementById('monitoringModalBody');
+  if (!body) return;
+  body.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 32px; color: var(--gold-light);">
+      <span class="luxury-spinner"></span>
+      <span style="font-size: 0.85rem;">Auditing AI decisions &amp; post-promo velocity...</span>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('/api/monitoring/performance');
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      body.innerHTML = `<div class="alert-box" style="padding: 1rem; color: #fda4af;">Failed to load monitoring telemetry: ${escapeHtml(data.error || 'Unknown error')}</div>`;
+      return;
+    }
+
+    const sc = data.trustScorecard || {};
+    const alerts = data.alerts || [];
+    const topActive = data.topActiveStyles || [];
+
+    const renderAlertRows = (items, isAlertList) => {
+      if (!items.length) {
+        return `<tr><td colspan="6" style="text-align:center; padding:16px; color: var(--text-muted);">${isAlertList ? 'No active EARLY_SELLOUT or PROMO_STALL alerts — portfolio is tracking inside bounds.' : 'No qualifying high-stock active items right now.'}</td></tr>`;
+      }
+      return items.map(item => {
+        const badgeColor = item.alertStatus === 'EARLY_SELLOUT'
+          ? 'background: rgba(16,185,129,0.18); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4);'
+          : (item.alertStatus === 'PROMO_STALL'
+            ? 'background: rgba(244,63,94,0.18); color: #fda4af; border: 1px solid rgba(244,63,94,0.4);'
+            : 'background: rgba(59,130,246,0.15); color: #93c5fd; border: 1px solid rgba(59,130,246,0.35);');
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 8px 10px;">
+              <strong>${escapeHtml(item.styleCode)}</strong><br>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(item.productName)}</span>
+            </td>
+            <td style="padding: 8px 10px; font-size: 0.76rem;">
+              <span style="color: var(--gold-light);">${escapeHtml(item.recommendedOffer)}</span><br>
+              <span style="font-size: 0.68rem; color: var(--text-muted);">${escapeHtml(item.speedBand)} | Stock: ${item.stock} u</span>
+            </td>
+            <td style="padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;">
+              ${Number(item.baselineWeeklyROS).toFixed(1)} u/wk
+            </td>
+            <td style="padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;">
+              <strong>${item.actualLast14dUnits} u</strong> <span style="font-size:0.7rem; color: var(--text-muted);">(${Number(item.actualWeeklyROS).toFixed(1)} u/wk)</span>
+            </td>
+            <td style="padding: 8px 10px;">
+              <span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; ${badgeColor}">${escapeHtml(item.alertStatus)}</span>
+            </td>
+            <td style="padding: 8px 10px; font-size: 0.74rem; color: var(--text-secondary);">${escapeHtml(item.actionAdvice)}</td>
+          </tr>
+        `;
+      }).join('');
+    };
+
+    body.innerHTML = `
+      <div style="margin-bottom: 1rem; padding: 10px 14px; border-radius: 8px; background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.28); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="font-size: 0.72rem; text-transform: uppercase; color: var(--gold-light); letter-spacing: 0.05em;">Active Commercial Mode</span><br>
+          <strong style="font-size: 0.95rem; color: #fff;">${escapeHtml(data.campaignLabel || data.campaignMode || 'Regular 2-Month Drop Cycle')}</strong>
+        </div>
+        <div style="text-align: right; font-size: 0.76rem; color: var(--text-muted);">
+          Evaluated across <strong style="color: #fff;">${sc.totalActiveStyles || 0}</strong> catalog styles
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.25rem;">
+        <div style="background: rgba(15,23,42,0.75); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">15% VAT Zero-Loss Guard</div>
+          <div style="font-size: 1.35rem; font-weight: 700; color: #6ee7b7; margin-top: 4px;">${Number(sc.zeroLossCompliancePct || 0).toFixed(1)}%</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">${sc.zeroLossCompliantCount || 0} / ${sc.totalActiveStyles || 0} compliant</div>
+        </div>
+        <div style="background: rgba(15,23,42,0.75); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Velocity Alignment</div>
+          <div style="font-size: 1.35rem; font-weight: 700; color: #93c5fd; margin-top: 4px;">${Number(sc.baselineVelocityAlignmentPct || 0).toFixed(1)}%</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Live 14d vs predicted run-rate</div>
+        </div>
+        <div style="background: rgba(15,23,42,0.75); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Early Sellout Alerts</div>
+          <div style="font-size: 1.35rem; font-weight: 700; color: #34d399; margin-top: 4px;">${sc.earlySelloutCount || 0}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Pull promo early &amp; save margin</div>
+        </div>
+        <div style="background: rgba(15,23,42,0.75); border: 1px solid rgba(244,63,94,0.3); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Promo Stall Alerts</div>
+          <div style="font-size: 1.35rem; font-weight: 700; color: #fda4af; margin-top: 4px;">${sc.promoStallCount || 0}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Escalate rail or rebalance</div>
+        </div>
+      </div>
+
+      <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--gold-light);">Live Action Alerts (Early Sellouts &amp; Stalled Promos)</h4>
+      <div style="overflow-x: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; margin-bottom: 1.25rem;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+          <thead>
+            <tr style="background: rgba(255,255,255,0.04); text-align: left; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted);">
+              <th style="padding: 8px 10px;">Style</th>
+              <th style="padding: 8px 10px;">Active Offer &amp; Band</th>
+              <th style="padding: 8px 10px; text-align: right;">Baseline ROS</th>
+              <th style="padding: 8px 10px; text-align: right;">Last 14d Sold</th>
+              <th style="padding: 8px 10px;">Status</th>
+              <th style="padding: 8px 10px;">Recommended Action</th>
+            </tr>
+          </thead>
+          <tbody>${renderAlertRows(alerts, true)}</tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--text-secondary);">Top Tracked Normal-Pace Styles</h4>
+      <div style="overflow-x: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+          <thead>
+            <tr style="background: rgba(255,255,255,0.04); text-align: left; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted);">
+              <th style="padding: 8px 10px;">Style</th>
+              <th style="padding: 8px 10px;">Active Offer &amp; Band</th>
+              <th style="padding: 8px 10px; text-align: right;">Baseline ROS</th>
+              <th style="padding: 8px 10px; text-align: right;">Last 14d Sold</th>
+              <th style="padding: 8px 10px;">Status</th>
+              <th style="padding: 8px 10px;">Assessment</th>
+            </tr>
+          </thead>
+          <tbody>${renderAlertRows(topActive, false)}</tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Error loading monitoring report:', err);
+    body.innerHTML = `<div class="alert-box" style="padding: 1rem; color: #fda4af;">Network error loading post-promo monitoring telemetry.</div>`;
+  }
 }

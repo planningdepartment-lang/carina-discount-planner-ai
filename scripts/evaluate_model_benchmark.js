@@ -87,7 +87,8 @@ function runBenchmark() {
     accuracy_pct: (passed / total) * 100,
     zero_loss_compliance_pct: (zeroLossChecks / total) * 100,
     formatting_integrity_pct: (formattingChecks / total) * 100,
-    emoji_cleanliness_pct: (emojiChecks / total) * 100
+    emoji_cleanliness_pct: (emojiChecks / total) * 100,
+    ontology_provenance_pairs: pairs.filter(p => (p.messages[2]?.content || '').includes('Certified Provenance')).length
   };
 }
 

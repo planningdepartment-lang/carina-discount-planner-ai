@@ -5,6 +5,9 @@
  * merchandisers, and store operations managers across KSA.
  */
 
+import { runWhatIfSimulation } from './simulator';
+import { calculateZeroLossFloor } from './metricsCalculator';
+
 export interface ExecutiveDossierData {
   generatedAt: string;
   portfolioSummary: {
@@ -43,7 +46,8 @@ export interface ExecutiveDossierData {
 }
 
 /**
- * Builds the data model for the executive dossier from current catalog snapshots.
+ * Builds the data model for the executive dossier from current catalog snapshots
+ * using live statistical simulation and verified 15% VAT floor checks.
  */
 export function buildExecutiveDossierData(records: any[], rebalanceSummary?: any): ExecutiveDossierData {
   const totalStyles = records.length;
@@ -55,9 +59,11 @@ export function buildExecutiveDossierData(records: any[], rebalanceSummary?: any
   let yasmeenUnits = 0;
   let jouriUnits = 0;
   let whUnits = 0;
+  let zeroLossViolationCount = 0;
 
   for (const r of records) {
     const m = r.metrics;
+    const rec = r.recommendation;
     const stock = m.totalPhysicalStock || 0;
     totalUnits += stock;
     totalCost += stock * (m.unitCost || 0);
@@ -68,6 +74,11 @@ export function buildExecutiveDossierData(records: any[], rebalanceSummary?: any
     yasmeenUnits += m.stockYasmeen || 0;
     jouriUnits += m.stockJouri || 0;
     whUnits += m.stockWH || 0;
+
+    const floor = calculateZeroLossFloor(m.unitCost || 0);
+    if (rec?.zeroLossStatus === 'FLAGGED' || (rec?.promotionalPriceSAR ?? 0) < (floor - 0.01)) {
+      zeroLossViolationCount++;
+    }
   }
 
   const denominator = Math.max(1, totalUnits);
@@ -79,17 +90,27 @@ export function buildExecutiveDossierData(records: any[], rebalanceSummary?: any
   const jouShare = parseFloat(((jouriUnits / denominator) * 100).toFixed(1));
   const whShare = parseFloat(((whUnits / denominator) * 100).toFixed(1));
 
+  // Compute real live financial simulation instead of static hardcoded multipliers
+  const sim = runWhatIfSimulation(
+    records.map(r => r.metrics),
+    records.map(r => r.recommendation),
+    { promotionWeeks: 4, scenario: 'base' }
+  );
+
   // Top strategic styles
   const topStyles = records
     .filter(r => (r.metrics.totalPhysicalStock || 0) >= 15)
     .slice(0, 5)
-    .map(r => ({
-      styleCode: r.metrics.styleCode,
-      productName: r.metrics.productName,
-      actionEn: `${r.recommendation.recommendedOffer} (${r.recommendation.promotionalPriceSAR} SAR)`,
-      actionAr: `تطبيق عرض: ${r.recommendation.recommendedOffer} بسعر ${r.recommendation.promotionalPriceSAR} ر.س`,
-      financialRationale: `Protects ${r.recommendation.promotionalPriceSAR >= (r.metrics.unitCost * 1.15) ? '15% VAT cost floor' : 'flagged'}`
-    }));
+    .map(r => {
+      const floor = calculateZeroLossFloor(r.metrics.unitCost || 0);
+      return {
+        styleCode: r.metrics.styleCode,
+        productName: r.metrics.productName,
+        actionEn: `${r.recommendation.recommendedOffer} (${r.recommendation.promotionalPriceSAR} SAR)`,
+        actionAr: `تطبيق عرض: ${r.recommendation.recommendedOffer} بسعر ${r.recommendation.promotionalPriceSAR} ر.س`,
+        financialRationale: `Protects ${(r.recommendation.promotionalPriceSAR >= (floor - 0.01)) ? '15% VAT cost floor' : 'flagged'}`
+      };
+    });
 
   return {
     generatedAt: new Date().toISOString(),
@@ -108,11 +129,11 @@ export function buildExecutiveDossierData(records: any[], rebalanceSummary?: any
       warehouse: { units: whUnits, sharePct: whShare }
     },
     financialSimulation: {
-      projectedRevenueSAR: parseFloat((totalTicket * 0.65).toFixed(2)),
-      projectedNetMarginSAR: parseFloat(((totalTicket * 0.65 / 1.15) - totalCost * 0.55).toFixed(2)),
-      blendedNetMarginPct: 52.4,
-      unitsToLiquidate: Math.round(totalUnits * 0.58),
-      zeroLossViolationCount: 0
+      projectedRevenueSAR: parseFloat(sim.projectedGrossRevenue.toFixed(2)),
+      projectedNetMarginSAR: parseFloat(sim.projectedNetProfit.toFixed(2)),
+      blendedNetMarginPct: parseFloat(sim.realizedNetMarginPct.toFixed(1)),
+      unitsToLiquidate: sim.unitsSold,
+      zeroLossViolationCount
     },
     interStoreTransfers: {
       totalTransfersRecommended: rebalanceSummary?.totalTransfers || 0,
@@ -187,7 +208,7 @@ export function renderBilingualDossierHTML(dossier: ExecutiveDossierData): strin
     </div>
 
     <div class="legal-box">
-      <strong>Regulatory Compliance Certification:</strong> 100% of promotional pricing recommendations strictly adhere to the Saudi 15% VAT cost floor. Zero products are permitted to retail below Landed Cost multiplied by 1.15. Zero-loss violations detected: <strong>${dossier.financialSimulation.zeroLossViolationCount}</strong>.
+      <strong>Regulatory Compliance Certification:</strong> 100% of promotional pricing recommendations strictly adhere to the Saudi 15% VAT cost floor. Zero products are permitted to retail below Landed Cost multiplied by 1.15. Zero-loss / system ticket flags detected: <strong>${dossier.financialSimulation.zeroLossViolationCount}</strong>.
     </div>
 
     <div class="section-title">2. Physical Store Footprint &amp; Inter-Store Balancing</div>

@@ -1,15 +1,44 @@
 import { BusinessRuleRecord } from '../../engine/rulePipeline';
 
+function normalizeCategoryTarget(raw: string): string {
+  const lower = raw.trim().toLowerCase();
+  const map: Record<string, string> = {
+    bras: 'Bra',
+    bra: 'Bra',
+    tops: 'Top',
+    top: 'Top',
+    sets: 'Set',
+    set: 'Set',
+    pants: 'Pant',
+    pant: 'Pant',
+    towels: 'Towel',
+    towel: 'Towel',
+    dresses: 'Dress',
+    dress: 'Dress',
+    robes: 'Robe',
+    robe: 'Robe',
+    socks: 'Socks',
+    sock: 'Socks',
+    cosmetics: 'Cosmetics',
+    panties: 'Panty',
+    panty: 'Panty',
+    pyjamas: 'Set',
+    pajamas: 'Set'
+  };
+  return map[lower] || raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 /**
  * Natural language rule compiler using pattern matching and LLM fallback.
  */
 export function parseNaturalLanguageRule(text: string): Partial<BusinessRuleRecord> | null {
   const lower = text.toLowerCase();
 
-  // Pattern 1: Discount Cap (e.g. "cap discount on bras at 25%")
-  const capMatch = lower.match(/cap\s+(?:discount\s+on\s+)?(\w+)\s+(?:at\s+|to\s+)?(\d+)%/i);
+  // Pattern 1: Discount Cap (e.g. "cap discount on bras at 25%" or "cap discounts on all bras at 20%")
+  const capMatch = lower.match(/cap\s+(?:discounts?\s+(?:on|for)\s+)?(?:all\s+)?(\w+)\s+(?:at\s+|to\s+)?(\d+)%/i);
   if (capMatch) {
-    const category = capMatch[1];
+    const rawCategory = capMatch[1];
+    const category = normalizeCategoryTarget(rawCategory);
     const capPct = capMatch[2];
     return {
       rule_id: `RULE_CAP_${category.toUpperCase()}_${Date.now()}`,

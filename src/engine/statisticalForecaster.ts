@@ -7,6 +7,7 @@
 
 import { StyleMetrics, RecommendationResult } from './lifecycleClassifier';
 import { analyzeCompetitorPosition } from './competitorAnalyzer';
+import { classifyCurveHealth, detectSingleSizeAssortment } from './metricsCalculator';
 
 export type ForecastScenario = 'conservative' | 'base' | 'optimistic';
 
@@ -73,11 +74,12 @@ export function getCategoryElasticity(category: string, productName: string = ''
  */
 export function computeSizeCurveFulfillment(
   activeSizeCount: number,
-  isSingleSize: boolean
+  isSingleSize: boolean,
+  hasCoreSizes: boolean = true
 ): number {
   if (isSingleSize) return 1.00; // 100% size availability by design (Cosmetics, Mists, Accessories)
-  if (activeSizeCount >= 3) return 0.92; // Healthy curve (minor oddment skew)
-  return 0.48; // Broken curve (<= 2 sizes): 52% walkout loss
+  if (classifyCurveHealth(activeSizeCount, hasCoreSizes).isHealthy) return 0.92; // Healthy curve (minor oddment skew)
+  return 0.48; // Broken / non-core curve: 52% walkout loss
 }
 
 /**
@@ -127,14 +129,12 @@ export function computeStyleStatisticalForecast(
   }
 
   // 3. Size Curve Fulfillment Rate
-  const isSingleSize = metrics.isSingleSize || (
-    /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) ||
-    /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName)
-  );
+  const isSingleSize = detectSingleSizeAssortment(metrics.category, metrics.productName, metrics.isSingleSize);
+  const isBrokenCurve = !isSingleSize && !classifyCurveHealth(metrics.activeSizeCount, metrics.hasCoreSizes !== false).isHealthy;
 
-  const sizeFulfillmentRate = isSingleSize 
-    ? 1.00 
-    : (metrics.activeSizeCount >= 3 ? 0.92 : scenarioBrokenCurveFulfillment);
+  const sizeFulfillmentRate = isSingleSize
+    ? 1.00
+    : (!isBrokenCurve ? 0.92 : scenarioBrokenCurveFulfillment);
 
   // 4. Autonomous Competitor Substitution Drag (Nayomi & Blooming)
   let competitorDragFactor = 1.00;
@@ -157,7 +157,7 @@ export function computeStyleStatisticalForecast(
   // physical rail browsing impulse (~0.5 to 1.2 units/week across the 3 physical stores)
   let railImpulseFloor = 0;
   if (discountPct >= 40 && physicalStock > 0) {
-    const railWeeklyUnits = metrics.activeSizeCount <= 2 ? 0.8 : 1.4;
+    const railWeeklyUnits = isBrokenCurve ? 0.8 : 1.4;
     railImpulseFloor = Math.round(railWeeklyUnits * weeks * scenarioFootfallMultiplier);
   }
 

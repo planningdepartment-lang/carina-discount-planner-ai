@@ -10,6 +10,22 @@ import {
   COOKIE_NAME
 } from '../auth/adminAuth';
 
+async function withD1OverloadRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const msg = String(err?.message || err || '');
+      const isTransient = /overload|busy|too many resources|timeout/i.test(msg);
+      if (!isTransient || attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, 450 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function handleLogin(
   request: Request,
   env: Env,
@@ -27,11 +43,11 @@ export async function handleLogin(
       });
     }
 
-    const { results } = await env.DB.prepare(`
+    const { results } = await withD1OverloadRetry(() => env.DB.prepare(`
       SELECT id, email, password_hash, salt, display_name, is_active
       FROM admin_users
       WHERE LOWER(email) = ? AND is_active = 1
-    `).bind(email).all<any>();
+    `).bind(email).all<any>());
 
     if (!results || results.length === 0) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid email or password' }), {
@@ -52,7 +68,7 @@ export async function handleLogin(
     const ipAddress = request.headers.get('cf-connecting-ip') || 'unknown';
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
-    const sessionId = await createAdminSession(env.DB, admin.id, ipAddress, userAgent);
+    const sessionId = await withD1OverloadRetry(() => createAdminSession(env.DB, admin.id, ipAddress, userAgent));
     const cookieHeader = createSessionCookie(sessionId);
 
     return new Response(JSON.stringify({

@@ -1,9 +1,10 @@
 import { StyleMetrics, RecommendationResult } from './lifecycleClassifier';
-import { calculateZeroLossFloor } from './metricsCalculator';
+import { calculateZeroLossFloor, formatCurveHealthLabel } from './metricsCalculator';
 
 export interface StylePlanRecord {
   metrics: StyleMetrics;
   recommendation: RecommendationResult;
+  isManualOverride?: boolean;
 }
 
 /**
@@ -36,13 +37,7 @@ export function generateMasterPlanCSV(records: StylePlanRecord[]): string {
   for (const { metrics, recommendation } of records) {
     const costPlusVat = calculateZeroLossFloor(metrics.unitCost);
     const breakdown = `AND:${metrics.stockAndalus} | YAS:${metrics.stockYasmeen} | JOU:${metrics.stockJouri} | WH:${metrics.stockWH}`;
-    const isSingleSize = metrics.isSingleSize || (
-      /cosmetics|towel|scarf|pillow|duvet|sheets|bandana|eye cover|sleeves|bundle/i.test(metrics.category) ||
-      /\b(\d+ml|free size|one size|os)\b/i.test(metrics.productName)
-    );
-    const curveLabel = isSingleSize
-      ? 'Single Size (Complete)'
-      : (metrics.activeSizeCount >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)');
+    const curveLabel = formatCurveHealthLabel(metrics);
 
     const row = [
       metrics.styleCode,
@@ -104,24 +99,30 @@ export function generateOdooPOSPricelistCSV(records: StylePlanRecord[]): string 
     const netMargin = netRev > 0 ? ((netRev - metrics.unitCost) / netRev) * 100 : 0;
 
     let posRuleTag = 'RULE_SPEND_SAVE_20';
-    if (recommendation.zeroLossStatus === 'FLAGGED' || (recommendation.tier || '').includes('FLAGGED') || metrics.ticketPrice < costPlusVat) {
+    if (recommendation.zeroLossStatus === 'FLAGGED' || (recommendation.tier || '').includes('FLAGGED') || metrics.ticketPrice < (costPlusVat - 0.01)) {
       posRuleTag = 'RULE_FLAGGED_PRICE_ERROR_LOCKED';
     } else if (recommendation.sharedRailTag) {
       posRuleTag = recommendation.sharedRailTag;
-    } else if (recommendation.tier === 'CLEARANCE_50_PCT') {
+    } else if (recommendation.tier === 'CLEARANCE_50_PCT' || (recommendation.recommendedOffer || '').includes('50% Off')) {
       posRuleTag = 'RULE_CLEAR_50_PCT';
-    } else if (recommendation.tier === 'CLEARANCE_3_FOR_99') {
+    } else if (recommendation.tier === 'CLEARANCE_3_FOR_99' || (recommendation.recommendedOffer || '').includes('99 SAR')) {
       posRuleTag = 'RULE_BUNDLE_3_99_RAIL';
-    } else if (recommendation.tier === 'MATURE_SUMMER_EXIT') {
+    } else if (recommendation.tier === 'MATURE_SUMMER_EXIT' || (recommendation.recommendedOffer || '').includes('40% Off')) {
       posRuleTag = 'RULE_SUMMER_40_PCT';
-    } else if (recommendation.tier === 'HERO_CORE' || recommendation.tier === 'FRESH_WINTER') {
+    } else if (recommendation.tier === 'HERO_CORE' || recommendation.tier === 'FRESH_WINTER' || recommendation.tier === 'EXCLUDED_BY_RULE' || recommendation.discountPct === 0) {
       posRuleTag = 'RULE_FULL_PRICE_PROTECTED';
     } else if (recommendation.tier === 'BUNDLE_2') {
       posRuleTag = recommendation.bundlePriceSAR 
         ? `RULE_BUNDLE_${recommendation.bundleQuantity || 2}_${Math.round(recommendation.bundlePriceSAR)}_RAIL` 
         : 'RULE_BUNDLE_2_PAIRS';
-    } else if (recommendation.tier === 'VOLUME_MULTI_BUY') {
+    } else if (recommendation.tier === 'VOLUME_MULTI_BUY' || (recommendation.recommendedOffer || '').includes('Basket Pack') || (recommendation.recommendedOffer || '').includes('Multi-Buy')) {
       posRuleTag = 'RULE_VOLUME_MULTI_BUY';
+    } else if (recommendation.tier === 'RULE_CAPPED_PROMO' || (recommendation.recommendedOffer || '').includes('Capped Promo')) {
+      posRuleTag = `RULE_CAPPED_${Math.round(recommendation.discountPct || 0)}PCT`;
+    } else if (recommendation.tier === 'CLEARANCE_PERCENT_SAFE' || (recommendation.recommendedOffer || '').includes('Clearance Rail')) {
+      posRuleTag = `RULE_CLEAR_SAFE_${Math.round(recommendation.discountPct || 0)}PCT`;
+    } else if (recommendation.tier === 'MANUAL_OVERRIDE') {
+      posRuleTag = `RULE_MANUAL_${Math.round(recommendation.discountPct || 0)}PCT`;
     }
 
     const row = [

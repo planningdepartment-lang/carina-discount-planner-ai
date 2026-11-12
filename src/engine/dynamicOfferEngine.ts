@@ -1,5 +1,5 @@
-import { calculateZeroLossFloor } from './metricsCalculator';
-import { SAUDI_CHARM_PRICE_POINTS } from '../config/constants';
+import { calculateZeroLossFloor, SpeedBand } from './metricsCalculator';
+import { SAUDI_CHARM_PRICE_POINTS, CampaignMode } from '../config/constants';
 
 export interface DynamicOfferMetrics {
   styleCode: string;
@@ -16,6 +16,10 @@ export interface DynamicOfferMetrics {
   isSingleSize?: boolean;
   historicalASP?: number;
   momentumRatio?: number;
+  salesLifecycleWeeks?: number;
+  effectiveTenureWeeks?: number;
+  speedBand?: SpeedBand;
+  campaignMode?: CampaignMode;
 }
 
 export interface DynamicBundleResult {
@@ -114,22 +118,59 @@ export function computeDynamicBundle2(metrics: DynamicOfferMetrics): DynamicBund
     };
   }
 
-  // Determine dynamic target discount based on inventory pressure & velocity
+  // Determine dynamic target discount based on 2-month drop cadence, Medium Mover tier, and active Campaign Mode
   let targetDiscount = 0.25; // baseline 25% bundle discount
   let expectedClearance = 35;
 
-  if (metrics.storeFloorWOS > 35.0 || metrics.cumulativeSTR < 30.0) {
-    // Sluggish overhang / high runway -> Deeper 30% - 33% bundle incentive
-    targetDiscount = 0.33;
+  const mode: CampaignMode = metrics.campaignMode || 'REGULAR_DROP_CYCLE';
+  const tenure = metrics.effectiveTenureWeeks ?? metrics.salesLifecycleWeeks ?? 0;
+
+  if (
+    metrics.speedBand === 'MEDIUM_2B' ||
+    metrics.storeFloorWOS > 35.0 ||
+    metrics.cumulativeSTR < 30.0 ||
+    (tenure > 8.7 && metrics.storeFloorWOS > 20.0)
+  ) {
+    // Medium 2B (Exceeded 1 drop cycle / 20+ WOS) or sluggish overhang -> Escalated 30% - 33% bundle incentive
+    targetDiscount = (mode === 'WHITE_FRIDAY' || mode === 'SUMMER_EXIT' || mode === 'WINTER_EXIT') ? 0.35 : 0.30;
     expectedClearance = 45;
-  } else if (metrics.storeFloorWOS <= 20.0 && metrics.cumulativeSTR >= 50.0) {
-    // Healthy continuity -> Gentle 18% - 20% bundle incentive to preserve margin
-    targetDiscount = 0.20;
-    expectedClearance = 30;
+  } else if (
+    metrics.speedBand === 'MEDIUM_2A' ||
+    (metrics.storeFloorWOS <= 20.0 && metrics.cumulativeSTR >= 30.0)
+  ) {
+    // Medium 2A (Steady within drop / <= 20 WOS) -> Gentle 18% - 20% bundle incentive to lift UPT & preserve margin
+    targetDiscount = (mode === 'WHITE_FRIDAY') ? 0.25 : 0.20;
+    expectedClearance = 32;
   }
 
-  const rawBundlePrice = twoUnitTicket * (1 - targetDiscount);
-  let charmBundlePrice = roundToSaudiCharmPrice(rawBundlePrice, twoUnitFloor);
+  let rawBundlePrice = twoUnitTicket * (1 - targetDiscount);
+
+  // Align patriotic basket-builder events to official KSA symbolic bundle prices when margin-safe
+  const symbolicPool = mode === 'NATIONAL_DAY'
+    ? [94, 194, 294]
+    : (mode === 'FOUNDING_DAY' ? [122, 222, 322] : []);
+  let charmBundlePrice = 0;
+  if (symbolicPool.length > 0) {
+    const validSymbolic = symbolicPool.filter(p => p >= twoUnitFloor && p < twoUnitTicket);
+    if (validSymbolic.length > 0) {
+      let bestSym = validSymbolic[0];
+      let bestDiff = Math.abs(rawBundlePrice - bestSym);
+      for (const s of validSymbolic) {
+        const d = Math.abs(rawBundlePrice - s);
+        if (d < bestDiff) {
+          bestDiff = d;
+          bestSym = s;
+        }
+      }
+      if (bestDiff <= 35) {
+        charmBundlePrice = bestSym;
+      }
+    }
+  }
+
+  if (!charmBundlePrice) {
+    charmBundlePrice = roundToSaudiCharmPrice(rawBundlePrice, twoUnitFloor);
+  }
 
   // Guarantee bundle provides a genuine discount (< twoUnitTicket)
   if (charmBundlePrice >= twoUnitTicket) {
@@ -172,7 +213,7 @@ export function computeDynamicBundle2(metrics: DynamicOfferMetrics): DynamicBund
     discountPct: realizedDiscountPct,
     savingsAmountSAR: savingsSAR,
     expectedClearancePct: expectedClearance,
-    rationale: `Dynamic 2-pack bundle calibrated to performance (WOS ${metrics.storeFloorWOS.toFixed(1)} wks, STR ${metrics.cumulativeSTR.toFixed(1)}%). Drives 2.0 UPT at ${charmBundlePrice} SAR commercial charm point. Eligible for cross-style mix & match (Cost ceiling: ${railCostCeilingSAR.toFixed(2)} SAR).`,
+    rationale: `Dynamic 2-pack bundle calibrated to performance (WOS ${Number(metrics.storeFloorWOS ?? 0).toFixed(1)} wks, STR ${Number(metrics.cumulativeSTR ?? 0).toFixed(1)}%). Drives 2.0 UPT at ${charmBundlePrice} SAR commercial charm point. Eligible for cross-style mix & match (Cost ceiling: ${railCostCeilingSAR.toFixed(2)} SAR).`,
     sharedRailTag,
     railCostCeilingSAR
   };
@@ -280,8 +321,13 @@ export function generateAlternativeOfferScenarios(
   const bundleTotalFloor = floor * bundleQty;
   const targetBundleDiscount = 30; // 30% discount target
   const bundleSolved = roundToSaudiCharmPrice(bundleTotalTicket * (1 - (targetBundleDiscount / 100)), bundleTotalFloor);
-  // Ensure strictly < combined ticket
-  const finalBundlePrice = bundleSolved < bundleTotalTicket ? bundleSolved : Math.floor(bundleTotalTicket - 1);
+  // Ensure strictly < combined ticket and >= legal floor when spread allows
+  let finalBundlePrice = bundleSolved < bundleTotalTicket
+    ? bundleSolved
+    : (bundleTotalFloor < bundleTotalTicket
+        ? Math.max(bundleTotalFloor, Math.floor((bundleTotalTicket - 0.01) * 100) / 100)
+        : bundleTotalTicket);
+  finalBundlePrice = Math.round(finalBundlePrice * 100) / 100;
   const s2UnitPromo = Math.round((finalBundlePrice / bundleQty) * 100) / 100;
   const s2Discount = Math.round(((bundleTotalTicket - finalBundlePrice) / bundleTotalTicket) * 100);
   const s2NetRev = s2UnitPromo / 1.15;
@@ -337,7 +383,9 @@ export function generateAlternativeOfferScenarios(
   });
 
   // --- Scenario 4: Checkout Till Impulse Booster (Basket Threshold Add-On) ---
-  const s4Price = Math.max(floor, Math.round(ticket * 0.52));
+  const rawS4 = Math.round(ticket * 0.52);
+  const candidateS4 = rawS4 > 0 ? rawS4 : Math.round(ticket * 0.52 * 100) / 100;
+  const s4Price = ticket >= floor ? Math.min(ticket, Math.max(floor, candidateS4)) : floor;
   const s4Discount = Math.round(((ticket - s4Price) / ticket) * 100);
   const s4NetRev = s4Price / 1.15;
   const s4MarginSAR = Math.round((s4NetRev - cost) * 100) / 100;

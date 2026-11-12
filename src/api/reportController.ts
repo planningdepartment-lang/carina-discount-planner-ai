@@ -56,7 +56,7 @@ const CAMPAIGN_PROFILES: Record<CampaignEventType, CampaignProfile> = {
   },
   CONTINUOUS_DISCOUNT: {
     title: 'Continuous Retail Discount & Assortment Plan (Baseline)',
-    strategicObjective: 'Maintain steady weekly rate of sale across 1,493 catalog styles, protect 75%+ inventory depth for peak quarter trading, and strictly adhere to Saudi Zero-Loss floor.',
+    strategicObjective: 'Maintain steady weekly rate of sale across all active catalog styles, protect 75%+ inventory depth for peak quarter trading, and strictly adhere to Saudi Zero-Loss floor.',
     targetClearanceMultiplier: 1.0,
     heroProtectionRatio: 0.75,
     recommendedMechanic: 'Steady Active Spend & Save (~20% Off), Broken Curve Liquidation Rails, and Full Price Margin Defense.'
@@ -124,11 +124,12 @@ export async function handleCampaignBriefing(
       stockJouri += metrics.stockJouri;
 
       // Tier allocation
-      const t = recommendation.tier;
-      if (t.includes('HERO') || t.includes('FRESH_WINTER')) {
+      const t = (recommendation.tier || '').toUpperCase();
+      const offerUpper = (recommendation.recommendedOffer || '').toUpperCase();
+      if (t === 'HERO_CORE' || t === 'FRESH_WINTER' || t === 'EXCLUDED_BY_RULE' || recommendation.discountPct === 0) {
         heroStyles++;
         heroUnits += metrics.totalPhysicalStock;
-      } else if (t.includes('CLEARANCE')) {
+      } else if (t.includes('CLEARANCE') || offerUpper.includes('CLEARANCE') || offerUpper.includes('99 SAR')) {
         clearanceStyles++;
         clearanceUnits += metrics.totalPhysicalStock;
       } else if (t.includes('VOLUME') || metrics.isSingleSize) {

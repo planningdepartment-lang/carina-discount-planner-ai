@@ -85,6 +85,22 @@ function curateInstructionPairs(styles) {
         }
       ]
     });
+
+    // Pair 5: Certified Ontology & SQL Provenance Verification
+    const capitalTiedUp = Math.round(row.total_physical_stock * row.unit_cost);
+    dataset.push({
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `How much cost capital is tied up in Style ${row.style_code} and what is its VAT floor?` },
+        {
+          role: 'assistant',
+          content: `### Ontology-Grounded Capital & Floor Audit — Style **${row.style_code}** (*${row.product_name}*)\n\n` +
+            `• **Inventory Cost Capital Tied Up:** **${capitalTiedUp.toLocaleString()} SAR** across **${row.total_physical_stock} physical units** (excludes \`Shofy/Stock\`).\n` +
+            `• **Saudi 15% VAT Zero-Loss Floor:** **${row.cost_plus_vat.toFixed(2)} SAR** (\`ROUND(unit_cost * 1.15, 2)\`).\n` +
+            `• **Certified Provenance:** Computed from \`style_plan_snapshots\` using certified terms *Total Physical Stock*, *Landed Unit Cost (COGS)*, and *Saudi 15% VAT Zero-Loss Floor*.`
+        }
+      ]
+    });
   }
 
   return dataset;

@@ -16,6 +16,12 @@ import { handleCampaignBriefing } from './api/reportController';
 import { handleGetCompetitorsSummary } from './api/competitorController';
 import { handleGetStoreRebalance } from './api/rebalancingController';
 import { handleGetExecutiveDossier, handleGetKsaCalendarEvents } from './api/dossierController';
+import {
+  handleGetCampaignMode,
+  handleSetCampaignMode,
+  handleGetMonitoringPerformance,
+  handleRecordMonitoringSnapshot
+} from './api/monitoringController';
 import { handleLogin, handleLogout, handleMe } from './api/authController';
 import { parseCookies, validateAdminSession, COOKIE_NAME } from './auth/adminAuth';
 
@@ -169,6 +175,22 @@ export default {
       // 8f. Autonomous KSA Commercial Retail Calendar & Markdown Phase Engine API
       if (pathname === '/api/calendar/events' && request.method === 'GET') {
         return await handleGetKsaCalendarEvents(request, env, corsHeaders);
+      }
+
+      // 8g. Active Campaign Mode Switcher (Regular 2-Month Drop Rail vs. Occasion Events)
+      if (pathname === '/api/campaign/mode' && request.method === 'GET') {
+        return await handleGetCampaignMode(request, env, corsHeaders);
+      }
+      if (pathname === '/api/campaign/mode' && request.method === 'POST') {
+        return await handleSetCampaignMode(request, env, corsHeaders);
+      }
+
+      // 8h. Post-Promo Live Monitoring & AI Trust Reality Check
+      if (pathname === '/api/monitoring/performance' && request.method === 'GET') {
+        return await handleGetMonitoringPerformance(request, env, corsHeaders);
+      }
+      if (pathname === '/api/monitoring/snapshot' && request.method === 'POST') {
+        return await handleRecordMonitoringSnapshot(request, env, corsHeaders);
       }
 
       // 9. Static Assets & Dashboard UI Gatekeeper

@@ -50,7 +50,15 @@ CREATE TABLE IF NOT EXISTS style_plan_snapshots (
     active_weeks REAL,
     momentum_label TEXT,
     sold_units INTEGER DEFAULT 0,
-    sales_lifecycle_weeks REAL DEFAULT 0.0
+    sales_lifecycle_weeks REAL DEFAULT 0.0,
+    lifecycle_tier TEXT,
+    store_floor_wos REAL DEFAULT 0.0,
+    active_size_count INTEGER DEFAULT 0,
+    has_core_sizes INTEGER DEFAULT 1,
+    is_single_size INTEGER DEFAULT 0,
+    is_manual_override INTEGER DEFAULT 0,
+    size_breakdown_json TEXT,
+    first_move_date TEXT
 );
 
 -- 3. Post-Campaign Daily Sales Monitoring & Lift Tracker
@@ -83,7 +91,7 @@ CREATE TABLE IF NOT EXISTS ai_retraining_settings (
     active_lora_adapter TEXT DEFAULT 'carina-retail-v1',
     last_trained_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     next_scheduled_at DATETIME DEFAULT (datetime('now', '+7 days')),
-    dataset_sample_count INTEGER DEFAULT 1493,
+    dataset_sample_count INTEGER DEFAULT 0,
     benchmark_accuracy REAL DEFAULT 100.0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -123,6 +131,16 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
 );
 
 -- ====================================================================
+-- 8. System Settings (Active Campaign Mode: Regular 2-Month Drop vs. Commercial Event)
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO system_settings (key, value)
+VALUES ('ACTIVE_CAMPAIGN_MODE', 'REGULAR_DROP_CYCLE');
+
 -- Initial Seed Governance Policies & Initial Super-Admin
 -- ====================================================================
 
@@ -140,7 +158,7 @@ INSERT OR IGNORE INTO ai_retraining_settings (
     last_trained_at, next_scheduled_at, dataset_sample_count, benchmark_accuracy
 ) VALUES (
     'GLOBAL', 'weekly', 1, 'carina-retail-v1',
-    CURRENT_TIMESTAMP, datetime('now', '+7 days'), 1493, 100.0
+    CURRENT_TIMESTAMP, datetime('now', '+7 days'), 0, 100.0
 );
 
 INSERT OR REPLACE INTO admin_users (id, email, password_hash, salt, display_name, is_active)

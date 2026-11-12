@@ -38,6 +38,25 @@
           </select>
         </div>
 
+        <div class="luxury-select-wrap" title="Switch between Permanent Clearance Rail (2-Month Drop Cycle) and Commercial Occasions">
+          <span class="select-label">CAMPAIGN MODE</span>
+          <select id="campaignModeSelect" class="luxury-select">
+            <option value="REGULAR_DROP_CYCLE" selected>2-Month Drop Cycle (Rail)</option>
+            <option value="WHITE_FRIDAY">White Friday (Mega Event)</option>
+            <option value="NATIONAL_DAY">Saudi National Day</option>
+            <option value="FOUNDING_DAY">Founding Day</option>
+            <option value="RAMADAN_PREP">Ramadan Preparation</option>
+            <option value="EID_AL_FITR">Eid Al-Fitr (Full Margin)</option>
+            <option value="SUMMER_EXIT">End-of-Summer Exit</option>
+            <option value="WINTER_EXIT">End-of-Winter Exit</option>
+          </select>
+        </div>
+
+        <button id="monitoringBtn" class="btn btn-luxury-secondary hud-btn" title="AI Decision Trust Scorecard &amp; Post-Promo Performance Alerts">
+          <span class="btn-icon">🛡️</span>
+          <span>Trust &amp; Monitor</span>
+        </button>
+
         <a href="/api/reports/dossier" target="_blank" id="dossierNavBtn" class="btn btn-luxury-secondary hud-btn" style="text-decoration: none;" title="Executive Commercial Dossier (Arabic & English)"><span class="btn-icon">📄</span><span>Dossier</span></a>
         <button id="campaignBriefingBtn" class="btn btn-luxury-secondary hud-btn" title="Tactical Campaign Briefing (Shortcut: B)">
           <span class="btn-icon">📋</span>
@@ -80,7 +99,7 @@
       </div>
       <h1 class="hero-title">Autonomous Promotion Architecture &amp; Lifecycle Optimizer</h1>
       <p class="hero-lead">
-        Protecting gross margin across 53,999 physical inventory units in Jeddah and Taif through deterministic margin protection, KSA VAT compliance, and real-time store inventory liquidation.
+        Protecting gross margin across <span id="heroTotalStock">active catalog</span> physical inventory units in Jeddah and Taif through deterministic margin protection, KSA VAT compliance, and real-time store inventory liquidation.
       </p>
 
       <!-- Category Mood Highlights -->
@@ -103,7 +122,7 @@
           <img src="images/cat-cosmetics.jpg" alt="Fragrance" class="cat-pill-thumb">
           <div class="cat-pill-text">
             <strong>Body Splash &amp; Cosmetics</strong>
-            <span>Take 3 For 99 SAR Rail</span>
+            <span>Multi-Buy Basket Booster</span>
           </div>
         </div>
       </div>
@@ -120,7 +139,7 @@
         </div>
         <div class="cockpit-pod">
           <span class="pod-lbl">SPACE TARGET</span>
-          <strong class="pod-val text-sapphire">22,550 u LIQUIDATION</strong>
+          <strong class="pod-val text-sapphire" id="cockpitLiquidationTarget">LIVE SIMULATION TARGET</strong>
         </div>
         <div class="cockpit-pod">
           <span class="pod-lbl">ZERO-LOSS GUARD</span>
@@ -138,7 +157,7 @@
           <span class="kpi-tag">INVENTORY ASSET</span>
           <span class="kpi-icon">📦</span>
         </div>
-        <div class="kpi-value" id="kpiTotalStock">53,999</div>
+        <div class="kpi-value" id="kpiTotalStock">--</div>
         <div class="kpi-label">Total Physical Units</div>
         <div class="kpi-sub">Across 4 Physical Nodes (excl. Shopify)</div>
         <div class="kpi-accent-bar"><span style="width: 82%;"></span></div>
@@ -149,7 +168,7 @@
           <span class="kpi-tag">CAPITAL EXPOSURE</span>
           <span class="kpi-icon">💎</span>
         </div>
-        <div class="kpi-value" id="kpiTotalCost">2,526,907 SAR</div>
+        <div class="kpi-value" id="kpiTotalCost">-- SAR</div>
         <div class="kpi-label">Cost Capital at Risk</div>
         <div class="kpi-sub">Total Inventory Asset Landed Valuation</div>
         <div class="kpi-accent-bar"><span style="width: 76%;"></span></div>
@@ -160,7 +179,7 @@
           <span class="kpi-tag">PROJECTED REVENUE</span>
           <span class="kpi-icon">📈</span>
         </div>
-        <div class="kpi-value" id="kpiRetailValue">3,268,517 SAR</div>
+        <div class="kpi-value" id="kpiRetailValue">-- SAR</div>
         <div class="kpi-label">Projected Cash Recovery</div>
         <div class="kpi-sub">Gross Clearance Yield at Recommended Offers</div>
         <div class="kpi-accent-bar"><span style="width: 65%;"></span></div>
@@ -171,10 +190,10 @@
           <span class="kpi-tag">MARKUP BENCHMARK</span>
           <span class="kpi-icon">🏷️</span>
         </div>
-        <div class="kpi-value" id="kpiBlendedIMU">49.7%</div>
+        <div class="kpi-value" id="kpiBlendedIMU">--%</div>
         <div class="kpi-label">Blended Initial Markup</div>
         <div class="kpi-sub">Catalog Benchmark Baseline</div>
-        <div class="kpi-accent-bar"><span style="width: 49.7%;"></span></div>
+        <div class="kpi-accent-bar"><span id="kpiBlendedIMUBar" style="width: 50%;"></span></div>
       </div>
 
       <div class="kpi-card card-amber hud-corner">
@@ -182,10 +201,10 @@
           <span class="kpi-tag">ASSORTMENT SHIELD</span>
           <span class="kpi-icon">❄️</span>
         </div>
-        <div class="kpi-value" id="kpiCurveHealth">57.8%</div>
+        <div class="kpi-value" id="kpiCurveHealth">--%</div>
         <div class="kpi-label">Winter Reserve Protected</div>
-        <div class="kpi-sub">Target &ge; 57.2% Assortment Retention (Pass)</div>
-        <div class="kpi-accent-bar"><span style="width: 57.8%;"></span></div>
+        <div class="kpi-sub" id="kpiCurveHealthSub">Assortment Retention &amp; Core Curves (S/M/L/XL)</div>
+        <div class="kpi-accent-bar"><span id="kpiCurveHealthBar" style="width: 0%;"></span></div>
       </div>
 
       <div class="kpi-card card-mint hud-corner">
@@ -379,7 +398,7 @@
         <div class="sim-slider-box">
           <div class="slider-head">
             <label for="sliderLiquidation">TARGET LIQUIDATION VOLUME</label>
-            <span class="slider-value-pill" id="valLiquidation">22,550 Units (42.8%)</span>
+            <span class="slider-value-pill" id="valLiquidation">22,550 Units</span>
           </div>
           <input type="range" id="sliderLiquidation" min="5000" max="40000" step="500" value="22550">
           <div class="slider-range-ticks">
@@ -406,27 +425,27 @@
       <div class="sim-results-ribbon">
         <div class="sim-metric-card">
           <span class="lbl">PROJECTED REGISTER GROSS</span>
-          <strong id="simGrossRev" class="val">1,103,077 SAR</strong>
+          <strong id="simGrossRev" class="val">-- SAR</strong>
           <span class="sub">Gross Customer Turnover</span>
         </div>
         <div class="sim-metric-card highlight-gold">
           <span class="lbl">PROJECTED CASH NET PROFIT</span>
-          <strong id="simNetProfit" class="val text-gold">+471,919 SAR</strong>
+          <strong id="simNetProfit" class="val text-gold">-- SAR</strong>
           <span class="sub">Cash Flow Generation</span>
         </div>
         <div class="sim-metric-card highlight-emerald">
           <span class="lbl">REALIZED NET MARGIN</span>
-          <strong id="simRealizedMargin" class="val text-emerald">49.2%</strong>
+          <strong id="simRealizedMargin" class="val text-emerald">--%</strong>
           <span class="sub" id="simMarginSub">&ge; 48.0% Floor Preserved</span>
         </div>
         <div class="sim-metric-card">
           <span class="lbl">RETAINED WINTER STOCK</span>
-          <strong id="simRetainedStock" class="val">30,182 Units</strong>
-          <span class="sub">57.2% Assortment Retention</span>
+          <strong id="simRetainedStock" class="val">-- Units</strong>
+          <span class="sub" id="simRetainedSub">Live Assortment Retention</span>
         </div>
         <div class="sim-metric-card highlight-sapphire">
           <span class="lbl">POST-EVENT TAIF DENSITY</span>
-          <strong id="simJouriPostDensity" class="val text-sapphire">35.4 u/m²</strong>
+          <strong id="simJouriPostDensity" class="val text-sapphire">-- u/m²</strong>
           <span class="sub">Clean Commercial Hub</span>
         </div>
       </div>
@@ -491,13 +510,19 @@
             <span class="select-label">LIFECYCLE TIER</span>
             <select id="filterTier">
               <option value="ALL">All Lifecycle Tiers</option>
-              <option value="FLAGGED">⚠️ Flagged Price Errors (Audit Required)</option>
+              <option value="FLAGGED">Flagged Price Errors (Audit Required)</option>
               <option value="STEADY_ACTIVE">Steady Active (Spend &amp; Save)</option>
+              <option value="BUNDLE_2">Dynamic Bundle 2 (Take 2)</option>
+              <option value="VOLUME_MULTI_BUY">Volume Multi-Buy (Spend &amp; Save / Multi-Pack)</option>
               <option value="HERO_CORE">Hero Core (0% Off Margin Protect)</option>
               <option value="MATURE_SUMMER_EXIT">Mature Summer (40% Off)</option>
               <option value="CLEARANCE_50_PCT">Clearance (50% Off Rail)</option>
+              <option value="CLEARANCE_PERCENT_SAFE">Safe Clearance (% Off Floor Protected)</option>
               <option value="CLEARANCE_3_FOR_99">Clearance (3 for 99 SAR)</option>
-              <option value="FRESH_WINTER">Fresh Winter (AW26 Protected)</option>
+              <option value="FRESH_WINTER">Fresh Winter (AW26 / FW26 Protected)</option>
+              <option value="RULE_CAPPED_PROMO">Rule Capped / Governed Promo</option>
+              <option value="MANUAL_OVERRIDE">Manual POS Override</option>
+              <option value="EXCLUDED_BY_RULE">Excluded by Rule (0% Off)</option>
             </select>
           </div>
         </div>
@@ -514,7 +539,7 @@
           </div>
         </div>
         <div class="top-pagination">
-          <span id="topPageInfo" class="page-info-pill">Showing styles 1 to 15 of 1,477</span>
+          <span id="topPageInfo" class="page-info-pill">Loading catalog styles...</span>
           <div class="page-controls">
             <button id="topPrevPageBtn" class="btn btn-luxury-sm">&larr; Prev</button>
             <button id="topNextPageBtn" class="btn btn-luxury-sm">Next &rarr;</button>
@@ -826,6 +851,31 @@
     </div>
   </div>
 
+  <!-- AI Decision Trust & Post-Promo Monitoring Modal -->
+  <div class="modal-overlay" id="monitoringModal">
+    <div class="modal-dialog luxury-modal" style="max-width: 920px; max-height: 88vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="flex-shrink: 0; padding-bottom: 0.75rem;">
+        <div class="modal-title-wrap">
+          <span class="modal-icon">🛡️</span>
+          <div>
+            <h3 style="font-size: 1.15rem; margin: 0;">AI Decision Trust Scorecard &amp; Post-Promo Watchlist</h3>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">2-Month Drop-Cycle Speed Calibration, 15% VAT Zero-Loss Compliance &amp; Live Sell-Through Feedback</div>
+          </div>
+        </div>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+          <button id="saveMonitoringSnapshotBtn" class="btn btn-luxury-gold" style="font-size: 0.78rem; padding: 6px 12px;" title="Save today's live telemetry to D1 audit log">Save Daily Audit</button>
+          <button id="closeMonitoringModalBtn" class="btn-close">&times;</button>
+        </div>
+      </div>
+      <div class="modal-body" id="monitoringModalBody" style="overflow-y: auto; padding: 1.25rem 1.5rem; flex: 1;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 32px; color: var(--gold-light);">
+          <span class="luxury-spinner"></span>
+          <span style="font-size: 0.85rem;">Auditing AI decisions &amp; post-promo velocity...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Floating Mathematical Derivation Tooltip / Popover -->
   <div id="calcPopover" class="calc-popover" style="display: none;"></div>
 
@@ -840,6 +890,6 @@
   <!-- Luxury Toast Notifications Container -->
   <div id="luxuryToastContainer" class="luxury-toast-container"></div>
 
-  <script src="app.js?v=20261109-table-alt-v1"></script>
+  <script src="app.js?v=20261112-dropcycle-trust-v2"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import { Env } from '../config/env';
 import { STORE_SPACES } from '../config/constants';
 import { getOrComputeStylePlan } from './styleService';
+import { classifyCurveHealth } from '../engine/metricsCalculator';
 
 export async function handleMetricsSummary(
   request: Request, 
@@ -16,18 +17,45 @@ export async function handleMetricsSummary(
   let yasmeenStock = 0;
   let jouriStock = 0;
   let healthyCount = 0;
+  let winterStock = 0;
+  let winterProtectedStock = 0;
+  let retainedTotalStock = 0;
+  let flaggedStylesCount = 0;
 
-  for (const { metrics } of records) {
+  for (const { metrics, recommendation } of records) {
     totalStock += metrics.totalPhysicalStock;
     totalCost += (metrics.totalPhysicalStock * metrics.unitCost);
     totalRetail += (metrics.totalPhysicalStock * metrics.ticketPrice);
     andalusStock += metrics.stockAndalus;
     yasmeenStock += metrics.stockYasmeen;
     jouriStock += metrics.stockJouri;
-    if (metrics.activeSizeCount >= 3) healthyCount++;
+
+    const isAssortmentComplete = Boolean(metrics.isSingleSize) ||
+      classifyCurveHealth(metrics.activeSizeCount, metrics.hasCoreSizes !== false).isHealthy;
+    if (isAssortmentComplete) healthyCount++;
+
+    if (recommendation.zeroLossStatus === 'FLAGGED' || recommendation.tier === 'FLAGGED_PRICE_ERROR') {
+      flaggedStylesCount++;
+    }
+
+    const expectedClrPct = Math.min(100, Math.max(0, recommendation.expectedClearancePct || 0));
+    const projectedSold = Math.round(metrics.totalPhysicalStock * (expectedClrPct / 100));
+    const retained = Math.max(0, metrics.totalPhysicalStock - projectedSold);
+    retainedTotalStock += retained;
+
+    const compactSeason = (metrics.season || '').toUpperCase().replace(/[\s_-]+/g, '');
+    if (compactSeason.includes('AW26') || compactSeason.includes('FW26') || compactSeason.includes('WINTER')) {
+      winterStock += metrics.totalPhysicalStock;
+      winterProtectedStock += recommendation.discountPct === 0 ? metrics.totalPhysicalStock : retained;
+    }
   }
 
   const blendedIMU = totalRetail > 0 ? ((totalRetail - totalCost) / totalRetail) * 100 : 0;
+  const healthyCurvesPct = records.length > 0 ? Math.round((healthyCount / records.length) * 1000) / 10 : 0;
+  const assortmentRetentionPct = totalStock > 0 ? Math.round((retainedTotalStock / totalStock) * 1000) / 10 : 0;
+  const winterProtectedPct = winterStock > 0
+    ? Math.round((winterProtectedStock / winterStock) * 1000) / 10
+    : assortmentRetentionPct;
 
   const summary = {
     totalPhysicalStock: totalStock,
@@ -36,6 +64,10 @@ export async function handleMetricsSummary(
     blendedIMU: Math.round(blendedIMU * 10) / 10,
     activeStylesCount: records.length,
     healthyCurvesCount: healthyCount,
+    healthyCurvesPct,
+    assortmentRetentionPct,
+    winterProtectedPct,
+    flaggedStylesCount,
     storeDensities: {
       andalus: {
         name: STORE_SPACES.ANDALUS.name,

@@ -51,7 +51,8 @@ export function computeStyleElasticityCurve(
   activeSizeCount: number = 4,
   isSingleSize: boolean = false,
   storeExposureRate: number = 0.50,
-  historicalRealizedPrice?: number
+  historicalRealizedPrice?: number,
+  hasCoreSizes: boolean = true
 ): StyleElasticityCurve {
   const costPlusVat = calculateZeroLossFloor(unitCost);
   const discountSteps = [0, 10, 20, 30, 40, 50];
@@ -61,10 +62,12 @@ export function computeStyleElasticityCurve(
   const baselineSales = Math.max(1, Math.round(baseWeeklySales * campaignDurationWeeks));
 
   // 1. Assortment Size Curve Walkout Factor
-  const isBrokenCurve = !isSingleSize && activeSizeCount <= 2;
+  const isBrokenCurve = !isSingleSize && (activeSizeCount <= 2 || !hasCoreSizes);
   const sizeFulfillmentRate = isBrokenCurve ? 0.70 : 1.00;
-  const sizeFulfillmentLabel = isBrokenCurve 
-    ? `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`
+  const sizeFulfillmentLabel = isBrokenCurve
+    ? (!hasCoreSizes
+        ? `Non-Core Size Curve (${activeSizeCount} sizes active, M/L depleted) — 30% walkout loss applied`
+        : `Fragmented Size Curve (${activeSizeCount} sizes active) — 30% walkout loss applied`)
     : (isSingleSize ? 'Complete Assortment — 100% Single-Size fulfillment' : `Healthy Curve (${activeSizeCount} sizes active) — 100% fulfillment`);
 
   // 2. Price sensitivity coefficient (higher for aged / slow moving styles, lower for hero / fresh items)

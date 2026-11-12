@@ -7,6 +7,7 @@ import {
   restoreDefaultBusinessRules,
   clearStylePlanSnapshots
 } from '../db/queries';
+import { recomputeCachedStylePlan } from './styleService';
 import { BusinessRuleRecord } from '../engine/rulePipeline';
 
 export async function handleRules(
@@ -53,7 +54,8 @@ export async function handleRules(
       }
 
       const ok = await saveBusinessRule(env.DB, ruleBody as BusinessRuleRecord);
-      await clearStylePlanSnapshots(env.DB);
+      const updated = await recomputeCachedStylePlan(env.DB);
+      if (updated.length === 0) await clearStylePlanSnapshots(env.DB);
       return new Response(JSON.stringify({ success: ok }), {
         headers: responseHeaders
       });
@@ -77,7 +79,8 @@ export async function handleRules(
         }
       }
 
-      await clearStylePlanSnapshots(env.DB);
+      const updated = await recomputeCachedStylePlan(env.DB);
+      if (updated.length === 0) await clearStylePlanSnapshots(env.DB);
       return new Response(JSON.stringify({ success: ok }), {
         headers: responseHeaders
       });

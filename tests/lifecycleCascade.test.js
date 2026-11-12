@@ -385,3 +385,160 @@ describe('Full 7-Tier Style Lifecycle Decision Cascade', () => {
     assert.ok(rec.promotionalPriceSAR < 69.0);
   });
 });
+
+describe('Production TS Engine: Live Size Curve & Core-Size Coverage (S/M/L/XL)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const vm = require('vm');
+  const ts = require('typescript');
+
+  function loadTsEngine(relPath) {
+    const cache = {};
+    function _load(targetPath) {
+      const fullPath = path.resolve(targetPath);
+      if (cache[fullPath]) return cache[fullPath].exports;
+      const src = fs.readFileSync(fullPath, 'utf8');
+      const transpiled = ts.transpileModule(src, {
+        compilerOptions: {
+          module: ts.ModuleKind.CommonJS,
+          target: ts.ScriptTarget.ES2020,
+          esModuleInterop: true
+        }
+      }).outputText;
+      const mod = { exports: {} };
+      cache[fullPath] = mod;
+      const localRequire = (req) => {
+        if (req.startsWith('.')) {
+          let p2 = path.resolve(path.dirname(fullPath), req);
+          if (!p2.endsWith('.ts') && fs.existsSync(p2 + '.ts')) p2 += '.ts';
+          return _load(p2);
+        }
+        return require(req);
+      };
+      const fn = new vm.Script('(function(exports, require, module, __filename, __dirname) {\n' + transpiled + '\n})').runInThisContext();
+      fn(mod.exports, localRequire, mod, fullPath, path.dirname(fullPath));
+      return mod.exports;
+    }
+    return _load(relPath);
+  }
+
+  const { evaluateSizeStockHealth, formatCurveHealthLabel } = loadTsEngine(path.join(__dirname, '../src/engine/metricsCalculator.ts'));
+  const { classifyStyleAndRecommend } = loadTsEngine(path.join(__dirname, '../src/engine/lifecycleClassifier.ts'));
+
+  test('evaluateSizeStockHealth: Flags 56163 (Pyjama Set SS25-PJ-941) as Broken Non-Core', () => {
+    const health = evaluateSizeStockHealth({ '2XL': 6, '3XL': 4, 'S': 1, 'XL': 1, 'M': 0, 'L': 0 });
+    assert.equal(health.activeSizesGE2, 2);
+    assert.equal(health.isLetterSized, true);
+    assert.equal(health.coreSizesGE2, 0);
+    assert.equal(health.bellySizesGE2, 0);
+    assert.equal(health.hasCoreSizes, false);
+    assert.equal(health.isHealthy, false);
+    assert.equal(health.label, 'Broken Curve (Non-Core Sizes)');
+  });
+
+  test('evaluateSizeStockHealth: Flags core-depleted M/L=0 even when 4 sizes have >=2 units (56675)', () => {
+    const health = evaluateSizeStockHealth({ 'S': 2, 'XL': 2, '2XL': 2, '3XL': 2 });
+    assert.equal(health.activeSizesGE2, 4);
+    assert.equal(health.coreSizesGE2, 2);
+    assert.equal(health.bellySizesGE2, 0);
+    assert.equal(health.hasCoreSizes, false);
+    assert.equal(health.isHealthy, false);
+    assert.equal(health.label, 'Broken Curve (Non-Core Sizes)');
+  });
+
+  test('evaluateSizeStockHealth: Keeps non-letter bras, kids, EU numeric, and combo curves healthy without letter-core penalty', () => {
+    assert.equal(evaluateSizeStockHealth({ '75B': 5, '80B': 13, '85B': 8, '90B': 4 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ '4-6': 7, '6-8': 10, '8-10': 5, '10-12': 8 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ '32': 10, '34': 12, '36': 8 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ 'SM': 5, 'LXL': 6, '23X': 4 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ 'S': 10, 'M': 7, 'L': 6, 'XL': 4, '2XL': 2 }).isHealthy, true);
+  });
+
+  test('classifyStyleAndRecommend: Routes 56163 Pyjama Set SS25-PJ-941 to Clearance Rail (Safe Floor), NOT Full Price', () => {
+    const health = evaluateSizeStockHealth({ '2XL': 6, '3XL': 4, 'S': 1, 'XL': 1, 'M': 0, 'L': 0 });
+    const rec = classifyStyleAndRecommend({
+      styleCode: '56163',
+      productName: 'Pyjama Set SS25-PJ-941',
+      category: 'Set',
+      season: 'Ss 25',
+      unitCost: 50.30,
+      ticketPrice: 199.00,
+      totalPhysicalStock: 9,
+      stockAndalus: 6,
+      stockYasmeen: 3,
+      stockJouri: 0,
+      stockWH: 0,
+      weeklyROS: 0.6,
+      cumulativeSTR: 96.0,
+      storeFloorWOS: 15.0,
+      activeSizeCount: health.activeSizesGE2,
+      hasCoreSizes: health.hasCoreSizes
+    });
+
+    assert.equal(rec.tier, 'CLEARANCE_PERCENT_SAFE');
+    assert.equal(rec.recommendedOffer, 'Clearance Rail (Safe Floor)');
+    assert.equal(rec.discountPct, 40);
+    assert.equal(rec.promotionalPriceSAR, 119.40);
+    assert.equal(rec.zeroLossStatus, 'YES');
+  });
+
+  test('classifyStyleAndRecommend: Routes broken SS26 non-core curves (58423) to clearance rail rather than Full Price', () => {
+    const health = evaluateSizeStockHealth({ '2XL': 5, 'M': 1, 'S': 1, 'XL': 8 });
+    const rec = classifyStyleAndRecommend({
+      styleCode: '58423',
+      productName: 'Night Gown SS26-NG-5153',
+      category: 'Night Gown',
+      season: 'Ss 26',
+      unitCost: 18.00,
+      ticketPrice: 129.00,
+      totalPhysicalStock: 14,
+      stockAndalus: 4,
+      stockYasmeen: 6,
+      stockJouri: 4,
+      stockWH: 0,
+      weeklyROS: 2.1,
+      cumulativeSTR: 96.2,
+      storeFloorWOS: 6.7,
+      activeSizeCount: health.activeSizesGE2,
+      hasCoreSizes: health.hasCoreSizes
+    });
+
+    assert.equal(rec.tier, 'CLEARANCE_3_FOR_99');
+    assert.equal(rec.recommendedOffer, 'Take 3 For 99 SAR Rail (33 SAR/u)');
+    assert.equal(rec.promotionalPriceSAR, 33.0);
+    assert.equal(rec.zeroLossStatus, 'YES');
+  });
+
+  test('classifyStyleAndRecommend: Preserves Full Price Margin Protection on true Hero Bra and immunity on Single-Size', () => {
+    const braRec = classifyStyleAndRecommend({
+      styleCode: '56822',
+      productName: 'Laser Cut Padded Bra 6050',
+      category: 'Bra',
+      season: 'All Season 2025',
+      unitCost: 30.00,
+      ticketPrice: 139.00,
+      totalPhysicalStock: 32,
+      stockAndalus: 10,
+      stockYasmeen: 10,
+      stockJouri: 8,
+      stockWH: 4,
+      weeklyROS: 3.5,
+      cumulativeSTR: 77.5,
+      storeFloorWOS: 8.0,
+      activeSizeCount: 4,
+      hasCoreSizes: true
+    });
+    assert.equal(braRec.tier, 'HERO_CORE');
+    assert.equal(braRec.recommendedOffer, 'Full Price Margin Protection (0% Off)');
+
+    assert.equal(
+      formatCurveHealthLabel({
+        category: 'Towel',
+        productName: 'Hair Towel-1205',
+        activeSizeCount: 1,
+        hasCoreSizes: false
+      }),
+      'Single Size (Complete)'
+    );
+  });
+});

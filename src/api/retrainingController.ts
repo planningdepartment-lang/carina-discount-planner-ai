@@ -44,7 +44,7 @@ export async function handleRetrainingStatus(
       active_lora_adapter: env.LORA_ADAPTER_NAME || 'carina-retail-v1',
       last_trained_at: new Date().toISOString(),
       next_scheduled_at: new Date(Date.now() + 7 * 86400000).toISOString(),
-      dataset_sample_count: 1493,
+      dataset_sample_count: 0,
       benchmark_accuracy: 100.0,
       updated_at: new Date().toISOString()
     };
@@ -56,6 +56,13 @@ export async function handleRetrainingStatus(
 
       if (results && results.length > 0) {
         settings = results[0];
+      }
+
+      const { results: cntRes } = await env.DB
+        .prepare('SELECT COUNT(*) as cnt FROM style_plan_snapshots')
+        .all<{ cnt: number }>();
+      if (cntRes && cntRes.length > 0 && Number(cntRes[0].cnt) > 0) {
+        settings.dataset_sample_count = Number(cntRes[0].cnt);
       }
     }
 
@@ -140,7 +147,7 @@ export async function handleTriggerRetraining(
   corsHeaders: Record<string, string>
 ): Promise<Response> {
   try {
-    let sampleCount = 1493;
+    let sampleCount = 0;
     if (env.DB) {
       const { results } = await env.DB
         .prepare('SELECT COUNT(*) as cnt FROM style_plan_snapshots')

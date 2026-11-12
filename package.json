@@ -8,6 +8,7 @@
     "deploy": "wrangler deploy",
     "build": "tsc --noEmit",
     "check": "tsc --noEmit",
+    "compile:ontology": "node scripts/compile_ontology.js",
     "test": "node --test tests/*.test.js"
   },
   "keywords": [
