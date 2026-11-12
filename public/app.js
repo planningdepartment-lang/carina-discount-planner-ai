@@ -1344,7 +1344,7 @@ function attachTableActionListeners() {
       let strBenchmark = '';
       let strBadgeClass = 'badge-green';
       if (speedBand === 'LAUNCH_SHIELD') {
-        strBenchmark = `New Drop Launch Shield (${tenureWks.toFixed(1)} wks <= 3.0w window): Style is within its 2-month drop debut window. Protected at full margin while store demand stabilizes.`;
+        strBenchmark = `1-Month Launch Shield (${tenureWks.toFixed(1)} wks <= 4.3w window): Style is within its 1-month arrival grace window. Protected at full margin while store demand stabilizes.`;
         strBadgeClass = 'badge-blue';
       } else if (speedBand === 'FAST_HERO') {
         strBenchmark = `True 2-Month Fast Hero (${str.toFixed(1)}% STR in ${tenureWks.toFixed(1)} wks; pace ${strPace.toFixed(1)}%/wk): Proved rapid pull within the drop window and maintains healthy runway.`;
@@ -1687,45 +1687,45 @@ function attachTableActionListeners() {
               <span class="popover-criteria-badge badge-blue">5 EVALUATION GATES</span>
             </div>
             <div class="popover-criteria-list">
-              <!-- Gate 1: Assortment Type & Curve Health -->
+              <!-- Gate 1: Sell-Through Rate (STR %) & Speed (Analyzed First) -->
               <div class="popover-criteria-item">
                 <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">1. Assortment & Size Curve</span>
+                  <span class="popover-criteria-name">1. Sell-Through Rate (STR % &amp; Speed)</span>
+                  <span class="popover-criteria-badge ${strBadgeClass}">STR: ${str.toFixed(1)}%</span>
+                </div>
+                <div class="popover-criteria-desc">${strBenchmark}</div>
+              </div>
+
+              <!-- Gate 2: Store Runway / Weeks of Supply (WOS) -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">2. Store Runway (WOS)</span>
+                  <span class="popover-criteria-badge ${wosBadgeClass}">WOS: ${storeWos} wks</span>
+                </div>
+                <div class="popover-criteria-desc">${wosBenchmark}</div>
+              </div>
+
+              <!-- Gate 3: Assortment Type & Curve Health (>= 1 u/size, Checked After STR) -->
+              <div class="popover-criteria-item">
+                <div class="popover-criteria-head">
+                  <span class="popover-criteria-name">3. Assortment &amp; Size Curve</span>
                   <span class="popover-criteria-badge ${curveBadgeClass}">${curveLabel}</span>
                 </div>
                 <div class="popover-criteria-desc">
                   ${isSingleSize 
                     ? 'Non-sized or single-size item by design; zero risk of core-size brokenness. Merchandised via basket builders or full price rather than broken-curve clearance.' 
                     : (!hasCoreSizes
-                        ? 'Missing Core Sizes (S, M, L, XL &ge; 2 u/size required). Incomplete core size coverage triggers walkout losses and prioritizes floor-safe clearance.'
+                        ? 'Missing Core Sizes (S, M, L, XL &ge; 1 u/size required). Checked after STR %; fast-selling broken styles run 4-scenario profit validation before clearance.'
                         : (sizes >= 3 
-                            ? 'Complete Core Curve (S, M, L, XL &ge; 2 u/size active). Retains full conversion without broken-curve walkout penalties.' 
-                            : 'Fragmented orphan oddments (&le;2 sizes remaining). High customer walkout risk; routed to floor-safe clearance rails.'))}
+                            ? 'Complete Core Curve (S, M, L, XL &ge; 1 u/size active). Retains full conversion without broken-curve walkout penalties.' 
+                            : 'Fragmented orphan oddments (&le;2 sizes remaining). Checked after STR %; routes to clearance unless near-sellout fast mover (&le;3 WOS).'))}
                   ${(() => {
                     const entries = Object.entries(sizeBreakdown || {}).filter(([, q]) => Number(q) > 0);
                     if (entries.length === 0) return '';
-                    const chips = entries.map(([sz, q]) => `<span style="display:inline-block;padding:1px 6px;margin:2px 3px 0 0;border-radius:4px;font-size:0.68rem;background:rgba(255,255,255,0.06);border:1px solid ${Number(q) >= 2 ? 'rgba(16,185,129,0.45)' : 'rgba(245,158,11,0.45)'};color:${Number(q) >= 2 ? '#a7f3d0' : '#fde68a'};">${escapeHtml(sz)}: ${Number(q)}</span>`).join('');
+                    const chips = entries.map(([sz, q]) => `<span style="display:inline-block;padding:1px 6px;margin:2px 3px 0 0;border-radius:4px;font-size:0.68rem;background:rgba(255,255,255,0.06);border:1px solid ${Number(q) >= 1 ? 'rgba(16,185,129,0.45)' : 'rgba(245,158,11,0.45)'};color:${Number(q) >= 1 ? '#a7f3d0' : '#fde68a'};">${escapeHtml(sz)}: ${Number(q)}</span>`).join('');
                     return `<div style="margin-top:5px;">${chips}</div>`;
                   })()}
                 </div>
-              </div>
-
-              <!-- Gate 2: Sell-Through Rate (STR %) -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">2. Sell-Through Rate (STR %)</span>
-                  <span class="popover-criteria-badge ${strBadgeClass}">STR: ${str.toFixed(1)}%</span>
-                </div>
-                <div class="popover-criteria-desc">${strBenchmark}</div>
-              </div>
-
-              <!-- Gate 3: Store Runway / Weeks of Supply (WOS) -->
-              <div class="popover-criteria-item">
-                <div class="popover-criteria-head">
-                  <span class="popover-criteria-name">3. Store Runway (WOS)</span>
-                  <span class="popover-criteria-badge ${wosBadgeClass}">WOS: ${storeWos} wks</span>
-                </div>
-                <div class="popover-criteria-desc">${wosBenchmark}</div>
               </div>
 
               <!-- Gate 4: Store Floor Saturation & Display Density -->

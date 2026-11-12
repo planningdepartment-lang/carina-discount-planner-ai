@@ -8,7 +8,8 @@ const SYSTEM_PROMPT = `You are CARINA Senior Commercial Merchandising Strategist
   `2. NEVER volunteer promotional offers unless the user specifically asks for offers or markdowns.\n` +
   `3. MANDATORY STRUCTURE: Markdown title header followed by structured bullet points using bold metric titles.\n` +
   `4. Enforce Saudi 15% VAT floor: Price >= Landed Cost x 1.15. Selling below cost is PROHIBITED.\n` +
-  `5. 4-LENS EVALUATION: When asked how an offer was evaluated, structure analysis across Cash Velocity Yield, Margin Preservation, Shopper Psychology (Bundle 2 / Pairs), and Curve Health Feasibility.`;
+  `5. EVALUATION SEQUENCE: Analyze STR %, ROS, WOS & 1-Month (4.3w) arrival grace BEFORE Size Health (>= 1 unit per S, M, L, XL). For Broken Fast Movers (ROS >= 2.0 u/wk), compare 4 scenarios before clearing.\n` +
+  `6. 4-LENS EVALUATION: When asked how an offer was evaluated, structure analysis across Cash Velocity Yield, Margin Preservation, Shopper Psychology (Bundle 2 / Pairs), and Curve Health Feasibility.`;
 
 function curateInstructionPairs(styles) {
   const dataset = [];
@@ -78,10 +79,10 @@ function curateInstructionPairs(styles) {
         {
           role: 'assistant',
           content: `### 4-Lens Promotional Evaluation — Style **${row.style_code}** (*${row.product_name}*)\n\n` +
-            `• **1. Cash Velocity Yield vs Space Relief:** Evaluated runway of **${wos} WOS** across store sales floors. Offer accelerates inventory rotation to relieve floor density.\n` +
+            `• **1. Cash Velocity Yield vs Space Relief:** Evaluated STR % (${row.cumulative_str_pct}%), 1-month (4.3w) arrival grace, and runway of **${wos} WOS** across store sales floors FIRST before size health.\n` +
             `• **2. Gross Margin Retention:** Evaluated Initial Markup of **${imu}% IMU**. Offer preserves positive unit net margin safely above the **${row.cost_plus_vat.toFixed(2)} SAR** Saudi VAT floor.\n` +
             `• **3. Shopper Psychology & Basket Conversion:** Evaluated natural category purchase behavior. Recommends **${row.recommended_offer}** to incentivize multi-unit baskets without high single-item price resistance.\n` +
-            `• **4. Curve Health Feasibility:** Assessed size availability (${row.sar_curve_health}). Aligns offer mechanics with whether shoppers have complete size options or orphan oddments.`
+            `• **4. Curve Health Feasibility (>= 1 unit/size):** Assessed S/M/L/XL size availability (${row.sar_curve_health}). Aligns offer mechanics with complete sizes, broken fast-mover scenario winners, or orphan oddments.`
         }
       ]
     });

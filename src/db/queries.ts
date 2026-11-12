@@ -332,17 +332,38 @@ export async function fetchStylePlanSnapshots(db: D1Database): Promise<StylePlan
         ? Number(row.store_floor_wos)
         : (weeklyROS > 0 ? Math.round((floorStock / weeklyROS) * 10) / 10 : 999.0);
 
-      const isSingleSize = row.is_single_size !== undefined && row.is_single_size !== null
-        ? Number(row.is_single_size) === 1
-        : (row.sar_curve_health?.includes('Single') || false);
+      const isSingleSize = detectSingleSizeAssortment(
+        row.category,
+        row.product_name,
+        row.is_single_size !== undefined && row.is_single_size !== null ? Number(row.is_single_size) === 1 : undefined,
+        sizeBreakdown
+      );
 
-      const hasCoreSizes = row.has_core_sizes !== undefined && row.has_core_sizes !== null
+      let hasCoreSizes = row.has_core_sizes !== undefined && row.has_core_sizes !== null
         ? Number(row.has_core_sizes) === 1
         : !row.sar_curve_health?.includes('Non-Core');
 
-      const activeSizeCount = (row.active_size_count !== undefined && row.active_size_count !== null && Number(row.active_size_count) > 0)
+      let activeSizeCount = (row.active_size_count !== undefined && row.active_size_count !== null && Number(row.active_size_count) > 0)
         ? Number(row.active_size_count)
         : (row.sar_curve_health?.includes('>=3') ? 4 : (isSingleSize ? 1 : 2));
+
+      if (!isSingleSize && sizeBreakdown && Object.keys(sizeBreakdown).length > 0) {
+        const inferredMTo3XLEver =
+          Number(row.has_core_sizes) === 1 &&
+          !(Number(sizeBreakdown['S']) > 0) &&
+          Number(sizeBreakdown['M']) >= 1 &&
+          Number(sizeBreakdown['L']) >= 1 &&
+          Number(sizeBreakdown['XL']) >= 1 &&
+          (Number(sizeBreakdown['2XL']) >= 1 || Number(sizeBreakdown['3XL']) >= 1)
+            ? ['M', 'L', 'XL', '2XL', '3XL']
+            : undefined;
+        const freshHealth = evaluateSizeStockHealth(sizeBreakdown, inferredMTo3XLEver);
+        activeSizeCount = freshHealth.activeSizesGE1;
+        hasCoreSizes = freshHealth.hasCoreSizes;
+      } else if (isSingleSize) {
+        activeSizeCount = 1;
+        hasCoreSizes = true;
+      }
 
       const tier = row.lifecycle_tier || inferTierFromOffer(row.recommended_offer, row.zero_loss_status, row.discount_pct);
       const bundleMeta = parseBundleFromOffer(row.recommended_offer, row.promotional_price);
@@ -730,7 +751,7 @@ export async function aggregateStylesDirectFromD1(db: D1Database): Promise<Style
         momentumLabel: momentum.momentumLabel,
         cumulativeSTR: Math.round(strPct * 10) / 10,
         storeFloorWOS: wos,
-        activeSizeCount: isSingleSize ? 1 : sizeHealth.activeSizesGE2,
+        activeSizeCount: isSingleSize ? 1 : sizeHealth.activeSizesGE1,
         hasCoreSizes: isSingleSize ? true : sizeHealth.hasCoreSizes,
         isSingleSize,
         sizeBreakdown: Object.keys(acc.sizeBreakdown).length > 0 ? acc.sizeBreakdown : undefined,

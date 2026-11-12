@@ -425,33 +425,38 @@ describe('Production TS Engine: Live Size Curve & Core-Size Coverage (S/M/L/XL)'
   const { evaluateSizeStockHealth, formatCurveHealthLabel } = loadTsEngine(path.join(__dirname, '../src/engine/metricsCalculator.ts'));
   const { classifyStyleAndRecommend } = loadTsEngine(path.join(__dirname, '../src/engine/lifecycleClassifier.ts'));
 
-  test('evaluateSizeStockHealth: Flags 56163 (Pyjama Set SS25-PJ-941) as Broken Non-Core', () => {
+  test('evaluateSizeStockHealth: Flags 56163 (Pyjama Set SS25-PJ-941) as Broken Non-Core under >=1 unit rule (missing M & L)', () => {
     const health = evaluateSizeStockHealth({ '2XL': 6, '3XL': 4, 'S': 1, 'XL': 1, 'M': 0, 'L': 0 });
-    assert.equal(health.activeSizesGE2, 2);
+    assert.equal(health.activeSizesGE1, 4);
     assert.equal(health.isLetterSized, true);
-    assert.equal(health.coreSizesGE2, 0);
-    assert.equal(health.bellySizesGE2, 0);
+    assert.equal(health.coreSizesGE1, 2);
+    assert.equal(health.bellySizesGE1, 0);
     assert.equal(health.hasCoreSizes, false);
     assert.equal(health.isHealthy, false);
     assert.equal(health.label, 'Broken Curve (Non-Core Sizes)');
   });
 
-  test('evaluateSizeStockHealth: Flags core-depleted M/L=0 even when 4 sizes have >=2 units (56675)', () => {
-    const health = evaluateSizeStockHealth({ 'S': 2, 'XL': 2, '2XL': 2, '3XL': 2 });
-    assert.equal(health.activeSizesGE2, 4);
-    assert.equal(health.coreSizesGE2, 2);
-    assert.equal(health.bellySizesGE2, 0);
+  test('evaluateSizeStockHealth: Flags core-depleted M/L=0 even when 4 sizes have >=1 unit (56675)', () => {
+    const health = evaluateSizeStockHealth({ 'S': 1, 'XL': 1, '2XL': 2, '3XL': 2 });
+    assert.equal(health.activeSizesGE1, 4);
+    assert.equal(health.coreSizesGE1, 2);
+    assert.equal(health.bellySizesGE1, 0);
     assert.equal(health.hasCoreSizes, false);
     assert.equal(health.isHealthy, false);
     assert.equal(health.label, 'Broken Curve (Non-Core Sizes)');
+
+    const healthy1Unit = evaluateSizeStockHealth({ 'S': 1, 'M': 1, 'L': 1, 'XL': 1 });
+    assert.equal(healthy1Unit.activeSizesGE1, 4);
+    assert.equal(healthy1Unit.hasCoreSizes, true);
+    assert.equal(healthy1Unit.isHealthy, true);
   });
 
-  test('evaluateSizeStockHealth: Keeps non-letter bras, kids, EU numeric, and combo curves healthy without letter-core penalty', () => {
-    assert.equal(evaluateSizeStockHealth({ '75B': 5, '80B': 13, '85B': 8, '90B': 4 }).isHealthy, true);
-    assert.equal(evaluateSizeStockHealth({ '4-6': 7, '6-8': 10, '8-10': 5, '10-12': 8 }).isHealthy, true);
-    assert.equal(evaluateSizeStockHealth({ '32': 10, '34': 12, '36': 8 }).isHealthy, true);
-    assert.equal(evaluateSizeStockHealth({ 'SM': 5, 'LXL': 6, '23X': 4 }).isHealthy, true);
-    assert.equal(evaluateSizeStockHealth({ 'S': 10, 'M': 7, 'L': 6, 'XL': 4, '2XL': 2 }).isHealthy, true);
+  test('evaluateSizeStockHealth: Keeps non-letter bras, kids, EU numeric, and combo curves healthy at >=1 unit', () => {
+    assert.equal(evaluateSizeStockHealth({ '75B': 1, '80B': 13, '85B': 8, '90B': 4 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ '4-6': 1, '6-8': 10, '8-10': 5, '10-12': 8 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ '32': 1, '34': 12, '36': 8 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ 'SM': 1, 'LXL': 1, '23X': 4 }).isHealthy, true);
+    assert.equal(evaluateSizeStockHealth({ 'S': 1, 'M': 1, 'L': 1, 'XL': 1, '2XL': 2 }).isHealthy, true);
   });
 
   test('classifyStyleAndRecommend: Routes 56163 Pyjama Set SS25-PJ-941 to Clearance Rail (Safe Floor), NOT Full Price', () => {
@@ -471,7 +476,7 @@ describe('Production TS Engine: Live Size Curve & Core-Size Coverage (S/M/L/XL)'
       weeklyROS: 0.6,
       cumulativeSTR: 96.0,
       storeFloorWOS: 15.0,
-      activeSizeCount: health.activeSizesGE2,
+      activeSizeCount: health.activeSizesGE1,
       hasCoreSizes: health.hasCoreSizes
     });
 
@@ -482,7 +487,7 @@ describe('Production TS Engine: Live Size Curve & Core-Size Coverage (S/M/L/XL)'
     assert.equal(rec.zeroLossStatus, 'YES');
   });
 
-  test('classifyStyleAndRecommend: Routes broken SS26 non-core curves (58423) to clearance rail rather than Full Price', () => {
+  test('classifyStyleAndRecommend: Routes broken SS26 non-core curves (58423, missing L) to clearance rail rather than Full Price', () => {
     const health = evaluateSizeStockHealth({ '2XL': 5, 'M': 1, 'S': 1, 'XL': 8 });
     const rec = classifyStyleAndRecommend({
       styleCode: '58423',
@@ -499,7 +504,7 @@ describe('Production TS Engine: Live Size Curve & Core-Size Coverage (S/M/L/XL)'
       weeklyROS: 2.1,
       cumulativeSTR: 96.2,
       storeFloorWOS: 6.7,
-      activeSizeCount: health.activeSizesGE2,
+      activeSizeCount: health.activeSizesGE1,
       hasCoreSizes: health.hasCoreSizes
     });
 

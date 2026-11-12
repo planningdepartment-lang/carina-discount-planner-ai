@@ -1590,6 +1590,10 @@ export async function handleCopilotChat(
     let alternativeScenariosContext = '';
     if (isAlternativeOfferQuery) {
       const { storeFloorWos: accurateFloorWos } = computeStyleFloorRunway(style);
+      const isSingleSz = Boolean(style.is_single_size) || /Single Size/i.test(style.sar_curve_health || '');
+      const hasCoreSz = style.has_core_sizes === undefined
+        ? !/Broken/i.test(style.sar_curve_health || '')
+        : Boolean(style.has_core_sizes);
       const dynamicMetrics: DynamicOfferMetrics = {
         styleCode: style.style_code,
         productName: style.product_name,
@@ -1601,13 +1605,18 @@ export async function handleCopilotChat(
         weeklyROS: Number(style.weekly_ros) || 0.1,
         cumulativeSTR: Number(style.cumulative_str_pct) || 0,
         storeFloorWOS: accurateFloorWos,
-        activeSizeCount: Number(style.active_size_count) || 1
+        activeSizeCount: Number(style.active_size_count) || (hasCoreSz ? 4 : 1),
+        hasCoreSizes: hasCoreSz,
+        isSingleSize: isSingleSz,
+        stockWH: Number(style.stock_wh) || 0,
+        salesLifecycleWeeks: Number(style.sales_lifecycle_weeks ?? 0)
       };
       const altResult = generateAlternativeOfferScenarios(dynamicMetrics);
       alternativeOffersCard = formatAlternativeOffersCard(altResult, allowUnguidedMetrics);
-      alternativeScenariosContext = altResult.scenarios.map((sc, idx) =>
-        `${idx + 1}. ${sc.name} — ${sc.offerLabel} [${sc.strategicPosture}]: ${sc.promoPriceSAR.toFixed(2)} SAR (${sc.discountPct}% off list ${style.ticket_price.toFixed(2)} SAR; Net Margin +${sc.unitNetMarginSAR.toFixed(2)} SAR/u = ${sc.netMarginPct.toFixed(1)}%; Forecast ${sc.forecastSoldUnits}u / ${sc.expectedClearancePct}% clearance, post-event ${sc.postEventWOS.toFixed(1)} WOS) — ${sc.tradeOffSummary}`
-      ).join('\n');
+      alternativeScenariosContext = (altResult.selectionReason ? `Recommended Winner [${altResult.recommendedScenarioId}]: ${altResult.selectionReason}\n` : '') +
+        altResult.scenarios.map((sc, idx) =>
+          `${idx + 1}. ${sc.name}${altResult.recommendedScenarioId === sc.scenarioId ? ' [BEST CHOICE]' : ''} — ${sc.offerLabel} [${sc.strategicPosture}]: ${sc.promoPriceSAR.toFixed(2)} SAR (${sc.discountPct}% off list ${style.ticket_price.toFixed(2)} SAR; Net Margin +${sc.unitNetMarginSAR.toFixed(2)} SAR/u = ${sc.netMarginPct.toFixed(1)}%; Forecast ${sc.forecastSoldUnits}u / ${sc.expectedClearancePct}% clearance, post-event ${sc.postEventWOS.toFixed(1)} WOS) — ${sc.tradeOffSummary}`
+        ).join('\n');
 
       // Only return the static card alone if Workers AI is unavailable
       if (!env?.AI) {
@@ -1771,14 +1780,15 @@ export async function handleCopilotChat(
           `- Product Name: ${style.product_name}\n` +
           `- Assortment Category: ${style.category}\n` +
           `- Season Collection: ${style.season}\n` +
-          `- Historical Total Sold (Lifetime) & Tenure: ${soldUnits} total units sold lifetime over ${speedEval.effectiveTenureWeeks.toFixed(1)} wks (${speedEval.strVelocityPctPerWeek.toFixed(1)}% STR/wk)\n` +
+          `- EVALUATION SEQUENCE (CARINA POLICY): Step 1 Check Store vs WH & Cost x 1.15 Floor -> Step 2 Analyze STR % & Sales Speed (ROS, WOS, 1-Month / 4.3w arrival grace) FIRST -> Step 3 Evaluate Size Health (>= 1 unit across S, M, L, XL) SECOND -> Step 4 If Fast Mover + Broken Sizes, validate 4 Discount Planner Scenarios (Hold Full Price if <= 3.0 WOS sellout; WH Release + Bundle if WH >= 5u & store WOS <= 3.0; else Clearance Rail).\n` +
+          `- Historical Total Sold (Lifetime) & Tenure: ${soldUnits} total units sold lifetime over ${speedEval.effectiveTenureWeeks.toFixed(1)} wks (${speedEval.strVelocityPctPerWeek.toFixed(1)}% STR/wk; 1-Month arrival grace = 4.3 wks)\n` +
           `- Current 8-Week Rolling Rate of Sale (ROS): ${style.weekly_ros} units/week [Do NOT say "${style.weekly_ros} units/week sold" — say "${style.weekly_ros} u/wk recent velocity" vs "${soldUnits} total units sold"]\n` +
           `- Certified Speed Band Classification: ${speedLabel} [${speedEval.speedBand}] — ${speedEval.reason}\n` +
-          `- CARINA Speed Thresholds: FAST_HERO (>= 2.5 u/wk & <= 12 WOS, or >= 1.5 u/wk & <= 16 WOS for single-size); MEDIUM (>= 0.8 u/wk & <= 32 WOS); SLOW (< 0.8 u/wk or > 26-32 WOS)\n` +
-          `- Cumulative Sell-Through (STR): ${style.cumulative_str_pct}% total STR\n` +
+          `- CARINA Speed Thresholds: FAST_HERO (>= 2.5 u/wk & <= 12 WOS, or >= 1.5 u/wk & <= 16 WOS for single-size); MEDIUM (>= 0.8 u/wk & <= 32 WOS); SLOW (< 0.8 u/wk or > 26-32 WOS); LAUNCH_SHIELD (<= 4.3 weeks / 1 month).\n` +
+          `- Cumulative Sell-Through (STR): ${style.cumulative_str_pct}% total STR (evaluated BEFORE size health)\n` +
           `- Store Floor Stock & Door Runway: ${storeUnits} units across retail doors (${storeFloorWos.toFixed(1)} WOS door runway; Andalus=${style.stock_andalus}u, Yasmeen=${style.stock_yasmeen}u, Jouri=${style.stock_jouri}u)\n` +
           `- Central Warehouse (WH) Buffer & Network Tension: ${style.stock_wh} units sitting in WH reserve (${style.total_physical_stock} total network units = ${networkWos} WOS total network runway). Note: WH reserve vs store-floor runway tension determines whether to hold price & push WH replenishment or offer a multi-buy/alternative.\n` +
-          `- Active Size Curve & Live Sizes: ${style.sar_curve_health} (${sizesText}) | Single Size: ${isSingleSz ? 'YES' : 'NO'} | Core S/M/L/XL Intact: ${style.has_core_sizes === false || style.has_core_sizes === 0 ? 'NO' : 'YES'}\n` +
+          `- Active Size Curve & Live Sizes (>= 1 unit/size required for healthy S, M, L, XL): ${style.sar_curve_health} (${sizesText}) | Single Size: ${isSingleSz ? 'YES' : 'NO'} | Core S/M/L/XL Intact: ${style.has_core_sizes === false || style.has_core_sizes === 0 ? 'NO' : 'YES'}\n` +
           `- Landed Unit Cost (COGS): ${style.unit_cost.toFixed(2)} SAR\n` +
           `- Saudi 15% VAT Legal Break-Even Floor: ${style.cost_plus_vat.toFixed(2)} SAR [Formula: Landed Cost x 1.15 = ${style.unit_cost.toFixed(2)} x 1.15]\n` +
           `- Original List Ticket Price: ${style.ticket_price.toFixed(2)} SAR\n` +
@@ -1971,8 +1981,11 @@ export async function handleCopilotChat(
         `- Total Physical Inventory Catalog: ${stylesLabel}, ${unitsLabel} on-hand.\n` +
         `- Sales Performance & Velocity: Cumulative Sell-Through (STR) = ${strLabel}; Rolling 8-Week Velocity (ROS) = ${rosLabel} per active style.\n` +
         `- Portfolio Valuation: Total Retail Ticket Value = ${retailLabel} | Landed Cost Capital = ${costLabel} | Blended Initial Markup (IMU) = ${imuLabel}.\n` +
+        `- Evaluation Order & Drop Grace Window:\n` +
+        `  * Evaluation Order: Always analyze STR % & Sales Speed (ROS, WOS, and 1-Month / 4.3-week arrival grace window) BEFORE checking Size Health (>= 1 unit per size across S, M, L, XL).\n` +
+        `  * Broken Fast-Mover Rule: When a fast seller (ROS >= 2.0 u/wk) has broken sizes, evaluate 4 scenarios: hold Full Price if remaining stock sells out in <= 3.0 WOS; Release WH + gentle Buy-2 / Full Price if WH >= 5u & store WOS <= 3.0; else route > 3.0 WOS tail to Clearance.\n` +
         `- Size Demand Hierarchy & Curve Dynamics (Saudi Retail Market):\n` +
-        `  * Core Sized Apparel (Bras, Tops, Pyjamas, Dresses): ALL 4 core sizes (**S, M, L, XL**) must carry >= 2 units per size (or dual-letter SM + LXL equivalent, with verified M-3XL / M-2XL allowance only where size S never existed). Missing any core size (S, M, L, or XL < 2 units) creates a Broken Curve ('Broken Curve (Non-Core Sizes)' or 'Broken Curve (<=2 Sizes)') routed to clearance rails.\n` +
+        `  * Core Sized Apparel (Bras, Tops, Pyjamas, Dresses): ALL 4 core sizes (**S, M, L, XL**) must carry >= 1 unit per size (or dual-letter SM + LXL equivalent, with verified M-3XL / M-2XL allowance only where size S never existed). Missing any core size (S, M, L, or XL = 0 units) or having < 3 active sizes (>= 1u) creates a Broken Curve ('Broken Curve (Non-Core Sizes)' or 'Broken Curve (<=2 Sizes)').\n` +
         `  * Non-Sized & Single-Size Assortments (Cosmetics, Body Splashes, Fragrances 100ML/50ML, Towels, Socks, Accessories, One-Size robes): These products have 1 complete size by design ('Single Size (Complete)'). They are NEVER broken oddments and are merchandised as basket boosters ('Spend 250 Save 50', low-ticket multi-packs, or full price) while strictly clearing Saudi VAT Cost x 1.15 floors.\n` +
         `- Store Densities & Clearance Priorities:\n` +
         `  * Al-Andalus Mall Flagship (Jeddah, 260 m²): Balanced sales floor density.\n` +
@@ -2002,8 +2015,10 @@ export async function handleCopilotChat(
         `   - NEVER propose a fixed "Take 3 For 99 SAR" offer blindly on low-ticket categories or high-cost items where 33 SAR/unit falls below Cost x 1.15. Bundle unit prices must ALWAYS stay >= Cost x 1.15 and < Ticket Price.\n` +
         `   - NEVER answer with a bare monosyllable like "Yes" or "No". Even if the user asks "confirm yes or no" or "just say yes or no", confirm clearly and explain the commercial framework, store allocations, and governance boundaries.\n` +
         `2. ANSWER ANY QUESTION OR CALCULATION DIRECTLY: Answer the user's analytical, mathematical, operational, or retail question directly and intelligently using the provided telemetry and formulas.\n` +
-        `3. SIZE DEMAND HIERARCHY:\n` +
-        `   - Core sizes (**S, M, L, XL** with >= 2 units per core size) apply ONLY to sized apparel garments (Bras, Pyjamas, Tops, Dresses).\n` +
+        `3. EVALUATION ORDER & SIZE DEMAND HIERARCHY:\n` +
+        `   - Analyze STR % and Sales Speed (ROS, WOS, 1-Month / 4.3-week launch grace window) BEFORE evaluating Size Health.\n` +
+        `   - Core sizes (**S, M, L, XL** with >= 1 unit per core size) apply ONLY to sized apparel garments (Bras, Pyjamas, Tops, Dresses).\n` +
+        `   - Broken Fast Movers (ROS >= 2.0 u/wk with missing core sizes): Hold Full Price if selling out within <= 3.0 WOS, or Release WH + gentle Buy-2 if WH >= 5u & Store WOS <= 3.0.\n` +
         `   - Single-size categories (Socks, Cosmetics, Fragrances, Towels, One-Size accessories) have NO multi-size core requirement ('Single Size (Complete)'). NEVER classify valid Single-Size items as broken curves.\n` +
         `4. PROHIBITED ACTIONS: If the user suggests or asks about a price or action that is prohibited (such as selling below landed cost plus 15% VAT, or deep discounting fresh winter collections, or mixing damaged/virtual stock onto sales floors), explicitly state: "Prohibited Action: ..." and explain the regulatory or commercial reason.\n` +
         `5. STRICT EXECUTIVE ORGANIZATION: Always structure your response with a clean Markdown title header and organized bullet points (•) with bold category labels. NEVER output a continuous unformatted block of text. Under 180 words. Strictly NO emojis or unicode icons in your output.\n` +
@@ -2080,9 +2095,10 @@ export async function handleCopilotChat(
       if (/sizes?|curve/i.test(lowerMsg)) {
         return {
           reply: `### Size Demand & Curve Dynamics (Saudi Retail Network)\n\n` +
-            `• **Strict Core Sizes (S, M, L, XL):** Healthy retail apparel styles must carry **>= 2 units** across all four core sizes (**S, M, L, XL**, including dual-letter SM/LXL equivalents).\n` +
-            `• **Extended Plus-Line Allowance (M-3XL / M-2XL):** Verified styles where Small (S) never existed in historical Odoo receipts remain Healthy when **M, L, XL, and 2XL/3XL** each carry >= 2 units.\n` +
-            `• **Broken Curve Triggers:** Styles missing any required core size (**Broken Curve (Non-Core Sizes)**) or having **<= 2 active sizes** (**Broken Curve (<=2 Sizes)**) lose full-size conversion and shift to floor-safe clearance rails.\n` +
+            `• **Evaluation Sequence:** CARINA analyzes **STR % & Sales Speed (with a 1-Month / 4.3-week arrival grace window)** BEFORE checking Size Health.\n` +
+            `• **Strict Core Sizes (S, M, L, XL):** Healthy retail apparel styles must carry **>= 1 unit** across all four core sizes (**S, M, L, XL**, including dual-letter SM/LXL equivalents).\n` +
+            `• **Extended Plus-Line Allowance (M-3XL / M-2XL):** Verified styles where Small (S) never existed in historical Odoo receipts remain Healthy when **M, L, XL, and 2XL/3XL** each carry >= 1 unit.\n` +
+            `• **Broken Curve Triggers & Fast-Mover Scenario Exception:** Styles missing any required core size (**0 units**) or having **<= 2 active sizes** route to clearance unless they are **Broken Fast Movers** (<= 3.0 WOS sellout holds Full Price; WH >= 5u transfers with gentle Buy-2).\n` +
             `• **Single-Size Exception:** Socks, One-Size (OS/FREE), Cosmetics, Fragrances, and accessories classify as **Single Size (Complete)** rather than broken curves.`,
           mode
         };

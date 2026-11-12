@@ -383,7 +383,7 @@ terms:
       - "oddment"
       - "single size"
       - "sizes"
-    definition: "Assesses whether sized apparel retains core S/M/L/XL (>=2u each) vs broken curves or valid Single-Size (Complete) non-sized items."
+    definition: "Assesses whether sized apparel retains core S/M/L/XL (>=1u each) vs broken curves or valid Single-Size (Complete) non-sized items. Always checked AFTER analyzing STR % and Sales Speed."
     table: "style_plan_snapshots"
     columns:
       - "sar_curve_health"
@@ -392,7 +392,7 @@ terms:
       - "active_size_count"
     sqlExpression: "sar_curve_health"
     unit: "classification"
-    governanceNote: "Single-size cosmetics/socks/accessories (is_single_size = 1) are NEVER broken curves."
+    governanceNote: "Healthy core sizes require >=1 unit in each of S, M, L, XL (>=3 active sizes). Single-size items (is_single_size = 1) are NEVER broken curves; Broken Fast Movers (ROS >= 2.0) validate 4 scenarios before clearance."
 
   - id: "promo_net_margin_unit"
     name: "Promotional Unit Net Margin (Ex-VAT)"
@@ -529,7 +529,7 @@ terms:
       - "fast mover"
       - "slow mover"
       - "hero"
-    definition: "CARINA drop-cycle velocity classification: FAST_HERO (>= 2.5 u/wk ROS & <= 12 WOS, or >= 1.5 u/wk & <= 16 WOS for single-size items), MEDIUM (>= 0.8 u/wk & <= 32 WOS), SLOW (< 0.8 u/wk or overstocked > 26-32 WOS)."
+    definition: "CARINA drop-cycle velocity classification (evaluated BEFORE Size Health): FAST_HERO (>= 2.5 u/wk ROS & <= 12 WOS, or >= 1.5 u/wk & <= 16 WOS for single-size items), LAUNCH_SHIELD (<= 4.3 wks / 1 month arrival grace), MEDIUM (>= 0.8 u/wk & <= 32 WOS), SLOW (< 0.8 u/wk or overstocked > 26-32 WOS)."
     table: "style_plan_snapshots"
     columns:
       - "weekly_ros"
@@ -541,7 +541,7 @@ terms:
       - "has_core_sizes"
     sqlExpression: "CASE WHEN (is_single_size = 1 AND weekly_ros >= 1.5 AND store_floor_wos <= 16) OR (weekly_ros >= 2.5 AND store_floor_wos <= 12) THEN 'FAST_HERO' WHEN weekly_ros >= 0.8 AND store_floor_wos <= 32 THEN 'MEDIUM' ELSE 'SLOW' END"
     unit: "speed_band"
-    governanceNote: "Use evaluateSpeedAndHeroQualification thresholds; store_floor_wos determines floor runway while WH buffer adds network coverage."
+    governanceNote: "Evaluated STR % and ROS first using 4.3-week (1-month) launch shield before size-health branching; store_floor_wos determines floor runway while WH buffer adds network coverage."
 
 sqlAttributes:
   - id: "network_store_density_summary"

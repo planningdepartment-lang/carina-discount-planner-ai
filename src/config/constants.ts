@@ -70,7 +70,8 @@ export const CAMPAIGN_DEFAULTS = {
 
 export const DROP_CYCLE_BENCHMARKS = {
   DROP_CADENCE_WEEKS: 8.7,          // ~2-month new collection drop cadence (~6 drops/yr)
-  LAUNCH_SHIELD_WEEKS: 3.0,         // First 21 days protected from premature markdown
+  LAUNCH_SHIELD_WEEKS: 4.3,         // First 1 month (4.3 weeks / 30 days) protected from premature markdown
+  MIN_UNITS_PER_HEALTHY_SIZE: 1,    // Healthy core sizes require >= 1 unit per size (S, M, L, XL)
   ESTABLISHED_HERO_MAX_WEEKS: 12.0, // ~3-month window for 70%+ established Hero validation
   FAST_HERO_MIN_STR: 50.0,
   FAST_HERO_MIN_ROS: 2.5,
@@ -81,6 +82,10 @@ export const DROP_CYCLE_BENCHMARKS = {
   CONTINUITY_HERO_MIN_ROS: 2.5,     // Mature NOOS (>12w) must prove live floor pull
   CONTINUITY_HERO_MIN_2WK_ROS: 1.0,
   CONTINUITY_HERO_MAX_WOS: 14.0,
+  BROKEN_FAST_MIN_ROS: 2.0,         // Broken-size fast-mover scenario validation threshold
+  BROKEN_FAST_MIN_STR: 50.0,
+  BROKEN_SELLOUT_MAX_WOS: 3.0,      // Remaining sellout runway <= 3.0 weeks -> hold full price
+  BROKEN_WH_MIN_UNITS: 5,           // Reserve units trapped in WH while store runway <= 3.0 weeks
   SINGLE_SIZE_HIGH_ROS: 4.0,
   SINGLE_SIZE_FAST_MIN_ROS: 1.5,
   SINGLE_SIZE_FAST_MAX_WOS: 16.0,

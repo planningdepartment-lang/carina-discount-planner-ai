@@ -89,11 +89,11 @@ function buildBaseStyle(overrides = {}) {
 }
 
 describe('2-Month Drop-Cycle Speed Calibration & Hero Qualification', () => {
-  test('3-week Launch Shield protects brand-new drop arrivals at full price (0% Off)', () => {
+  test('1-Month (4.3-week) Launch Shield protects brand-new drop arrivals at full price (0% Off)', () => {
     const style = buildBaseStyle({
       styleCode: '60001',
-      salesLifecycleWeeks: 2.0,
-      activeWeeks: 2.0,
+      salesLifecycleWeeks: 4.0,
+      activeWeeks: 4.0,
       cumulativeSTR: 18,
       weeklyROS: 2.0,
       weeklyROS2wk: 2.0,

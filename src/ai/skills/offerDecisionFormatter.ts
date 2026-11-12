@@ -110,7 +110,13 @@ export function formatAlternativeOffersCard(
     else if (sc.scenarioId === 'CLEARANCE_RAIL') shortName = 'Option 3: 50% Rail';
     else if (sc.scenarioId === 'CHECKOUT_BOOSTER') shortName = 'Option 4: POS Booster';
 
-    card += `| **${shortName}** | *${sc.offerLabel}* | **${sc.promoPriceSAR.toFixed(2)} SAR** | **+${sc.netMarginPct.toFixed(1)}%** | **~${sc.forecastSoldUnits}u** (${sc.expectedClearancePct}%) | **${sc.postEventWOS} wks** |\n`;
+    const bestBadge = res.recommendedScenarioId === sc.scenarioId ? ' **`[BEST CHOICE]`**' : '';
+    const profitText = sc.projectedNetProfitSAR !== undefined ? ` (+${sc.projectedNetProfitSAR.toLocaleString()} SAR)` : '';
+    card += `| **${shortName}**${bestBadge} | *${sc.offerLabel}* | **${sc.promoPriceSAR.toFixed(2)} SAR** | **+${sc.netMarginPct.toFixed(1)}%**${profitText} | **~${sc.forecastSoldUnits}u** (${sc.expectedClearancePct}%) | **${sc.postEventWOS} wks** |\n`;
+  }
+
+  if (res.selectionReason) {
+    card += `\n> [!IMPORTANT]\n> **Why the AI Selected This Scenario:** ${res.selectionReason}\n`;
   }
 
   card += `\n• **Executive Commercial Trade-Off Analysis:**\n`;

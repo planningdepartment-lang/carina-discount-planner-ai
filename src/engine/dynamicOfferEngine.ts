@@ -1,5 +1,5 @@
 import { calculateZeroLossFloor, SpeedBand } from './metricsCalculator';
-import { SAUDI_CHARM_PRICE_POINTS, CampaignMode } from '../config/constants';
+import { SAUDI_CHARM_PRICE_POINTS, CampaignMode, DROP_CYCLE_BENCHMARKS } from '../config/constants';
 
 export interface DynamicOfferMetrics {
   styleCode: string;
@@ -13,7 +13,9 @@ export interface DynamicOfferMetrics {
   cumulativeSTR: number;
   storeFloorWOS: number;
   activeSizeCount: number;
+  hasCoreSizes?: boolean;
   isSingleSize?: boolean;
+  stockWH?: number;
   historicalASP?: number;
   momentumRatio?: number;
   salesLifecycleWeeks?: number;
@@ -253,6 +255,7 @@ export interface AlternativeOfferScenario {
   forecastSoldUnits: number;
   expectedClearancePct: number;
   postEventWOS: number;
+  projectedNetProfitSAR?: number;
   posTag: string;
   tradeOffSummary: string;
 }
@@ -269,7 +272,213 @@ export interface StyleAlternativeOffersResult {
   weeklyROS: number;
   currentWOS: number;
   strPct: number;
+  recommendedScenarioId?: string;
+  selectionReason?: string;
+  isBrokenFastMover?: boolean;
+  brokenFastMoverType?: 'NEAR_SELLOUT_FULL_PRICE' | 'WH_TRAPPED_CONSOLIDATE' | 'BROKEN_TAIL_CLEARANCE';
   scenarios: AlternativeOfferScenario[];
+}
+
+/**
+ * Evaluates 4 Discount Planner scenarios for Broken-Size styles (including Broken Fast Movers)
+ * and deterministically selects the highest-value VAT-compliant option with a clear business rationale.
+ */
+export function evaluateBrokenFastMoverScenarios(
+  metrics: DynamicOfferMetrics,
+  options?: { isBigClearanceEvent?: boolean }
+): StyleAlternativeOffersResult {
+  const ticket = metrics.ticketPrice;
+  const cost = metrics.unitCost;
+  const floor = calculateZeroLossFloor(cost);
+  const stock = Math.max(0, metrics.totalPhysicalStock || 0);
+  const whUnits = Math.max(0, metrics.stockWH || 0);
+  const ros = metrics.weeklyROS > 0 ? metrics.weeklyROS : 0.05;
+  const storeWos = metrics.storeFloorWOS > 0 ? metrics.storeFloorWOS : (stock / ros);
+  const totalEffectiveWOS = metrics.weeklyROS > 0
+    ? Math.round((stock / metrics.weeklyROS) * 10) / 10
+    : 999;
+  const isBigClearanceEvent = Boolean(options?.isBigClearanceEvent);
+  const b = DROP_CYCLE_BENCHMARKS;
+
+  const isNearSelloutFast =
+    !isBigClearanceEvent &&
+    metrics.weeklyROS >= b.BROKEN_FAST_MIN_ROS &&
+    totalEffectiveWOS <= b.BROKEN_SELLOUT_MAX_WOS;
+
+  const isWhTrappedFast =
+    !isNearSelloutFast &&
+    !isBigClearanceEvent &&
+    metrics.weeklyROS >= b.BROKEN_FAST_MIN_ROS &&
+    whUnits >= b.BROKEN_WH_MIN_UNITS &&
+    storeWos <= b.BROKEN_SELLOUT_MAX_WOS;
+
+  // Adjusted realistic pace on remaining fragmented sizes
+  const organicPace = Math.max(0.2, ros * (isNearSelloutFast ? 0.75 : 0.48));
+
+  // --- Scenario 1: Hold Full Price (0% Off) Organic Sellout ---
+  const s1Price = ticket;
+  const s1NetRev = s1Price / 1.15;
+  const s1MarginSAR = Math.round((s1NetRev - cost) * 100) / 100;
+  const s1MarginPct = s1NetRev > 0 ? Math.round((s1MarginSAR / s1NetRev) * 1000) / 10 : 0;
+  const s1ClearancePct = isNearSelloutFast ? 90 : (isWhTrappedFast ? 50 : 25);
+  const s1Sold = Math.min(stock, Math.max(1, Math.round(stock * (s1ClearancePct / 100))));
+  const s1PostWOS = isNearSelloutFast
+    ? totalEffectiveWOS
+    : Math.round((Math.max(0, stock - s1Sold) / organicPace) * 10) / 10;
+  const s1Profit = Math.round(s1Sold * s1MarginSAR);
+
+  // --- Scenario 2: Transfer from WH / Consolidate + Gentle Buy-2 Bundle (~20-25% Off) ---
+  const twoUnitTicket = ticket * 2;
+  const twoUnitFloor = floor * 2;
+  const rawBundle2 = twoUnitTicket * 0.80;
+  const charmBundle2 = twoUnitFloor < twoUnitTicket
+    ? roundToSaudiCharmPrice(rawBundle2, twoUnitFloor)
+    : twoUnitTicket;
+  const validBundle2 = charmBundle2 < twoUnitTicket ? charmBundle2 : twoUnitTicket;
+  const s2UnitPrice = validBundle2 < twoUnitTicket
+    ? Math.max(floor, Math.round((validBundle2 / 2) * 100) / 100)
+    : ticket;
+  const s2Discount = ticket > 0 ? Math.round(((ticket - s2UnitPrice) / ticket) * 100) : 0;
+  const s2NetRev = s2UnitPrice / 1.15;
+  const s2MarginSAR = Math.round((s2NetRev - cost) * 100) / 100;
+  const s2MarginPct = s2NetRev > 0 ? Math.round((s2MarginSAR / s2NetRev) * 1000) / 10 : 0;
+  const s2ClearancePct = isWhTrappedFast ? 75 : (isNearSelloutFast ? 95 : 45);
+  const s2Sold = Math.min(stock, Math.max(1, Math.round(stock * (s2ClearancePct / 100))));
+  const s2PostWOS = Math.round((Math.max(0, stock - s2Sold) / Math.max(0.3, ros)) * 10) / 10;
+  const s2Profit = Math.round(s2Sold * s2MarginSAR);
+  const s2OfferLabel = whUnits >= b.BROKEN_WH_MIN_UNITS && s2Discount > 0
+    ? `Release ${whUnits}u WH + Buy 2 For ${Math.round(validBundle2)} SAR (${s2UnitPrice.toFixed(2)} SAR/u)`
+    : (s2Discount > 0
+        ? `Consolidate + Buy 2 For ${Math.round(validBundle2)} SAR (${s2UnitPrice.toFixed(2)} SAR/u)`
+        : `Release ${whUnits}u WH at Full Price (0% Off)`);
+
+  // --- Scenario 3: Shared 3-For-99 SAR Clearance Rail (33 SAR/u when Cost <= 28.69) ---
+  const canUse3For99 = ticket > 40 && floor <= 33.01;
+  const s3UnitPrice = canUse3For99 ? 33.00 : Math.max(floor, Math.round(ticket * 0.60 * 100) / 100);
+  const s3Discount = ticket > 0 ? Math.round(((ticket - s3UnitPrice) / ticket) * 100) : 0;
+  const s3NetRev = s3UnitPrice / 1.15;
+  const s3MarginSAR = Math.round((s3NetRev - cost) * 100) / 100;
+  const s3MarginPct = s3NetRev > 0 ? Math.round((s3MarginSAR / s3NetRev) * 1000) / 10 : 0;
+  const s3ClearancePct = canUse3For99 ? 65 : 50;
+  const s3Sold = Math.min(stock, Math.max(1, Math.round(stock * (s3ClearancePct / 100))));
+  const s3PostWOS = Math.round((Math.max(0, stock - s3Sold) / Math.max(0.4, ros * 1.4)) * 10) / 10;
+  const s3Profit = Math.round(s3Sold * s3MarginSAR);
+
+  // --- Scenario 4: Dedicated % Clearance Rail (50% if <=40 SAR, else 40% Safe VAT Floor) ---
+  const targetClrFactor = ticket <= 40 ? 0.50 : 0.60;
+  const s4Price = Math.max(floor, Math.round(ticket * targetClrFactor * 100) / 100);
+  const s4Discount = ticket > 0 ? Math.round(((ticket - s4Price) / ticket) * 100) : 0;
+  const s4NetRev = s4Price / 1.15;
+  const s4MarginSAR = Math.round((s4NetRev - cost) * 100) / 100;
+  const s4MarginPct = s4NetRev > 0 ? Math.round((s4MarginSAR / s4NetRev) * 1000) / 10 : 0;
+  const s4ClearancePct = 85;
+  const s4Sold = Math.min(stock, Math.max(1, Math.round(stock * (s4ClearancePct / 100))));
+  const s4PostWOS = Math.round((Math.max(0, stock - s4Sold) / Math.max(0.5, ros * 1.6)) * 10) / 10;
+  const s4Profit = Math.round(s4Sold * s4MarginSAR);
+
+  const scenarios: AlternativeOfferScenario[] = [
+    {
+      scenarioId: 'FULL_PRICE_SELLOUT',
+      name: 'Scenario 1: Hold Full Price Organic Sellout (0% Off)',
+      strategicPosture: 'PROTECT_MARGIN_SELLOUT',
+      promoPriceSAR: s1Price,
+      discountPct: 0,
+      offerLabel: `Full Price Sellout Protection (0% Off: ${s1Price.toFixed(2)} SAR)`,
+      unitNetMarginSAR: s1MarginSAR,
+      netMarginPct: s1MarginPct,
+      forecastSoldUnits: s1Sold,
+      expectedClearancePct: s1ClearancePct,
+      postEventWOS: s1PostWOS,
+      projectedNetProfitSAR: s1Profit,
+      posTag: `RULE_FULLPRICE_${metrics.styleCode}`,
+      tradeOffSummary: `Nets +${s1MarginSAR.toFixed(2)} SAR/u (${s1MarginPct.toFixed(1)}%, ~+${s1Profit} SAR total). ${isNearSelloutFast ? `Last ${stock} pcs finish naturally in ${totalEffectiveWOS} wks without giving away margin.` : `Without store promo, remaining ${stock}u linger ${s1PostWOS} wks.`}`
+    },
+    {
+      scenarioId: 'WH_CONSOLIDATE_BUNDLE',
+      name: 'Scenario 2: Release WH / Consolidate + Gentle Buy-2',
+      strategicPosture: 'REBALANCE_AND_BUNDLE',
+      promoPriceSAR: s2UnitPrice,
+      discountPct: s2Discount,
+      offerLabel: s2OfferLabel,
+      unitNetMarginSAR: s2MarginSAR,
+      netMarginPct: s2MarginPct,
+      forecastSoldUnits: s2Sold,
+      expectedClearancePct: s2ClearancePct,
+      postEventWOS: s2PostWOS,
+      projectedNetProfitSAR: s2Profit,
+      posTag: s2Discount > 0 ? `RULE_BUNDLE_2_${Math.round(validBundle2)}_${metrics.styleCode}` : `RULE_FULLPRICE_${metrics.styleCode}`,
+      tradeOffSummary: `Nets +${s2MarginSAR.toFixed(2)} SAR/u (${s2MarginPct.toFixed(1)}%, ~+${s2Profit} SAR total). Unlocks ${whUnits}u WH reserve onto store shelves with a gentle margin-safe basket pull.`
+    },
+    {
+      scenarioId: 'CLEARANCE_3_FOR_99',
+      name: canUse3For99 ? 'Scenario 3: Shared 3-For-99 SAR Rail (33 SAR/u)' : 'Scenario 3: 40% Safe-Floor Rail',
+      strategicPosture: 'SHARED_CLEARANCE_RAIL',
+      promoPriceSAR: s3UnitPrice,
+      discountPct: s3Discount,
+      offerLabel: canUse3For99
+        ? 'Take 3 For 99 SAR Rail (33 SAR/u)'
+        : `Clearance Rail (${s3Discount}% Safe Floor: ${s3UnitPrice.toFixed(2)} SAR)`,
+      unitNetMarginSAR: s3MarginSAR,
+      netMarginPct: s3MarginPct,
+      forecastSoldUnits: s3Sold,
+      expectedClearancePct: s3ClearancePct,
+      postEventWOS: s3PostWOS,
+      projectedNetProfitSAR: s3Profit,
+      posTag: canUse3For99 ? `RULE_BUNDLE_3_99_RAIL` : `RULE_CLEARANCE_${s3Discount}PCT_${metrics.styleCode}`,
+      tradeOffSummary: `Nets +${s3MarginSAR.toFixed(2)} SAR/u (${s3MarginPct.toFixed(1)}%, ~+${s3Profit} SAR total). Cross-style mix-and-match rail accelerates fragmented tail clearance above ${floor.toFixed(2)} SAR VAT floor.`
+    },
+    {
+      scenarioId: 'CLEARANCE_PCT_SAFE',
+      name: ticket <= 40 ? 'Scenario 4: 50% Dedicated Clearance Rail' : `Scenario 4: ${s4Discount}% Safe Floor Markdown`,
+      strategicPosture: 'RAPID_DECONGESTION',
+      promoPriceSAR: s4Price,
+      discountPct: s4Discount,
+      offerLabel: ticket <= 40
+        ? `50% Off Dedicated Clearance Rail (${s4Price.toFixed(2)} SAR)`
+        : `Clearance Rail (${s4Discount}% Safe Floor: ${s4Price.toFixed(2)} SAR)`,
+      unitNetMarginSAR: s4MarginSAR,
+      netMarginPct: s4MarginPct,
+      forecastSoldUnits: s4Sold,
+      expectedClearancePct: s4ClearancePct,
+      postEventWOS: s4PostWOS,
+      projectedNetProfitSAR: s4Profit,
+      posTag: `RULE_CLEARANCE_${s4Discount}PCT_${metrics.styleCode}`,
+      tradeOffSummary: `Fastest liquidation (~${s4Sold}u, ${s4PostWOS} WOS left) yielding +${s4MarginSAR.toFixed(2)} SAR/u (${s4MarginPct.toFixed(1)}%) clamped strictly above ${floor.toFixed(2)} SAR VAT floor.`
+    }
+  ];
+
+  let recommendedScenarioId = canUse3For99 ? 'CLEARANCE_3_FOR_99' : 'CLEARANCE_PCT_SAFE';
+  let brokenFastMoverType: StyleAlternativeOffersResult['brokenFastMoverType'] = 'BROKEN_TAIL_CLEARANCE';
+  let selectionReason = `Larger broken-size tail (${stock}u remaining, ${totalEffectiveWOS} WOS) cannot rely on full-price waiting; shared clearance clears floor bottlenecks before the next 2-month drop while staying >= ${floor.toFixed(2)} SAR VAT floor.`;
+
+  if (isNearSelloutFast) {
+    recommendedScenarioId = 'FULL_PRICE_SELLOUT';
+    brokenFastMoverType = 'NEAR_SELLOUT_FULL_PRICE';
+    selectionReason = `Despite missing core sizes, active pace (${ros.toFixed(1)} u/wk, ${metrics.cumulativeSTR.toFixed(1)}% STR) clears all ${stock} remaining pieces in ${totalEffectiveWOS} wks (<= 3.0 WOS). Holding Full Price earns +${s1Profit.toLocaleString()} SAR vs only +${s4Profit.toLocaleString()} SAR on a clearance markdown.`;
+  } else if (isWhTrappedFast) {
+    recommendedScenarioId = 'WH_CONSOLIDATE_BUNDLE';
+    brokenFastMoverType = 'WH_TRAPPED_CONSOLIDATE';
+    selectionReason = `Store shelves hold only ${Math.max(0, stock - whUnits)}u (${storeWos.toFixed(1)} WOS) while ${whUnits}u sit in Central WH at ${ros.toFixed(1)} u/wk live pull. Releasing WH stock with a gentle Buy-2 / Full Price strategy recovers +${s2MarginSAR.toFixed(2)} SAR/u (${s2MarginPct.toFixed(1)}%) vs only +${s3MarginSAR.toFixed(2)} SAR/u on deep 3-For-99 SAR clearance.`;
+  }
+
+  return {
+    styleCode: metrics.styleCode,
+    productName: metrics.productName,
+    category: metrics.category,
+    season: metrics.season,
+    ticketPrice: ticket,
+    unitCost: cost,
+    costPlusVat: floor,
+    totalPhysicalStock: stock,
+    weeklyROS: metrics.weeklyROS,
+    currentWOS: storeWos,
+    strPct: metrics.cumulativeSTR,
+    recommendedScenarioId,
+    selectionReason,
+    isBrokenFastMover: isNearSelloutFast || isWhTrappedFast,
+    brokenFastMoverType,
+    scenarios
+  };
 }
 
 /**
@@ -279,6 +488,14 @@ export interface StyleAlternativeOffersResult {
 export function generateAlternativeOfferScenarios(
   metrics: DynamicOfferMetrics
 ): StyleAlternativeOffersResult {
+  const isBrokenApparel =
+    !metrics.isSingleSize &&
+    (metrics.activeSizeCount < 3 || metrics.hasCoreSizes === false);
+
+  if (isBrokenApparel) {
+    return evaluateBrokenFastMoverScenarios(metrics);
+  }
+
   const ticket = metrics.ticketPrice;
   const cost = metrics.unitCost;
   const floor = calculateZeroLossFloor(cost);

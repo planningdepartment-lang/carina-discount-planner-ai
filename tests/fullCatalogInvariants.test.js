@@ -93,28 +93,29 @@ function makeStyle(overrides = {}) {
 }
 
 describe('Real TypeScript Engine Invariants — Core Sizes, Seasons, Rules, Competitor & Exporter', () => {
-  test('Core sizes require S, M, L, XL >= 2 units per size (unless M-3XL without S ever)', () => {
-    const completeCore = mc.evaluateSizeStockHealth({ S: 2, M: 2, L: 2, XL: 2 }, 'Set', 'Pyjama', ['S', 'M', 'L', 'XL']);
+  test('Core sizes require S, M, L, XL >= 1 unit per size (unless M-3XL without S ever)', () => {
+    const completeCore = mc.evaluateSizeStockHealth({ S: 1, M: 1, L: 1, XL: 1 }, ['S', 'M', 'L', 'XL']);
     assert.equal(completeCore.hasCoreSizes, true);
-    assert.equal(completeCore.activeSizesGE2, 4);
+    assert.equal(completeCore.activeSizesGE1, 4);
+    assert.equal(completeCore.isHealthy, true);
 
-    // Style 56163 (SS25-PJ-941) missing M & L and S=1, XL=1 -> Broken Curve (Non-Core Sizes)
-    const pj941 = mc.evaluateSizeStockHealth({ '2XL': 6, '3XL': 4, S: 1, XL: 1 }, 'Set', 'Pyjama Set SS25-PJ-941', ['2XL', '3XL', 'S', 'L', 'M', 'XL']);
+    // Style 56163 (SS25-PJ-941) missing M & L -> Broken Curve (Non-Core Sizes)
+    const pj941 = mc.evaluateSizeStockHealth({ '2XL': 6, '3XL': 4, S: 1, XL: 1 }, ['2XL', '3XL', 'S', 'L', 'M', 'XL']);
     assert.equal(pj941.hasCoreSizes, false);
-    assert.equal(pj941.activeSizesGE2, 2);
-    assert.equal(mc.formatCurveHealthLabel({ isSingleSize: false, activeSizeCount: pj941.activeSizesGE2, hasCoreSizes: pj941.hasCoreSizes }), 'Broken Curve (Non-Core Sizes)');
+    assert.equal(pj941.activeSizesGE1, 4);
+    assert.equal(mc.formatCurveHealthLabel({ isSingleSize: false, activeSizeCount: pj941.activeSizesGE1, hasCoreSizes: pj941.hasCoreSizes }), 'Broken Curve (Non-Core Sizes)');
 
     // Dual-letter SM + LXL expands to S, M, L, XL
-    const dualFull = mc.evaluateSizeStockHealth({ SM: 46, LXL: 44 }, 'Night Gown', 'Night Gown AW26-NG-5514', ['SM', 'LXL']);
+    const dualFull = mc.evaluateSizeStockHealth({ SM: 46, LXL: 44 }, ['SM', 'LXL']);
     assert.equal(dualFull.hasCoreSizes, true);
-    assert.equal(dualFull.activeSizesGE2, 4);
+    assert.equal(dualFull.activeSizesGE1, 4);
 
     // Dual-letter missing S & M -> Broken Non-Core
-    const dualPeripheral = mc.evaluateSizeStockHealth({ LXL: 5, '23X': 4 }, 'Set', 'Pyjama', ['SM', 'LXL', '23X']);
+    const dualPeripheral = mc.evaluateSizeStockHealth({ LXL: 5, '23X': 4 }, ['SM', 'LXL', '23X']);
     assert.equal(dualPeripheral.hasCoreSizes, false);
 
-    // Genuine M-2XL where S never existed in Odoo -> Healthy
-    const plusOnly = mc.evaluateSizeStockHealth({ M: 12, L: 12, XL: 13, '2XL': 14 }, 'Boxer M', 'Boxer (Man)-BX50006', ['M', 'L', 'XL', '2XL']);
+    // Genuine M-2XL where S never existed in Odoo -> Healthy even at >= 1 unit
+    const plusOnly = mc.evaluateSizeStockHealth({ M: 1, L: 1, XL: 1, '2XL': 1 }, ['M', 'L', 'XL', '2XL']);
     assert.equal(plusOnly.hasCoreSizes, true);
 
     // Neck Cover (56654) and Bundle Short (95075) with apparel sizes are NOT single size
@@ -123,7 +124,7 @@ describe('Real TypeScript Engine Invariants — Core Sizes, Seasons, Rules, Comp
     assert.equal(mc.detectSingleSizeAssortment('Socks', 'Knee High Heavy Socks-1505', undefined, { '38-41': 18 }, ['38-41']), true);
   });
 
-  test('SS25-PJ-941 broken non-core curve receives Clearance instead of Full Margin Protection', () => {
+  test('SS25-PJ-941 broken non-core curve (> 3.0 WOS) receives Clearance instead of Full Margin Protection', () => {
     const metrics = makeStyle({
       styleCode: '56163',
       productName: 'Pyjama Set SS25-PJ-941',
@@ -133,7 +134,8 @@ describe('Real TypeScript Engine Invariants — Core Sizes, Seasons, Rules, Comp
       salesLifecycleWeeks: 59.7,
       cumulativeSTR: 95.0,
       weeklyROS: 3.0,
-      activeSizeCount: 2,
+      storeFloorWOS: 4.0,
+      activeSizeCount: 4,
       hasCoreSizes: false,
       sizeBreakdown: { '2XL': 6, '3XL': 4, S: 1, XL: 1 },
       everSizes: ['2XL', '3XL', 'S', 'L', 'M', 'XL'],
@@ -144,6 +146,66 @@ describe('Real TypeScript Engine Invariants — Core Sizes, Seasons, Rules, Comp
     assert.notEqual(rec.tier, LIFECYCLE_TIERS.HERO_CORE);
     assert.equal(rec.discountPct > 0, true);
     assert.equal(rec.promotionalPriceSAR >= mc.calculateZeroLossFloor(50.3), true);
+  });
+
+  test('STR & Sales Speed are analyzed BEFORE Size Health, and Broken Fast Movers select best scenario', () => {
+    // 58479 profile: 97.9% STR, 12.6 u/wk ROS, 4 units left (0.3 WOS), broken S/M/L/XL (missing S & XL)
+    const speed58479 = mc.evaluateSpeedAndHeroQualification({
+      cumulativeSTR: 97.9,
+      weeklyROS: 12.6,
+      weeklyROS2wk: 11.0,
+      storeFloorWOS: 0.3,
+      salesLifecycleWeeks: 14.0,
+      isSingleSize: false,
+      hasHealthyCoreCurve: false
+    });
+    assert.ok(['FAST_HERO', 'ACTIVE_CONTINUITY_HERO'].includes(speed58479.speedBand), `Expected fast speedBand BEFORE size health, got ${speed58479.speedBand}`);
+    assert.equal(speed58479.isQualifiedHero, false);
+
+    const rec58479 = lc.classifyStyleAndRecommend(makeStyle({
+      styleCode: '58479',
+      productName: 'Pyjama Pant SS26-PT-PJ-5166',
+      season: 'Ss 26',
+      totalPhysicalStock: 4,
+      stockAndalus: 2,
+      stockYasmeen: 1,
+      stockJouri: 1,
+      stockWH: 0,
+      weeklyROS: 12.6,
+      cumulativeSTR: 97.9,
+      storeFloorWOS: 0.3,
+      activeSizeCount: 2,
+      hasCoreSizes: false,
+      sizeBreakdown: { M: 2, L: 2 },
+      unitCost: 50.3,
+      ticketPrice: 199
+    }));
+    assert.equal(rec58479.tier, LIFECYCLE_TIERS.HERO_CORE);
+    assert.equal(rec58479.discountPct, 0);
+    assert.match(rec58479.recommendedOffer, /Full Price Sellout Protection/i);
+
+    // 58912 profile: 83.3% STR, 4.9 u/wk ROS, 2 store pcs + 15 WH pcs, missing L -> Scenario 2 (WH Release + Gentle Bundle)
+    const rec58912 = lc.classifyStyleAndRecommend(makeStyle({
+      styleCode: '58912',
+      productName: 'Pyjama Pant SS26-PT-PJ-5287',
+      season: 'Ss 26',
+      totalPhysicalStock: 17,
+      stockAndalus: 1,
+      stockYasmeen: 1,
+      stockJouri: 0,
+      stockWH: 15,
+      weeklyROS: 4.9,
+      cumulativeSTR: 83.3,
+      storeFloorWOS: 0.4,
+      activeSizeCount: 4,
+      hasCoreSizes: false,
+      sizeBreakdown: { '2XL': 3, M: 1, S: 1, XL: 2 },
+      unitCost: 27.84,
+      ticketPrice: 99
+    }));
+    assert.equal(rec58912.tier, LIFECYCLE_TIERS.BUNDLE_2);
+    assert.ok(rec58912.discountPct < 35, `Expected gentle bundle rather than 67% 3-For-99 dump, got ${rec58912.discountPct}%`);
+    assert.match(rec58912.rationale, /WH Release/i);
   });
 
   test('Zero sold units always forces 0% historicalDiscountDepthPct regardless of stale historicalASP', () => {

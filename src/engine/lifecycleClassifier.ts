@@ -5,7 +5,12 @@ import {
   SpeedBand
 } from './metricsCalculator';
 import { LIFECYCLE_TIERS, DROP_CYCLE_BENCHMARKS, CampaignMode } from '../config/constants';
-import { computeDynamicBundle2, calculateRailCostCeiling, generateSharedRailTag } from './dynamicOfferEngine';
+import {
+  computeDynamicBundle2,
+  calculateRailCostCeiling,
+  generateSharedRailTag,
+  evaluateBrokenFastMoverScenarios
+} from './dynamicOfferEngine';
 
 export interface StyleMetrics {
   styleCode: string;
@@ -135,7 +140,7 @@ export function classifyStyleAndRecommend(
     };
   }
 
-  // Single-Size / Non-Sized Category Detection (Cosmetics, Fragrances, Towels, Accessories, OS, Socks)
+  // STEP 1 (Speed & STR FIRST): Evaluate Sell-Through (STR %), Velocity (ROS), WOS & 1-Month (4.3w) Grace BEFORE Size Health!
   const isSingleSize = detectSingleSizeAssortment(
     metrics.category,
     metrics.productName,
@@ -143,6 +148,7 @@ export function classifyStyleAndRecommend(
     metrics.sizeBreakdown,
     metrics.everSizes
   );
+  // STEP 2 (Size Health SECOND): Core apparel requires >= 3 active sizes (>= 1 unit each) & intact S/M/L/XL
   const hasHealthyCoreCurve = metrics.activeSizeCount >= 3 && metrics.hasCoreSizes !== false;
 
   // Seasonality & 2-Month Drop-Cycle Speed Evaluation
@@ -347,7 +353,7 @@ export function classifyStyleAndRecommend(
     };
   }
 
-  // Initial 3-Week Launch Read Shield for brand-new collections with intact core sizes
+  // Initial 1-Month (4.3-Week) Launch Read Shield for brand-new collections with intact core sizes
   if (isRecentLaunchWindow && hasHealthyCoreCurve && !isBigClearanceEvent) {
     return {
       tier: LIFECYCLE_TIERS.HERO_CORE,
@@ -355,7 +361,7 @@ export function classifyStyleAndRecommend(
       discountPct: 0,
       promotionalPriceSAR: metrics.ticketPrice,
       expectedClearancePct: 18,
-      rationale: `${speedEval.reason} Protected for initial ${DROP_CYCLE_BENCHMARKS.LAUNCH_SHIELD_WEEKS}-week read window before drop-cycle promotion.`,
+      rationale: `${speedEval.reason} Protected for initial 1-month (${DROP_CYCLE_BENCHMARKS.LAUNCH_SHIELD_WEEKS}-wk) read window before drop-cycle promotion.`,
       zeroLossStatus: 'YES',
       bundleQuantity: 1,
       bundlePriceSAR: metrics.ticketPrice,
@@ -425,12 +431,103 @@ export function classifyStyleAndRecommend(
     }
   }
 
-  // Broken / Non-Core Curve Apparel ALWAYS routes to Permanent Oddment Clearance Rail (or Event Clearance in Big Events)
+  // Broken / Non-Core Curve Apparel: Evaluate 4 Discount Planner Scenarios before defaulting to Clearance Rail
   const isBrokenCurve = !isSingleSize && !hasHealthyCoreCurve;
   if (isBrokenCurve) {
+    const scenarioEval = evaluateBrokenFastMoverScenarios(
+      {
+        styleCode: metrics.styleCode,
+        productName: metrics.productName,
+        category: metrics.category,
+        season: metrics.season,
+        unitCost: metrics.unitCost,
+        ticketPrice: metrics.ticketPrice,
+        totalPhysicalStock: metrics.totalPhysicalStock,
+        weeklyROS: metrics.weeklyROS,
+        cumulativeSTR: metrics.cumulativeSTR,
+        storeFloorWOS: metrics.storeFloorWOS,
+        activeSizeCount: metrics.activeSizeCount,
+        hasCoreSizes: metrics.hasCoreSizes,
+        isSingleSize: false,
+        stockWH: metrics.stockWH,
+        salesLifecycleWeeks: metrics.salesLifecycleWeeks,
+        effectiveTenureWeeks: speedEval.effectiveTenureWeeks,
+        speedBand: speedEval.speedBand,
+        campaignMode
+      },
+      { isBigClearanceEvent }
+    );
+
+    if (scenarioEval.brokenFastMoverType === 'NEAR_SELLOUT_FULL_PRICE') {
+      return {
+        tier: LIFECYCLE_TIERS.HERO_CORE,
+        recommendedOffer: 'Full Price Sellout Protection (0% Off)',
+        discountPct: 0,
+        promotionalPriceSAR: metrics.ticketPrice,
+        expectedClearancePct: 85,
+        rationale: `[Broken Fast-Mover Scenario Winner — Hold Full Price] ${scenarioEval.selectionReason}`,
+        zeroLossStatus: 'YES',
+        bundleQuantity: 1,
+        bundlePriceSAR: metrics.ticketPrice,
+        historicalDiscountDepthPct: histDiscountDepthPct,
+        speedBand: speedEval.speedBand,
+        strVelocityPctPerWeek: speedEval.strVelocityPctPerWeek,
+        effectiveTenureWeeks: speedEval.effectiveTenureWeeks,
+        campaignMode,
+        clearanceScope: 'NONE'
+      };
+    }
+
+    if (scenarioEval.brokenFastMoverType === 'WH_TRAPPED_CONSOLIDATE') {
+      const bundle2 = computeDynamicBundle2({
+        ...metrics,
+        storeFloorWOS: Math.min(metrics.storeFloorWOS, 18.0),
+        speedBand: 'MEDIUM_2A',
+        campaignMode
+      });
+      if (bundle2.isBundleApplicable) {
+        return {
+          tier: LIFECYCLE_TIERS.BUNDLE_2,
+          recommendedOffer: bundle2.bundleOfferLabel,
+          discountPct: bundle2.discountPct,
+          promotionalPriceSAR: bundle2.unitPromoPriceSAR,
+          expectedClearancePct: 65,
+          rationale: `[Broken Fast-Mover Scenario Winner — WH Release + Gentle Bundle] ${scenarioEval.selectionReason}`,
+          zeroLossStatus: 'YES',
+          bundleQuantity: bundle2.bundleQuantity,
+          bundlePriceSAR: bundle2.bundlePriceSAR,
+          sharedRailTag: bundle2.sharedRailTag,
+          railCostCeilingSAR: bundle2.railCostCeilingSAR,
+          historicalDiscountDepthPct: histDiscountDepthPct,
+          speedBand: speedEval.speedBand,
+          strVelocityPctPerWeek: speedEval.strVelocityPctPerWeek,
+          effectiveTenureWeeks: speedEval.effectiveTenureWeeks,
+          campaignMode,
+          clearanceScope: 'NONE'
+        };
+      }
+      return {
+        tier: LIFECYCLE_TIERS.HERO_CORE,
+        recommendedOffer: 'Full Price + WH Replenishment (0% Off)',
+        discountPct: 0,
+        promotionalPriceSAR: metrics.ticketPrice,
+        expectedClearancePct: 60,
+        rationale: `[Broken Fast-Mover Scenario Winner — WH Replenishment at Full Price] ${scenarioEval.selectionReason}`,
+        zeroLossStatus: 'YES',
+        bundleQuantity: 1,
+        bundlePriceSAR: metrics.ticketPrice,
+        historicalDiscountDepthPct: histDiscountDepthPct,
+        speedBand: speedEval.speedBand,
+        strVelocityPctPerWeek: speedEval.strVelocityPctPerWeek,
+        effectiveTenureWeeks: speedEval.effectiveTenureWeeks,
+        campaignMode,
+        clearanceScope: 'NONE'
+      };
+    }
+
     const brokenReason = metrics.hasCoreSizes === false
-      ? 'Non-core / fringe sizes only (core S/M/L/XL depth <2u or missing)'
-      : `Broken size curve (${metrics.activeSizeCount} sizes active with >=2 u)`;
+      ? 'Non-core / fringe sizes only (core S/M/L/XL depth <1u or missing)'
+      : `Broken size curve (${metrics.activeSizeCount} sizes active with >=1 u)`;
     return buildClearanceRecommendation(
       metrics,
       costPlusVat,

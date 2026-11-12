@@ -255,19 +255,19 @@ export function detectSingleSizeAssortment(
 
 /**
  * Size Availability Ratio (SAR) & Curve Health Classifier
- * Evaluates live active size depth (>=2 units per size) and strict core size coverage (S, M, L, XL).
+ * Evaluates live active size depth (>=1 unit per size) and strict core size coverage (S, M, L, XL).
  */
 export function classifyCurveHealth(
-  activeSizesWithStockGE2: number,
+  activeSizesWithStockGE1: number,
   hasCoreSizes: boolean = true
 ): {
   isHealthy: boolean;
   label: Exclude<CurveHealthLabel, 'Single Size (Complete)'>;
 } {
-  const isHealthy = activeSizesWithStockGE2 >= 3 && hasCoreSizes;
+  const isHealthy = activeSizesWithStockGE1 >= 3 && hasCoreSizes;
   const label = !hasCoreSizes
     ? 'Broken Curve (Non-Core Sizes)'
-    : (activeSizesWithStockGE2 >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)');
+    : (activeSizesWithStockGE1 >= 3 ? 'Healthy Curve (>=3 Sizes)' : 'Broken Curve (<=2 Sizes)');
   return { isHealthy, label };
 }
 
@@ -290,30 +290,30 @@ export function formatCurveHealthLabel(params: {
 }
 
 /**
- * Evaluates live per-size inventory quantities for size curve depth and strict S/M/L/XL core coverage.
+ * Evaluates live per-size inventory quantities for size curve depth (>=1 unit per size) and strict S/M/L/XL core coverage.
  * Expands dual-letter garment tokens (SM, LXL, ML, 23X, XL-2X, XS-S) into their underlying letter sizes.
- * Genuine M-3XL / M-2XL styles (verified via everSizes showing S never existed in Odoo) require M, L, XL, and >=1 plus size >= 2.
- * Non-letter scales (bras 75B-95D, kids 4-6..14-16, EU numeric) are evaluated on >=3 sizes with >=2 units each.
+ * Genuine M-3XL / M-2XL styles (verified via everSizes showing S never existed in Odoo) require M, L, XL, and >=1 plus size >= 1 unit.
+ * Non-letter scales (bras 75B-95D, kids 4-6..14-16, EU numeric) are evaluated on >=3 sizes with >=1 unit each.
  */
 export function evaluateSizeStockHealth(
   sizeQuantities: Record<string, number>,
   everSizes?: string[]
 ): {
-  activeSizesGE2: number;
+  activeSizesGE1: number;
   activeSizesGT0: number;
   isLetterSized: boolean;
-  coreSizesGE2: number;
-  bellySizesGE2: number;
+  coreSizesGE1: number;
+  bellySizesGE1: number;
   hasCoreSizes: boolean;
   isHealthy: boolean;
   label: Exclude<CurveHealthLabel, 'Single Size (Complete)'>;
 } {
-  let rawActiveSizesGE2 = 0;
+  let rawActiveSizesGE1 = 0;
   let activeSizesGT0 = 0;
   let isLetterSized = false;
   let hasDualLetter = false;
 
-  const coveredLogicalGE2 = new Set<string>();
+  const coveredLogicalGE1 = new Set<string>();
   const everLogical = new Set<string>();
 
   if (everSizes) {
@@ -338,45 +338,45 @@ export function evaluateSizeStockHealth(
     }
 
     if (qty > 0) activeSizesGT0++;
-    if (qty >= 2) {
-      rawActiveSizesGE2++;
+    if (qty >= 1) {
+      rawActiveSizesGE1++;
       if (dualExpanded) {
-        dualExpanded.forEach(sz => coveredLogicalGE2.add(sz));
+        dualExpanded.forEach(sz => coveredLogicalGE1.add(sz));
       } else {
-        coveredLogicalGE2.add(sizeCode);
+        coveredLogicalGE1.add(sizeCode);
       }
     }
   }
 
-  let coreSizesGE2 = 0;
-  let bellySizesGE2 = 0;
-  for (const sz of coveredLogicalGE2) {
-    if (CORE_LETTER_SIZES.has(sz)) coreSizesGE2++;
-    if (BELLY_LETTER_SIZES.has(sz)) bellySizesGE2++;
+  let coreSizesGE1 = 0;
+  let bellySizesGE1 = 0;
+  for (const sz of coveredLogicalGE1) {
+    if (CORE_LETTER_SIZES.has(sz)) coreSizesGE1++;
+    if (BELLY_LETTER_SIZES.has(sz)) bellySizesGE1++;
   }
 
   const isVerifiedMTo3XLCurve =
     Boolean(everSizes && everSizes.length > 0) &&
     !everLogical.has('S') &&
-    coveredLogicalGE2.has('M') &&
-    coveredLogicalGE2.has('L') &&
-    coveredLogicalGE2.has('XL') &&
-    (coveredLogicalGE2.has('2XL') || coveredLogicalGE2.has('3XL'));
+    coveredLogicalGE1.has('M') &&
+    coveredLogicalGE1.has('L') &&
+    coveredLogicalGE1.has('XL') &&
+    (coveredLogicalGE1.has('2XL') || coveredLogicalGE1.has('3XL'));
 
-  const hasCoreSizes = !isLetterSized || coreSizesGE2 === 4 || isVerifiedMTo3XLCurve;
+  const hasCoreSizes = !isLetterSized || coreSizesGE1 === 4 || isVerifiedMTo3XLCurve;
 
-  const activeSizesGE2 = hasDualLetter
-    ? Math.max(rawActiveSizesGE2, coveredLogicalGE2.size)
-    : rawActiveSizesGE2;
+  const activeSizesGE1 = hasDualLetter
+    ? Math.max(rawActiveSizesGE1, coveredLogicalGE1.size)
+    : rawActiveSizesGE1;
 
-  const { isHealthy, label } = classifyCurveHealth(activeSizesGE2, hasCoreSizes);
+  const { isHealthy, label } = classifyCurveHealth(activeSizesGE1, hasCoreSizes);
 
   return {
-    activeSizesGE2,
+    activeSizesGE1,
     activeSizesGT0,
     isLetterSized,
-    coreSizesGE2,
-    bellySizesGE2,
+    coreSizesGE1,
+    bellySizesGE1,
     hasCoreSizes,
     isHealthy,
     label
@@ -514,7 +514,7 @@ export function evaluateSpeedAndHeroQualification(params: {
         effectiveTenureWeeks,
         strVelocityPctPerWeek,
         hasTenureTelemetry,
-        reason: `Initial Launch Read Window (${effectiveTenureWeeks.toFixed(1)}w <= ${b.LAUNCH_SHIELD_WEEKS}w).`
+        reason: `1-Month Launch Read Window (${effectiveTenureWeeks.toFixed(1)}w <= ${b.LAUNCH_SHIELD_WEEKS}w).`
       };
     }
     if (ros >= b.MEDIUM_MIN_ROS && wos <= b.MEDIUM_MAX_WOS) {
@@ -544,67 +544,104 @@ export function evaluateSpeedAndHeroQualification(params: {
     };
   }
 
-  // Multi-Size Apparel Evaluation
-  // Broken curves never earn Hero status
-  if (params.hasHealthyCoreCurve) {
-    // Path A: 2-Month Drop Breakout (STR >= 50% inside <= 8.7 wks + strong ROS + tight WOS)
-    if (
-      hasTenureTelemetry &&
-      effectiveTenureWeeks <= b.DROP_CADENCE_WEEKS &&
-      str >= b.FAST_HERO_MIN_STR &&
-      ros >= b.FAST_HERO_MIN_ROS &&
-      wos <= b.FAST_HERO_MAX_WOS
-    ) {
-      return {
-        speedBand: 'FAST_HERO',
-        isQualifiedHero: true,
-        isLaunchShield: false,
-        effectiveTenureWeeks,
-        strVelocityPctPerWeek,
-        hasTenureTelemetry,
-        reason: `2-Month Drop Breakout Hero: ${str.toFixed(1)}% STR in ${effectiveTenureWeeks.toFixed(1)} wks (${strVelocityPctPerWeek.toFixed(1)}%/wk) at ${ros.toFixed(1)} u/wk & ${wos.toFixed(1)} WOS.`
-      };
-    }
-
-    // Path B: Established Fast Hero (STR >= 70% inside <= 12.0 wks + active ROS + <= 14 WOS)
-    if (
-      hasTenureTelemetry &&
-      effectiveTenureWeeks <= b.ESTABLISHED_HERO_MAX_WEEKS &&
-      str >= b.ESTABLISHED_HERO_MIN_STR &&
-      ros >= b.ESTABLISHED_HERO_MIN_ROS &&
-      wos <= b.ESTABLISHED_HERO_MAX_WOS
-    ) {
-      return {
-        speedBand: 'FAST_HERO',
-        isQualifiedHero: true,
-        isLaunchShield: false,
-        effectiveTenureWeeks,
-        strVelocityPctPerWeek,
-        hasTenureTelemetry,
-        reason: `Fast Hero: reached ${str.toFixed(1)}% STR within ${effectiveTenureWeeks.toFixed(1)} wks (${strVelocityPctPerWeek.toFixed(1)}%/wk), maintaining ${ros.toFixed(1)} u/wk & ${wos.toFixed(1)} WOS.`
-      };
-    }
-
-    // Path C: Active Replenished Continuity Captain (mature > 12 wks proving live full-price pull)
-    if (
-      str >= b.ESTABLISHED_HERO_MIN_STR &&
-      ros >= b.CONTINUITY_HERO_MIN_ROS &&
-      ros2wk >= b.CONTINUITY_HERO_MIN_2WK_ROS &&
-      wos <= b.CONTINUITY_HERO_MAX_WOS
-    ) {
-      return {
-        speedBand: 'ACTIVE_CONTINUITY_HERO',
-        isQualifiedHero: true,
-        isLaunchShield: false,
-        effectiveTenureWeeks,
-        strVelocityPctPerWeek,
-        hasTenureTelemetry,
-        reason: `Active Continuity Captain: ${str.toFixed(1)}% cumulative STR backed by live ${ros.toFixed(1)} u/wk velocity & tight ${wos.toFixed(1)} WOS.`
-      };
-    }
+  // Multi-Size Apparel Evaluation:
+  // STEP A: Analyze STR %, Sales Speed (ROS), Tenure (1-Month / 4.3w grace), and WOS BEFORE Size Health!
+  if (!hasTenureTelemetry && str >= b.ESTABLISHED_HERO_MIN_STR && ros >= b.ESTABLISHED_HERO_MIN_ROS && wos <= 20.0) {
+    const heroAllowed = params.hasHealthyCoreCurve;
+    return {
+      speedBand: 'FAST_HERO',
+      isQualifiedHero: heroAllowed,
+      isLaunchShield: false,
+      effectiveTenureWeeks: 0,
+      strVelocityPctPerWeek: str,
+      hasTenureTelemetry: false,
+      reason: heroAllowed
+        ? `Core Hero demand verified (STR ${str.toFixed(1)}%, ROS ${ros.toFixed(1)} u/wk, WOS ${wos.toFixed(1)} wks).`
+        : `Fast demand (STR ${str.toFixed(1)}%, ROS ${ros.toFixed(1)} u/wk, WOS ${wos.toFixed(1)} wks) with broken core sizes — routed to scenario check.`
+    };
   }
 
-  // Launch Read Shield (0 - 3.0 wks for non-older seasonal drops)
+  // Path A: 2-Month Drop Breakout (STR >= 50% inside <= 8.7 wks + strong ROS + tight WOS)
+  if (
+    hasTenureTelemetry &&
+    effectiveTenureWeeks <= b.DROP_CADENCE_WEEKS &&
+    str >= b.FAST_HERO_MIN_STR &&
+    ros >= b.FAST_HERO_MIN_ROS &&
+    wos <= b.FAST_HERO_MAX_WOS
+  ) {
+    const heroAllowed = params.hasHealthyCoreCurve;
+    return {
+      speedBand: 'FAST_HERO',
+      isQualifiedHero: heroAllowed,
+      isLaunchShield: false,
+      effectiveTenureWeeks,
+      strVelocityPctPerWeek,
+      hasTenureTelemetry,
+      reason: heroAllowed
+        ? `2-Month Drop Breakout Hero: ${str.toFixed(1)}% STR in ${effectiveTenureWeeks.toFixed(1)} wks (${strVelocityPctPerWeek.toFixed(1)}%/wk) at ${ros.toFixed(1)} u/wk & ${wos.toFixed(1)} WOS.`
+        : `Broken Fast Breakout: ${str.toFixed(1)}% STR in ${effectiveTenureWeeks.toFixed(1)} wks at ${ros.toFixed(1)} u/wk & ${wos.toFixed(1)} WOS, but missing core S/M/L/XL.`
+    };
+  }
+
+  // Path B: Established Fast Hero (STR >= 70% inside <= 12.0 wks + active ROS + <= 14 WOS)
+  if (
+    hasTenureTelemetry &&
+    effectiveTenureWeeks <= b.ESTABLISHED_HERO_MAX_WEEKS &&
+    str >= b.ESTABLISHED_HERO_MIN_STR &&
+    ros >= b.ESTABLISHED_HERO_MIN_ROS &&
+    wos <= b.ESTABLISHED_HERO_MAX_WOS
+  ) {
+    const heroAllowed = params.hasHealthyCoreCurve;
+    return {
+      speedBand: 'FAST_HERO',
+      isQualifiedHero: heroAllowed,
+      isLaunchShield: false,
+      effectiveTenureWeeks,
+      strVelocityPctPerWeek,
+      hasTenureTelemetry,
+      reason: heroAllowed
+        ? `Fast Hero: reached ${str.toFixed(1)}% STR within ${effectiveTenureWeeks.toFixed(1)} wks (${strVelocityPctPerWeek.toFixed(1)}%/wk), maintaining ${ros.toFixed(1)} u/wk & ${wos.toFixed(1)} WOS.`
+        : `Broken Fast Mover: reached ${str.toFixed(1)}% STR within ${effectiveTenureWeeks.toFixed(1)} wks at ${ros.toFixed(1)} u/wk & ${wos.toFixed(1)} WOS, missing core sizes.`
+    };
+  }
+
+  // Path C: Active Replenished Continuity Captain (mature > 12 wks proving live full-price pull)
+  if (
+    str >= b.ESTABLISHED_HERO_MIN_STR &&
+    ros >= b.CONTINUITY_HERO_MIN_ROS &&
+    ros2wk >= b.CONTINUITY_HERO_MIN_2WK_ROS &&
+    wos <= b.CONTINUITY_HERO_MAX_WOS
+  ) {
+    const heroAllowed = params.hasHealthyCoreCurve;
+    return {
+      speedBand: 'ACTIVE_CONTINUITY_HERO',
+      isQualifiedHero: heroAllowed,
+      isLaunchShield: false,
+      effectiveTenureWeeks,
+      strVelocityPctPerWeek,
+      hasTenureTelemetry,
+      reason: heroAllowed
+        ? `Active Continuity Captain: ${str.toFixed(1)}% cumulative STR backed by live ${ros.toFixed(1)} u/wk velocity & tight ${wos.toFixed(1)} WOS.`
+        : `Broken Fast Continuity Mover: ${str.toFixed(1)}% STR & ${ros.toFixed(1)} u/wk velocity (${wos.toFixed(1)} WOS), missing core sizes.`
+    };
+  }
+
+  // Path D: Broken High-Velocity Seller (> 12 wks or WOS 14-20 with >= 2.0 u/wk live pull & >= 50% STR)
+  if (str >= b.BROKEN_FAST_MIN_STR && ros >= b.BROKEN_FAST_MIN_ROS && wos <= b.FAST_HERO_MAX_WOS) {
+    return {
+      speedBand: 'FAST_HERO',
+      isQualifiedHero: params.hasHealthyCoreCurve && ros >= b.FAST_HERO_MIN_ROS,
+      isLaunchShield: false,
+      effectiveTenureWeeks,
+      strVelocityPctPerWeek,
+      hasTenureTelemetry,
+      reason: params.hasHealthyCoreCurve
+        ? `Strong Velocity (${str.toFixed(1)}% STR, ${ros.toFixed(1)} u/wk, ${wos.toFixed(1)} WOS).`
+        : `Broken Fast Mover: ${str.toFixed(1)}% STR & ${ros.toFixed(1)} u/wk velocity (${wos.toFixed(1)} WOS) with missing core sizes.`
+    };
+  }
+
+  // 1-Month Launch Read Shield (0 - 4.3 wks / 30 days for non-older seasonal drops)
   if (hasTenureTelemetry && effectiveTenureWeeks <= b.LAUNCH_SHIELD_WEEKS && !params.isOlderSeason) {
     return {
       speedBand: 'LAUNCH_SHIELD',
@@ -613,12 +650,12 @@ export function evaluateSpeedAndHeroQualification(params: {
       effectiveTenureWeeks,
       strVelocityPctPerWeek,
       hasTenureTelemetry,
-      reason: `Launch Read Window (${effectiveTenureWeeks.toFixed(1)}w <= ${b.LAUNCH_SHIELD_WEEKS}w). Protected while initial drop builds velocity.`
+      reason: `1-Month Launch Read Window (${effectiveTenureWeeks.toFixed(1)}w <= ${b.LAUNCH_SHIELD_WEEKS}w). Protected while initial drop builds velocity.`
     };
   }
 
-  // Medium Mover vs Slow Overstock
-  if (params.hasHealthyCoreCurve && ros >= b.MEDIUM_MIN_ROS && wos <= b.MEDIUM_MAX_WOS) {
+  // Medium Mover vs Slow Overstock (assessed purely on velocity/STR/WOS before size-curve branch)
+  if (ros >= b.MEDIUM_MIN_ROS && wos <= b.MEDIUM_MAX_WOS) {
     const isPastOneDropAndHeavy =
       (effectiveTenureWeeks > b.DROP_CADENCE_WEEKS && (wos > b.MEDIUM_STAGE2B_WOS || str < 40.0)) ||
       wos > b.MEDIUM_STAGE2B_WOS;
